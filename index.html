@@ -7,8 +7,22 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="title-wrapper" aria-labelledby="page-title">
-    <h1 id="page-title">Metadata Audit</h1>
+  <header class="page-header">
+    <h1 class="page-title" id="main-title">Metadata Audit</h1>
+  </header>
+
+  <main class="content" aria-labelledby="main-title">
+    <section class="card" aria-label="SubID entry form">
+      <div class="form-intro">
+        <h2 class="section-title">SubID Entries</h2>
+        <p class="section-hint">Add every SubID required for your audit. Use the plus button to add more fields.</p>
+      </div>
+      <form id="subid-form" class="subid-form" novalidate>
+        <div id="subid-fields" class="subid-fields"></div>
+      </form>
+    </section>
   </main>
+
+  <script src="main.js"></script>
 </body>
 </html>
