@@ -107,7 +107,8 @@ h1 {
   gap: 0.75rem;
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="password"] {
   width: 100%;
   padding: 0.75rem 0.85rem;
   border: 1px solid rgba(61, 61, 61, 0.2);
@@ -116,7 +117,8 @@ input[type="text"] {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="password"]:focus {
   outline: none;
   border-color: var(--pendo-pink);
   box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
@@ -175,150 +177,28 @@ input[type="text"]:focus {
   transform: translateY(1px);
 }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(1px);
-  z-index: 10;
-  transition: opacity 0.2s ease;
-  opacity: 0;
-}
-
-.modal {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 1.5rem;
-  z-index: 11;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-.modal:not([hidden]),
-.modal-backdrop:not([hidden]) {
-  opacity: 1;
-}
-
-.modal:not([hidden]) {
-  transform: translateY(0);
-}
-
-.modal > .credentials-form,
-.modal > .modal-header {
-  width: min(520px, 100%);
-}
-
-.modal > .modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem 1.5rem 0.5rem;
-  background: #fff;
-  border: 1px solid rgba(224, 0, 108, 0.2);
-  border-radius: 18px 18px 0 0;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
-}
-
-.modal-title {
-  margin: 0.35rem 0 0;
-  font-size: 1.3rem;
-}
-
-.modal-hint {
-  margin: 0.35rem 0 0;
-  color: #555;
-}
-
-.eyebrow {
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-size: 0.78rem;
-  color: var(--pendo-pink);
-  font-weight: 700;
-}
-
-.icon-btn {
-  border: none;
-  background: rgba(61, 61, 61, 0.06);
-  color: #3d3d3d;
-  font-size: 1.35rem;
-  border-radius: 12px;
-  width: 42px;
-  height: 42px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-
-.icon-btn:hover {
-  background: rgba(224, 0, 108, 0.12);
-}
-
-.credentials-form {
-  width: min(520px, 100%);
+.credentials-section {
   display: grid;
   gap: 0.5rem;
-  padding: 0 1.5rem 1.5rem;
+  padding: 1.25rem;
+  margin-top: 0.5rem;
+  border: 1px solid rgba(61, 61, 61, 0.08);
+  border-radius: 12px;
+  background: #fdfbfe;
+}
+
+.credentials-title {
   margin: 0;
-  background: #fff;
-  border: 1px solid rgba(224, 0, 108, 0.2);
-  border-top: none;
-  border-radius: 0 0 18px 18px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+  font-size: 1.05rem;
+}
+
+.credentials-hint {
+  margin: 0;
+  color: #505050;
+  font-size: 0.95rem;
 }
 
 .input-label {
   font-weight: 600;
-  margin-top: 0.75rem;
-}
-
-.credentials-form input[type="text"],
-.credentials-form input[type="password"] {
-  border-radius: 12px;
-  border-color: rgba(61, 61, 61, 0.25);
-}
-
-.modal-footer-hint {
-  margin: 0.25rem 0 0;
-  color: #505050;
-  font-size: 0.92rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
   margin-top: 0.5rem;
-}
-
-.ghost-btn,
-.primary-btn {
-  border-radius: 12px;
-  padding: 0.6rem 1.1rem;
-  font-weight: 700;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-}
-
-.ghost-btn {
-  background: #fff;
-  border-color: rgba(61, 61, 61, 0.15);
-}
-
-.ghost-btn:hover {
-  border-color: rgba(224, 0, 108, 0.35);
-}
-
-.primary-btn {
-  background: var(--pendo-pink);
-  color: #fff;
-}
-
-.primary-btn:hover {
-  background: #c9005f;
 }

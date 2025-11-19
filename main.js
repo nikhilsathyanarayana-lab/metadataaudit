@@ -1,32 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
   const fieldsContainer = document.getElementById('subid-fields');
   const launchButton = document.getElementById('launch-button');
-  const credentialsModal = document.getElementById('credentials-modal');
-  const credentialsBackdrop = document.getElementById('credentials-backdrop');
-  const closeCredentials = document.getElementById('close-credentials');
-  const cancelCredentials = document.getElementById('cancel-credentials');
   const integrationKeyInput = document.getElementById('integration-key');
+  const apiSecretInput = document.getElementById('api-secret');
   let subIdCount = 0;
-
-  const hideCredentialsModal = () => {
-    credentialsModal.setAttribute('hidden', '');
-    credentialsBackdrop.setAttribute('hidden', '');
-  };
-
-  const showCredentialsModal = () => {
-    if (launchButton.disabled) return;
-
-    credentialsModal.removeAttribute('hidden');
-    credentialsBackdrop.removeAttribute('hidden');
-
-    if (integrationKeyInput) {
-      integrationKeyInput.focus();
-    }
-  };
 
   const updateLaunchButtonState = () => {
     const firstInput = document.getElementById('subid-1');
-    const isReady = firstInput && firstInput.value.trim().length > 0;
+    const hasSubId = firstInput && firstInput.value.trim().length > 0;
+    const hasIntegrationKey = integrationKeyInput && integrationKeyInput.value.trim().length > 0;
+    const hasApiSecret = apiSecretInput && apiSecretInput.value.trim().length > 0;
+    const isReady = hasSubId && hasIntegrationKey && hasApiSecret;
 
     launchButton.disabled = !isReady;
     launchButton.setAttribute('aria-disabled', String(!isReady));
@@ -86,16 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLaunchButtonState();
   };
 
-  launchButton.addEventListener('click', showCredentialsModal);
-  closeCredentials.addEventListener('click', hideCredentialsModal);
-  cancelCredentials.addEventListener('click', hideCredentialsModal);
-  credentialsBackdrop.addEventListener('click', hideCredentialsModal);
-
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !credentialsModal.hasAttribute('hidden')) {
-      hideCredentialsModal();
-    }
-  });
+  integrationKeyInput?.addEventListener('input', updateLaunchButtonState);
+  integrationKeyInput?.addEventListener('blur', updateLaunchButtonState);
+  apiSecretInput?.addEventListener('input', updateLaunchButtonState);
+  apiSecretInput?.addEventListener('blur', updateLaunchButtonState);
 
   addSubIdField();
 });

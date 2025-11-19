@@ -22,35 +22,20 @@
       </div>
       <form id="subid-form" class="subid-form" novalidate>
         <div id="subid-fields" class="subid-fields"></div>
+
+        <div class="credentials-section" aria-label="Pendo Aggregation API credentials">
+          <h3 class="credentials-title">Pendo Aggregation API</h3>
+          <p class="credentials-hint">Enter the Integration Key and API Secret you will use when calling the Pendo Aggregation API.</p>
+
+          <label class="input-label" for="integration-key">Integration Key</label>
+          <input id="integration-key" name="integrationKey" type="text" placeholder="ex: 123e4567-e89b-12d3-a456-426614174000" autocomplete="off">
+
+          <label class="input-label" for="api-secret">API Secret</label>
+          <input id="api-secret" name="apiSecret" type="password" placeholder="Enter your API secret" autocomplete="off">
+        </div>
       </form>
     </section>
   </main>
-
-  <div class="modal-backdrop" id="credentials-backdrop" hidden></div>
-  <section class="modal" id="credentials-modal" role="dialog" aria-modal="true" aria-labelledby="credentials-title" aria-describedby="credentials-description" hidden>
-    <div class="modal-header">
-      <div>
-        <p class="eyebrow">Pendo Aggregation API</p>
-        <h2 class="modal-title" id="credentials-title">Add API credentials</h2>
-        <p class="modal-hint" id="credentials-description">Enter the Integration Key and API Secret you will use when calling the Pendo Aggregation API.</p>
-      </div>
-      <button class="icon-btn" id="close-credentials" type="button" aria-label="Close credentials dialog">×</button>
-    </div>
-
-    <form class="credentials-form">
-      <label class="input-label" for="integration-key">Integration Key</label>
-      <input id="integration-key" name="integrationKey" type="text" placeholder="ex: 123e4567-e89b-12d3-a456-426614174000" autocomplete="off">
-
-      <label class="input-label" for="api-secret">API Secret</label>
-      <input id="api-secret" name="apiSecret" type="password" placeholder="Enter your API secret" autocomplete="off">
-
-      <p class="modal-footer-hint">Keep these credentials safe. They will be used when launching the Pendo Aggregation API run.</p>
-      <div class="modal-actions">
-        <button class="ghost-btn" type="button" id="cancel-credentials">Cancel</button>
-        <button class="primary-btn" type="button">Save credentials</button>
-      </div>
-    </form>
-  </section>
 
   <script src="main.js"></script>
 </body>
