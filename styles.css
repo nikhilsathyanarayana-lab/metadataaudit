@@ -55,10 +55,17 @@ h1 {
   border-radius: 18px;
 }
 
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
 .form-intro {
   display: grid;
   gap: 0.35rem;
-  margin-bottom: 1.5rem;
 }
 
 .section-title {
@@ -137,5 +144,33 @@ input[type="text"]:focus {
 }
 
 .add-subid-btn:active {
+  transform: translateY(1px);
+}
+
+.launch-btn {
+  align-self: flex-start;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  border: none;
+  background: #d4d4d4;
+  color: #5d5d5d;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: not-allowed;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+.launch-btn:not(:disabled) {
+  background: var(--pendo-charcoal);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+.launch-btn:not(:disabled):hover {
+  background: #2b2b2b;
+}
+
+.launch-btn:not(:disabled):active {
   transform: translateY(1px);
 }
