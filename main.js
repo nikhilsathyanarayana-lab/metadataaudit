@@ -2,15 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const fieldsContainer = document.getElementById('subid-fields');
   const launchButton = document.getElementById('launch-button');
   const integrationKeyInput = document.getElementById('integration-key');
-  const apiSecretInput = document.getElementById('api-secret');
   let subIdCount = 0;
 
   const updateLaunchButtonState = () => {
     const firstInput = document.getElementById('subid-1');
     const hasSubId = firstInput && firstInput.value.trim().length > 0;
     const hasIntegrationKey = integrationKeyInput && integrationKeyInput.value.trim().length > 0;
-    const hasApiSecret = apiSecretInput && apiSecretInput.value.trim().length > 0;
-    const isReady = hasSubId && hasIntegrationKey && hasApiSecret;
+    const isReady = hasSubId && hasIntegrationKey;
 
     launchButton.disabled = !isReady;
     launchButton.setAttribute('aria-disabled', String(!isReady));
@@ -72,8 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   integrationKeyInput?.addEventListener('input', updateLaunchButtonState);
   integrationKeyInput?.addEventListener('blur', updateLaunchButtonState);
-  apiSecretInput?.addEventListener('input', updateLaunchButtonState);
-  apiSecretInput?.addEventListener('blur', updateLaunchButtonState);
 
   addSubIdField();
 });
