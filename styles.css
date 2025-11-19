@@ -11,8 +11,11 @@
 body {
   margin: 0;
   min-height: 100vh;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2.5rem 1.5rem 3rem;
   background: radial-gradient(circle at top left, #ffffff, var(--pendo-light));
   color: var(--pendo-charcoal);
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -24,13 +27,115 @@ h1 {
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--pendo-pink);
-  text-align: center;
+  text-align: left;
 }
 
-.title-wrapper {
-  padding: 3rem 4rem;
+.page-header,
+.content {
+  width: min(960px, 100%);
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.content {
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: 100%;
+  padding: 2.25rem;
   background: #fff;
   border: 1px solid rgba(224, 0, 108, 0.15);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
   border-radius: 18px;
+}
+
+.form-intro {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.5vw, 1.6rem);
+}
+
+.section-hint {
+  margin: 0;
+  color: #5d5d5d;
+  font-size: 0.98rem;
+}
+
+.subid-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.subid-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.subid-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  padding: 1rem;
+  border: 1px solid rgba(61, 61, 61, 0.08);
+  border-radius: 12px;
+  background: #fff7fb;
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(61, 61, 61, 0.2);
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--pendo-pink);
+  box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
+}
+
+.add-subid-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  background: var(--pendo-pink);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.add-subid-btn:hover {
+  background: #c9005f;
+  box-shadow: 0 10px 25px rgba(224, 0, 108, 0.25);
+}
+
+.add-subid-btn:active {
+  transform: translateY(1px);
 }
