@@ -1,6 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
   const fieldsContainer = document.getElementById('subid-fields');
+  const launchButton = document.getElementById('launch-button');
   let subIdCount = 0;
+
+  const updateLaunchButtonState = () => {
+    const firstInput = document.getElementById('subid-1');
+    const isReady = firstInput && firstInput.value.trim().length > 0;
+
+    launchButton.disabled = !isReady;
+    launchButton.setAttribute('aria-disabled', String(!isReady));
+  };
 
   const handleAddSubId = () => {
     addSubIdField();
@@ -40,6 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
     row.append(label, inputGroup);
     fieldsContainer.appendChild(row);
 
+    if (subIdCount === 1) {
+      input.addEventListener('input', updateLaunchButtonState);
+      input.addEventListener('blur', updateLaunchButtonState);
+    }
+
     const existingButton = fieldsContainer.querySelector('.add-subid-btn');
     if (existingButton) {
       existingButton.removeEventListener('click', handleAddSubId);
@@ -47,6 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     inputGroup.appendChild(createAddButton());
+
+    updateLaunchButtonState();
   };
 
   addSubIdField();

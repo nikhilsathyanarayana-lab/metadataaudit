@@ -13,9 +13,12 @@
 
   <main class="content" aria-labelledby="main-title">
     <section class="card" aria-label="SubID entry form">
-      <div class="form-intro">
-        <h2 class="section-title">SubID Entries</h2>
-        <p class="section-hint">Add every SubID required for your audit. Use the plus button to add more fields.</p>
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title">SubID Entries</h2>
+          <p class="section-hint">Add every SubID required for your audit. Use the plus button to add more fields.</p>
+        </div>
+        <button id="launch-button" class="launch-btn" type="button" disabled aria-disabled="true">Launch</button>
       </div>
       <form id="subid-form" class="subid-form" novalidate>
         <div id="subid-fields" class="subid-fields"></div>
