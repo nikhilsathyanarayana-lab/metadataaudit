@@ -34,6 +34,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return button;
     };
 
+    const buildDomainSelect = () => {
+      const select = document.createElement('select');
+      select.className = 'domain-select';
+      select.name = 'pendo-domain[]';
+
+      const domains = [
+        { label: 'pendo.io', value: 'https://app.pendo.io/' },
+        { label: 'eu', value: 'https://app.eu.pendo.io/' },
+        { label: 'us1', value: 'https://us1.app.pendo.io/' },
+        { label: 'jpn', value: 'https://app.jpn.pendo.io/' },
+        { label: 'au', value: 'https://app.au.pendo.io/' },
+        { label: 'HSBC', value: 'https://app.HSBC.pendo.io/' },
+      ];
+
+      domains.forEach(({ label, value }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        select.appendChild(option);
+      });
+
+      return select;
+    };
+
     const addSubIdField = () => {
       subIdCount += 1;
 
@@ -54,7 +78,9 @@ document.addEventListener('DOMContentLoaded', () => {
       input.placeholder = 'Enter SubID';
       input.required = true;
 
-      inputGroup.appendChild(input);
+      const domainSelect = buildDomainSelect();
+
+      inputGroup.append(domainSelect, input);
       row.append(label, inputGroup);
       fieldsContainer.appendChild(row);
 
