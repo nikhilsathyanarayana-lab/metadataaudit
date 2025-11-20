@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metadata Fields</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1 class="page-title" id="metadata-fields-title">Metadata Fields</h1>
+    <p class="section-hint">Review retention counts for each application across the last 180, 30, and 7 days.</p>
+  </header>
+
+  <main class="content" aria-labelledby="metadata-fields-title">
+    <section class="card" aria-label="Metadata fields table">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title">Retention Overview</h2>
+          <p class="section-hint">Track how your apps are performing for every Sub ID across three recent windows.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper" role="region" aria-label="Metadata fields table wrapper" tabindex="0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App ID</th>
+              <th scope="col">App Name</th>
+              <th scope="col">180 days</th>
+              <th scope="col">30 days</th>
+              <th scope="col">7 days</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App ID">APP-001</td>
+              <td data-label="App Name">Pendo Insights</td>
+              <td data-label="180 days">1,240</td>
+              <td data-label="30 days">620</td>
+              <td data-label="7 days">190</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App ID">APP-002</td>
+              <td data-label="App Name">Engage Reports</td>
+              <td data-label="180 days">980</td>
+              <td data-label="30 days">455</td>
+              <td data-label="7 days">132</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">789-101</td>
+              <td data-label="App ID">APP-003</td>
+              <td data-label="App Name">User Journey</td>
+              <td data-label="180 days">1,120</td>
+              <td data-label="30 days">508</td>
+              <td data-label="7 days">168</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
