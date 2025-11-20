@@ -126,6 +126,22 @@ h1 {
   gap: 0.75rem;
 }
 
+.domain-select {
+  min-width: 165px;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(61, 61, 61, 0.2);
+  border-radius: 10px;
+  font-size: 1rem;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.domain-select:focus {
+  outline: none;
+  border-color: var(--pendo-pink);
+  box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
+}
+
 input[type="text"] {
   width: 100%;
   padding: 0.75rem 0.85rem;
