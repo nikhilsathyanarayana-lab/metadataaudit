@@ -213,15 +213,11 @@ input[type="text"]:focus {
 
 .table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(61, 61, 61, 0.08);
-  border-radius: 12px;
-  background: #fff7fb;
 }
 
 .metadata-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 640px;
 }
 
 .metadata-table thead {
@@ -230,7 +226,7 @@ input[type="text"]:focus {
 
 .metadata-table th,
 .metadata-table td {
-  padding: 0.9rem 1rem;
+  padding: 0.85rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid rgba(61, 61, 61, 0.08);
 }
