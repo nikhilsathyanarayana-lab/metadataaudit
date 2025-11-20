@@ -126,6 +126,34 @@ h1 {
   gap: 0.75rem;
 }
 
+.integration-btn {
+  flex-shrink: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 61, 61, 0.2);
+  background: #fff;
+  color: var(--pendo-charcoal);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease, background 0.2s ease;
+}
+
+.integration-btn:hover {
+  border-color: var(--pendo-pink);
+  box-shadow: 0 6px 18px rgba(224, 0, 108, 0.18);
+  background: #fff7fb;
+}
+
+.integration-btn:active {
+  transform: translateY(1px);
+}
+
+.integration-key-value {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #5d5d5d;
+}
+
 .domain-select {
   min-width: 165px;
   padding: 0.75rem 0.85rem;
@@ -376,6 +404,19 @@ input[type="text"]:focus {
 .modal-title {
   margin: 0 0 0.2rem 0;
   font-size: 1.3rem;
+}
+
+.modal-body {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.modal-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
 }
 
 .close-btn {
