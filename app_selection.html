@@ -7,23 +7,23 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="page-header">
+  <header class="page-header" id="app-selection-header">
     <h1 class="page-title" id="app-selection-title">App Selection</h1>
-    <p class="section-hint">Review the applications available for each SubID and select the ones you want to include.</p>
+    <p class="section-hint" id="app-selection-hint">Review the applications available for each SubID and select the ones you want to include.</p>
   </header>
 
-  <main class="content" aria-labelledby="app-selection-title">
-    <section class="card" aria-label="Application selection table">
-      <div class="card-header">
-        <div class="form-intro">
-          <h2 class="section-title">Available Apps</h2>
-          <p class="section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
+  <main class="content" id="app-selection-main" aria-labelledby="app-selection-title">
+    <section class="card" id="app-selection-card" aria-label="Application selection table">
+      <div class="card-header" id="app-selection-card-header">
+        <div class="form-intro" id="app-selection-form-intro">
+          <h2 class="section-title" id="app-selection-section-title">Available Apps</h2>
+          <p class="section-hint" id="app-selection-section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
         </div>
         <button id="app-selection-continue" class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
       </div>
 
-      <div class="table-wrapper" role="region" aria-label="App selection table wrapper" tabindex="0">
-        <table class="data-table">
+      <div class="table-wrapper" id="app-selection-table-wrapper" role="region" aria-label="App selection table wrapper" tabindex="0">
+        <table class="data-table" id="app-selection-table">
           <thead>
             <tr>
               <th scope="col">Sub ID</th>
@@ -31,7 +31,7 @@
               <th scope="col" aria-label="Select app"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="app-selection-table-body">
             <tr>
               <td data-label="Sub ID">123-456</td>
               <td data-label="App ID">APP-001</td>
