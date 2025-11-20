@@ -7,29 +7,29 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="page-header">
-    <div class="header-row">
-      <div class="header-copy">
+  <header class="page-header" id="metadata-deep-dive-header">
+    <div class="header-row" id="metadata-deep-dive-header-row">
+      <div class="header-copy" id="metadata-deep-dive-header-copy">
         <h1 class="page-title" id="metadata-deep-dive-title">Metadata Deep Dive</h1>
-        <p class="section-hint">Explore retention counts with expected format details for every field.</p>
+        <p class="section-hint" id="metadata-deep-dive-hint">Explore retention counts with expected format details for every field.</p>
       </div>
-      <div class="header-actions" aria-label="Metadata actions">
+      <div class="header-actions" id="metadata-deep-dive-actions" aria-label="Metadata actions">
         <button type="button" class="primary-btn" id="export-button">Export</button>
       </div>
     </div>
   </header>
 
-  <main class="content" aria-labelledby="metadata-deep-dive-title">
-    <section class="card" aria-label="Visitor metadata deep dive table">
-      <div class="card-header">
-        <div class="form-intro">
-          <h2 class="section-title">Visitor</h2>
-          <p class="section-hint">Retention counts for visitor metadata across the last 180, 30, and 7 days.</p>
+  <main class="content" id="metadata-deep-dive-main" aria-labelledby="metadata-deep-dive-title">
+    <section class="card" id="visitor-deep-dive-card" aria-label="Visitor metadata deep dive table">
+      <div class="card-header" id="visitor-deep-dive-card-header">
+        <div class="form-intro" id="visitor-deep-dive-form-intro">
+          <h2 class="section-title" id="visitor-deep-dive-section-title">Visitor</h2>
+          <p class="section-hint" id="visitor-deep-dive-section-hint">Retention counts for visitor metadata across the last 180, 30, and 7 days.</p>
         </div>
       </div>
 
-      <div class="table-wrapper" role="region" aria-label="Visitor metadata deep dive table wrapper" tabindex="0">
-        <table class="data-table">
+      <div class="table-wrapper" id="visitor-deep-dive-table-wrapper" role="region" aria-label="Visitor metadata deep dive table wrapper" tabindex="0">
+        <table class="data-table" id="visitor-deep-dive-table">
           <thead>
             <tr>
               <th scope="col">Sub ID</th>
@@ -40,7 +40,7 @@
               <th scope="col">Expected format</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="visitor-deep-dive-table-body">
             <tr>
               <td data-label="Sub ID">123-456</td>
               <td data-label="App ID">APP-001</td>
@@ -94,16 +94,16 @@
       </div>
     </section>
 
-    <section class="card" aria-label="Account metadata deep dive table">
-      <div class="card-header">
-        <div class="form-intro">
-          <h2 class="section-title">Account</h2>
-          <p class="section-hint">Retention counts for account metadata using the same tracking windows.</p>
+    <section class="card" id="account-deep-dive-card" aria-label="Account metadata deep dive table">
+      <div class="card-header" id="account-deep-dive-card-header">
+        <div class="form-intro" id="account-deep-dive-form-intro">
+          <h2 class="section-title" id="account-deep-dive-section-title">Account</h2>
+          <p class="section-hint" id="account-deep-dive-section-hint">Retention counts for account metadata using the same tracking windows.</p>
         </div>
       </div>
 
-      <div class="table-wrapper" role="region" aria-label="Account metadata deep dive table wrapper" tabindex="0">
-        <table class="data-table">
+      <div class="table-wrapper" id="account-deep-dive-table-wrapper" role="region" aria-label="Account metadata deep dive table wrapper" tabindex="0">
+        <table class="data-table" id="account-deep-dive-table">
           <thead>
             <tr>
               <th scope="col">Sub ID</th>
@@ -114,7 +114,7 @@
               <th scope="col">Expected format</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="account-deep-dive-table-body">
             <tr>
               <td data-label="Sub ID">555-202</td>
               <td data-label="App ID">APP-020</td>
