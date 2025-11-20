@@ -68,6 +68,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateLaunchButtonState();
   };
 
+  launchButton?.addEventListener('click', () => {
+    window.location.href = 'app_selection.html';
+  });
+
   integrationKeyInput?.addEventListener('input', updateLaunchButtonState);
   integrationKeyInput?.addEventListener('blur', updateLaunchButtonState);
 
