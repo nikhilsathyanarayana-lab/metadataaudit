@@ -1,4 +1,25 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  const loadModalTemplate = async (templatePath) => {
+    try {
+      const response = await fetch(templatePath);
+
+      if (!response.ok) {
+        throw new Error(`Failed to load modal template: ${response.status}`);
+      }
+
+      const templateHTML = await response.text();
+      const templateWrapper = document.createElement('div');
+      templateWrapper.innerHTML = templateHTML.trim();
+
+      const fragment = document.createDocumentFragment();
+      Array.from(templateWrapper.childNodes).forEach((node) => fragment.appendChild(node));
+
+      document.body.appendChild(fragment);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const initSubIdForm = () => {
     const fieldsContainer = document.getElementById('subid-fields');
     const launchButton = document.getElementById('launch-button');
@@ -154,5 +175,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initSubIdForm();
   initAppSelection();
-  initExportModal();
+
+  const initExportModalWithTemplate = async () => {
+    const exportButton = document.getElementById('export-button');
+
+    if (!exportButton) {
+      return;
+    }
+
+    if (!document.getElementById('export-modal')) {
+      await loadModalTemplate('Modals/export-modal.html');
+    }
+
+    initExportModal();
+  };
+
+  await initExportModalWithTemplate();
 });
