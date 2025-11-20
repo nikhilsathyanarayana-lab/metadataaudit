@@ -23,22 +23,100 @@ document.addEventListener('DOMContentLoaded', async () => {
   const initSubIdForm = () => {
     const fieldsContainer = document.getElementById('subid-fields');
     const launchButton = document.getElementById('launch-button');
-    const integrationKeyInput = document.getElementById('integration-key');
 
     if (!fieldsContainer || !launchButton) {
       return;
     }
 
     let subIdCount = 0;
+    const integrationKeys = new Map();
+    let activeIntegrationRowId = null;
+
+    const integrationModal = document.getElementById('integration-modal');
+    const integrationBackdrop = document.getElementById('integration-backdrop');
+    const integrationInput = document.getElementById('integration-modal-input');
+    const integrationSave = document.getElementById('integration-save');
+    const integrationClosers = document.querySelectorAll('[data-close-integration]');
+
+    if (!integrationModal || !integrationBackdrop || !integrationInput || !integrationSave) {
+      return;
+    }
+
+    const setIntegrationKeyForRow = (rowId, key) => {
+      integrationKeys.set(rowId, key);
+
+      const row = fieldsContainer.querySelector(`[data-subid-row="${rowId}"]`);
+      const keyDisplay = row?.querySelector('.integration-key-value');
+
+      if (row && keyDisplay) {
+        if (key.trim()) {
+          keyDisplay.textContent = `Integration key: ${key}`;
+          keyDisplay.hidden = false;
+        } else {
+          keyDisplay.textContent = '';
+          keyDisplay.hidden = true;
+        }
+      }
+
+      updateLaunchButtonState();
+    };
+
+    const openIntegrationModal = (rowId) => {
+      activeIntegrationRowId = rowId;
+      const existingKey = integrationKeys.get(rowId) || '';
+      integrationInput.value = existingKey;
+
+      integrationModal.hidden = false;
+      integrationBackdrop.hidden = false;
+      integrationModal.classList.add('is-visible');
+      integrationBackdrop.classList.add('is-visible');
+      integrationInput.focus();
+    };
+
+    const closeIntegrationModal = () => {
+      activeIntegrationRowId = null;
+      integrationModal.classList.remove('is-visible');
+      integrationBackdrop.classList.remove('is-visible');
+      integrationModal.hidden = true;
+      integrationBackdrop.hidden = true;
+    };
+
+    integrationSave?.addEventListener('click', () => {
+      if (!activeIntegrationRowId) {
+        return;
+      }
+
+      setIntegrationKeyForRow(activeIntegrationRowId, integrationInput.value.trim());
+      closeIntegrationModal();
+    });
+
+    integrationClosers.forEach((button) =>
+      button.addEventListener('click', () => {
+        closeIntegrationModal();
+      }),
+    );
+
+    integrationBackdrop?.addEventListener('click', closeIntegrationModal);
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && integrationModal?.classList.contains('is-visible')) {
+        closeIntegrationModal();
+      }
+    });
 
     const updateLaunchButtonState = () => {
-      const firstInput = document.getElementById('subid-1');
-      const hasSubId = firstInput && firstInput.value.trim().length > 0;
-      const hasIntegrationKey = integrationKeyInput && integrationKeyInput.value.trim().length > 0;
-      const isReady = hasSubId && hasIntegrationKey;
+      const rows = Array.from(fieldsContainer.querySelectorAll('.subid-row'));
 
-      launchButton.disabled = !isReady;
-      launchButton.setAttribute('aria-disabled', String(!isReady));
+      const allComplete =
+        rows.length > 0 &&
+        rows.every((row) => {
+          const input = row.querySelector('input[name="subid[]"]');
+          const key = integrationKeys.get(row.dataset.subidRow || '');
+          return Boolean(input && input.value.trim() && key && key.trim());
+        });
+
+      launchButton.disabled = !allComplete;
+      launchButton.setAttribute('aria-disabled', String(!allComplete));
     };
 
     const handleAddSubId = () => {
@@ -125,9 +203,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const addSubIdField = () => {
       subIdCount += 1;
+      const rowId = `row-${subIdCount}`;
 
       const row = document.createElement('div');
       row.className = 'subid-row';
+      row.dataset.subidRow = rowId;
 
       const label = document.createElement('label');
       label.setAttribute('for', `subid-${subIdCount}`);
@@ -145,14 +225,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const domainSelect = buildDomainSelect();
 
-      inputGroup.append(domainSelect, input);
+      const integrationButton = document.createElement('button');
+      integrationButton.type = 'button';
+      integrationButton.className = 'integration-btn';
+      integrationButton.textContent = 'Add key';
+      integrationButton.addEventListener('click', () => openIntegrationModal(rowId));
+
+      inputGroup.append(domainSelect, input, integrationButton);
       row.append(label, inputGroup);
+
+      const integrationKeyValue = document.createElement('p');
+      integrationKeyValue.className = 'integration-key-value';
+      integrationKeyValue.hidden = true;
+      row.appendChild(integrationKeyValue);
+
       fieldsContainer.appendChild(row);
 
-      if (subIdCount === 1) {
-        input.addEventListener('input', updateLaunchButtonState);
-        input.addEventListener('blur', updateLaunchButtonState);
-      }
+      input.addEventListener('input', updateLaunchButtonState);
+      input.addEventListener('blur', updateLaunchButtonState);
 
       const existingButton = fieldsContainer.querySelector('.add-subid-btn');
       if (existingButton) {
@@ -166,20 +256,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     launchButton.addEventListener('click', async () => {
-      const integrationKey = integrationKeyInput?.value.trim();
-
-      const domainSelects = fieldsContainer.querySelectorAll('.domain-select');
-      const requests = Array.from(domainSelects).map((select) =>
-        sendAggregationRequest(select.value, integrationKey || ''),
-      );
+      const rows = fieldsContainer.querySelectorAll('.subid-row');
+      const requests = Array.from(rows).map((row) => {
+        const domainSelect = row.querySelector('.domain-select');
+        const key = integrationKeys.get(row.dataset.subidRow || '') || '';
+        return sendAggregationRequest(domainSelect?.value || '', key);
+      });
 
       await Promise.all(requests);
 
       window.location.href = 'app_selection.html';
     });
-
-    integrationKeyInput?.addEventListener('input', updateLaunchButtonState);
-    integrationKeyInput?.addEventListener('blur', updateLaunchButtonState);
 
     addSubIdField();
   };
