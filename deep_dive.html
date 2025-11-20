@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metadata Deep Dive</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="header-row">
+      <div class="header-copy">
+        <h1 class="page-title" id="metadata-deep-dive-title">Metadata Deep Dive</h1>
+        <p class="section-hint">Explore retention counts with expected format details for every field.</p>
+      </div>
+      <div class="header-actions" aria-label="Metadata actions">
+        <button type="button" class="primary-btn" id="export-button">Export</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="content" aria-labelledby="metadata-deep-dive-title">
+    <section class="card" aria-label="Visitor metadata deep dive table">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title">Visitor</h2>
+          <p class="section-hint">Retention counts for visitor metadata across the last 180, 30, and 7 days.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper" role="region" aria-label="Visitor metadata deep dive table wrapper" tabindex="0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App ID</th>
+              <th scope="col">180 days</th>
+              <th scope="col">30 days</th>
+              <th scope="col">7 days</th>
+              <th scope="col">Expected format</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App ID">APP-001</td>
+              <td data-label="180 days">1,240</td>
+              <td data-label="30 days">620</td>
+              <td data-label="7 days">190</td>
+              <td data-label="Expected format">
+                <select class="format-select" aria-label="Expected format for Sub ID 123-456 App ID APP-001">
+                  <option value="email">Email</option>
+                  <option value="name">Name</option>
+                  <option value="full name">Full name</option>
+                  <option value="phone number">Phone number</option>
+                  <option value="unknown" selected>Unknown</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App ID">APP-002</td>
+              <td data-label="180 days">980</td>
+              <td data-label="30 days">455</td>
+              <td data-label="7 days">132</td>
+              <td data-label="Expected format">
+                <select class="format-select" aria-label="Expected format for Sub ID 123-456 App ID APP-002">
+                  <option value="email">Email</option>
+                  <option value="name">Name</option>
+                  <option value="full name">Full name</option>
+                  <option value="phone number">Phone number</option>
+                  <option value="unknown" selected>Unknown</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">789-101</td>
+              <td data-label="App ID">APP-003</td>
+              <td data-label="180 days">1,120</td>
+              <td data-label="30 days">508</td>
+              <td data-label="7 days">168</td>
+              <td data-label="Expected format">
+                <select class="format-select" aria-label="Expected format for Sub ID 789-101 App ID APP-003">
+                  <option value="email">Email</option>
+                  <option value="name">Name</option>
+                  <option value="full name">Full name</option>
+                  <option value="phone number">Phone number</option>
+                  <option value="unknown" selected>Unknown</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Account metadata deep dive table">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title">Account</h2>
+          <p class="section-hint">Retention counts for account metadata using the same tracking windows.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper" role="region" aria-label="Account metadata deep dive table wrapper" tabindex="0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App ID</th>
+              <th scope="col">180 days</th>
+              <th scope="col">30 days</th>
+              <th scope="col">7 days</th>
+              <th scope="col">Expected format</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Sub ID">555-202</td>
+              <td data-label="App ID">APP-020</td>
+              <td data-label="180 days">860</td>
+              <td data-label="30 days">402</td>
+              <td data-label="7 days">134</td>
+              <td data-label="Expected format">
+                <select class="format-select" aria-label="Expected format for Sub ID 555-202 App ID APP-020">
+                  <option value="email">Email</option>
+                  <option value="name">Name</option>
+                  <option value="full name">Full name</option>
+                  <option value="phone number">Phone number</option>
+                  <option value="unknown" selected>Unknown</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">555-202</td>
+              <td data-label="App ID">APP-021</td>
+              <td data-label="180 days">910</td>
+              <td data-label="30 days">448</td>
+              <td data-label="7 days">150</td>
+              <td data-label="Expected format">
+                <select class="format-select" aria-label="Expected format for Sub ID 555-202 App ID APP-021">
+                  <option value="email">Email</option>
+                  <option value="name">Name</option>
+                  <option value="full name">Full name</option>
+                  <option value="phone number">Phone number</option>
+                  <option value="unknown" selected>Unknown</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">333-888</td>
+              <td data-label="App ID">APP-022</td>
+              <td data-label="180 days">1,040</td>
+              <td data-label="30 days">497</td>
+              <td data-label="7 days">176</td>
+              <td data-label="Expected format">
+                <select class="format-select" aria-label="Expected format for Sub ID 333-888 App ID APP-022">
+                  <option value="email">Email</option>
+                  <option value="name">Name</option>
+                  <option value="full name">Full name</option>
+                  <option value="phone number">Phone number</option>
+                  <option value="unknown" selected>Unknown</option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

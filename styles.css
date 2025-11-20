@@ -170,6 +170,23 @@ h1 {
   box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
 }
 
+.format-select {
+  width: 100%;
+  min-width: 170px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(61, 61, 61, 0.2);
+  border-radius: 10px;
+  font-size: 1rem;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.format-select:focus {
+  outline: none;
+  border-color: var(--pendo-pink);
+  box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
+}
+
 input[type="text"] {
   width: 100%;
   padding: 0.75rem 0.85rem;
