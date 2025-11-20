@@ -200,3 +200,13 @@ input[type="text"]:focus {
   font-weight: 600;
   margin-top: 0.5rem;
 }
+
+/* Disable pointer events for popups and modals so they do not block form inputs */
+#credentials-backdrop,
+#credentials-modal,
+.popup,
+.modal,
+.backdrop,
+.bc {
+  pointer-events: none;
+}
