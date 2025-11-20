@@ -210,3 +210,47 @@ input[type="text"]:focus {
 .bc {
   pointer-events: none;
 }
+
+.table-wrapper {
+  overflow-x: auto;
+  border: 1px solid rgba(61, 61, 61, 0.08);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(61, 61, 61, 0.08);
+}
+
+.data-table thead {
+  background: #fdfbfe;
+}
+
+.data-table th {
+  font-weight: 700;
+  color: var(--pendo-charcoal);
+}
+
+.data-table tbody tr:hover {
+  background: #fff7fb;
+}
+
+.checkbox-cell {
+  width: 64px;
+  text-align: center;
+}
+
+.data-table input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pendo-pink);
+}
