@@ -43,7 +43,8 @@ h1 {
 
 .content {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .card {
