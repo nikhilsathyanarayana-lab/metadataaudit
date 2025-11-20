@@ -255,8 +255,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       updateLaunchButtonState();
     };
 
+    const serializeLaunchRows = () =>
+      Array.from(fieldsContainer.querySelectorAll('.subid-row'))
+        .map((row) => {
+          const subIdInput = row.querySelector('input[name="subid[]"]');
+          const domainSelect = row.querySelector('.domain-select');
+          const integrationKey = integrationKeys.get(row.dataset.subidRow || '') || '';
+
+          return {
+            subId: subIdInput?.value.trim() || '',
+            domain: domainSelect?.value || '',
+            integrationKey,
+          };
+        })
+        .filter(({ subId, integrationKey }) => subId && integrationKey);
+
+    const persistSubIdLaunchData = () => {
+      const serializedRows = serializeLaunchRows();
+
+      if (serializedRows.length > 0) {
+        localStorage.setItem('subidLaunchData', JSON.stringify(serializedRows));
+      } else {
+        localStorage.removeItem('subidLaunchData');
+      }
+    };
+
     launchButton.addEventListener('click', async () => {
       const rows = fieldsContainer.querySelectorAll('.subid-row');
+
+      persistSubIdLaunchData();
+
       const requests = Array.from(rows).map((row) => {
         const domainSelect = row.querySelector('.domain-select');
         const key = integrationKeys.get(row.dataset.subidRow || '') || '';
@@ -273,9 +301,100 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const initAppSelection = () => {
     const proceedButton = document.getElementById('app-selection-continue');
+    const tableBody = document.querySelector('.data-table tbody');
+
+    if (!proceedButton || !tableBody) {
+      return;
+    }
+
+    const storageKey = 'subidLaunchData';
+
+    const parseStoredLaunchData = () => {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) {
+          return [];
+        }
+
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+          return [];
+        }
+
+        return parsed.filter((entry) => entry?.subId);
+      } catch (error) {
+        console.error('Unable to load stored SubID data:', error);
+        return [];
+      }
+    };
+
+    const formatDomain = (domain) => {
+      if (!domain) {
+        return 'selected domain';
+      }
+
+      try {
+        return new URL(domain).hostname;
+      } catch (error) {
+        return domain;
+      }
+    };
+
+    const formatIntegrationKey = (key) => {
+      if (!key) {
+        return 'saved key';
+      }
+
+      if (key.length <= 8) {
+        return key;
+      }
+
+      return `${key.slice(0, 4)}…${key.slice(-4)}`;
+    };
+
+    const buildCheckbox = (subId, index) => {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.setAttribute('aria-label', `Select app for Sub ID ${subId}`);
+      checkbox.id = `stored-app-${index}`;
+
+      return checkbox;
+    };
+
+    const populateTableFromStorage = () => {
+      const storedRows = parseStoredLaunchData();
+
+      if (!storedRows.length) {
+        return;
+      }
+
+      tableBody.innerHTML = '';
+
+      storedRows.forEach(({ subId, domain, integrationKey }, index) => {
+        const row = document.createElement('tr');
+
+        const subIdCell = document.createElement('td');
+        subIdCell.dataset.label = 'Sub ID';
+        subIdCell.textContent = subId;
+
+        const appIdCell = document.createElement('td');
+        appIdCell.dataset.label = 'App ID';
+        appIdCell.textContent = `Apps from ${formatDomain(domain)} (${formatIntegrationKey(integrationKey)})`;
+
+        const checkboxCell = document.createElement('td');
+        checkboxCell.className = 'checkbox-cell';
+        checkboxCell.appendChild(buildCheckbox(subId, index));
+
+        row.append(subIdCell, appIdCell, checkboxCell);
+        tableBody.appendChild(row);
+      });
+    };
+
+    populateTableFromStorage();
+
     const checkboxes = document.querySelectorAll('.data-table input[type="checkbox"]');
 
-    if (!proceedButton || checkboxes.length === 0) {
+    if (checkboxes.length === 0) {
       return;
     }
 
