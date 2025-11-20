@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App Selection</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1 class="page-title" id="app-selection-title">App Selection</h1>
+    <p class="section-hint">Review the applications available for each SubID and select the ones you want to include.</p>
+  </header>
+
+  <main class="content" aria-labelledby="app-selection-title">
+    <section class="card" aria-label="Application selection table">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title">Available Apps</h2>
+          <p class="section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper" role="region" aria-label="App selection table wrapper" tabindex="0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App ID</th>
+              <th scope="col">App Name</th>
+              <th scope="col" aria-label="Select app"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App ID">APP-001</td>
+              <td data-label="App Name">Pendo Insights</td>
+              <td class="checkbox-cell"><input type="checkbox" aria-label="Select Pendo Insights for Sub ID 123-456"></td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App ID">APP-002</td>
+              <td data-label="App Name">Engage Reports</td>
+              <td class="checkbox-cell"><input type="checkbox" aria-label="Select Engage Reports for Sub ID 123-456"></td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">789-101</td>
+              <td data-label="App ID">APP-003</td>
+              <td data-label="App Name">User Journey</td>
+              <td class="checkbox-cell"><input type="checkbox" aria-label="Select User Journey for Sub ID 789-101"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
