@@ -13,15 +13,15 @@
   </header>
 
   <main class="content" aria-labelledby="metadata-fields-title">
-    <section class="card" aria-label="Metadata fields table">
+    <section class="card" aria-label="Visitor metadata table">
       <div class="card-header">
         <div class="form-intro">
-          <h2 class="section-title">Retention Overview</h2>
-          <p class="section-hint">Track how your apps are performing for every Sub ID across three recent windows.</p>
+          <h2 class="section-title">Visitor</h2>
+          <p class="section-hint">Retention counts for visitor metadata across the last 180, 30, and 7 days.</p>
         </div>
       </div>
 
-      <div class="table-wrapper" role="region" aria-label="Metadata fields table wrapper" tabindex="0">
+      <div class="table-wrapper" role="region" aria-label="Visitor metadata table wrapper" tabindex="0">
         <table class="data-table">
           <thead>
             <tr>
@@ -57,6 +57,56 @@
               <td data-label="180 days">1,120</td>
               <td data-label="30 days">508</td>
               <td data-label="7 days">168</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-label="Account metadata table">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title">Account</h2>
+          <p class="section-hint">Retention counts for account metadata using the same tracking windows.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper" role="region" aria-label="Account metadata table wrapper" tabindex="0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App ID</th>
+              <th scope="col">App Name</th>
+              <th scope="col">180 days</th>
+              <th scope="col">30 days</th>
+              <th scope="col">7 days</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Sub ID">555-202</td>
+              <td data-label="App ID">APP-020</td>
+              <td data-label="App Name">Tootles Control</td>
+              <td data-label="180 days">860</td>
+              <td data-label="30 days">402</td>
+              <td data-label="7 days">134</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">555-202</td>
+              <td data-label="App ID">APP-021</td>
+              <td data-label="App Name">Tootles Signals</td>
+              <td data-label="180 days">910</td>
+              <td data-label="30 days">448</td>
+              <td data-label="7 days">150</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">333-888</td>
+              <td data-label="App ID">APP-022</td>
+              <td data-label="App Name">Tootles Hub</td>
+              <td data-label="180 days">1,040</td>
+              <td data-label="30 days">497</td>
+              <td data-label="7 days">176</td>
             </tr>
           </tbody>
         </table>
