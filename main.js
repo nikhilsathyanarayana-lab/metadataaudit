@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     let subIdCount = 0;
-    const integrationKeys = new Map();
+    const sessionCookies = new Map();
     let activeIntegrationRowId = null;
 
     const integrationModal = document.getElementById('integration-modal');
@@ -42,15 +42,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const setIntegrationKeyForRow = (rowId, key) => {
-      integrationKeys.set(rowId, key);
+    const setSessionCookieForRow = (rowId, cookie) => {
+      sessionCookies.set(rowId, cookie);
 
       const row = fieldsContainer.querySelector(`[data-subid-row="${rowId}"]`);
       const keyDisplay = row?.querySelector('.integration-key-value');
 
       if (row && keyDisplay) {
-        if (key.trim()) {
-          keyDisplay.textContent = `Integration key: ${key}`;
+        if (cookie.trim()) {
+          keyDisplay.textContent = `Session cookie: ${cookie}`;
           keyDisplay.hidden = false;
         } else {
           keyDisplay.textContent = '';
@@ -63,8 +63,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const openIntegrationModal = (rowId) => {
       activeIntegrationRowId = rowId;
-      const existingKey = integrationKeys.get(rowId) || '';
-      integrationInput.value = existingKey;
+      const existingCookie = sessionCookies.get(rowId) || '';
+      integrationInput.value = existingCookie;
 
       integrationModal.hidden = false;
       integrationBackdrop.hidden = false;
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      setIntegrationKeyForRow(activeIntegrationRowId, integrationInput.value.trim());
+      setSessionCookieForRow(activeIntegrationRowId, integrationInput.value.trim());
       closeIntegrationModal();
     });
 
@@ -111,8 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         rows.length > 0 &&
         rows.every((row) => {
           const input = row.querySelector('input[name="subid[]"]');
-          const key = integrationKeys.get(row.dataset.subidRow || '');
-          return Boolean(input && input.value.trim() && key && key.trim());
+          const cookie = sessionCookies.get(row.dataset.subidRow || '');
+          return Boolean(input && input.value.trim() && cookie && cookie.trim());
         });
 
       launchButton.disabled = !allComplete;
@@ -139,12 +139,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       select.name = 'pendo-domain[]';
 
       const domains = [
-        { label: 'pendo.io', value: 'https://app.pendo.io/' },
-        { label: 'eu', value: 'https://app.eu.pendo.io/' },
-        { label: 'us1', value: 'https://us1.app.pendo.io/' },
-        { label: 'jpn', value: 'https://app.jpn.pendo.io/' },
-        { label: 'au', value: 'https://app.au.pendo.io/' },
-        { label: 'HSBC', value: 'https://app.HSBC.pendo.io/' },
+        { label: 'pendo.io', value: 'app.pendo.io' },
+        { label: 'eu', value: 'app.eu.pendo.io' },
+        { label: 'us1', value: 'us1.app.pendo.io' },
+        { label: 'jpn', value: 'app.jpn.pendo.io' },
+        { label: 'au', value: 'app.au.pendo.io' },
+        { label: 'HSBC', value: 'app.HSBC.pendo.io' },
       ];
 
       domains.forEach(({ label, value }) => {
@@ -184,16 +184,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const integrationButton = document.createElement('button');
       integrationButton.type = 'button';
       integrationButton.className = 'integration-btn';
-      integrationButton.textContent = 'Add key';
+      integrationButton.textContent = 'Add cookie';
       integrationButton.addEventListener('click', () => openIntegrationModal(rowId));
 
       inputGroup.append(domainSelect, input, integrationButton);
       row.append(label, inputGroup);
 
-      const integrationKeyValue = document.createElement('p');
-      integrationKeyValue.className = 'integration-key-value';
-      integrationKeyValue.hidden = true;
-      row.appendChild(integrationKeyValue);
+      const sessionCookieValue = document.createElement('p');
+      sessionCookieValue.className = 'integration-key-value';
+      sessionCookieValue.hidden = true;
+      row.appendChild(sessionCookieValue);
 
       fieldsContainer.appendChild(row);
 
@@ -216,15 +216,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         .map((row) => {
           const subIdInput = row.querySelector('input[name="subid[]"]');
           const domainSelect = row.querySelector('.domain-select');
-          const integrationKey = integrationKeys.get(row.dataset.subidRow || '') || '';
+          const sessionCookie = sessionCookies.get(row.dataset.subidRow || '') || '';
 
           return {
             subId: subIdInput?.value.trim() || '',
             domain: domainSelect?.value || '',
-            integrationKey,
+            sessionCookie,
           };
         })
-        .filter(({ subId, integrationKey }) => subId && integrationKey);
+        .filter(({ subId, sessionCookie }) => subId && sessionCookie);
 
     const persistSubIdLaunchData = () => {
       const serializedRows = serializeLaunchRows();
@@ -302,7 +302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           return [];
         }
 
-        return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey);
+        return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.sessionCookie);
       } catch (error) {
         console.error('Unable to load stored SubID data:', error);
         return [];
@@ -326,21 +326,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
     });
 
-    const buildRequestHeaders = (integrationKey) => ({
+    const buildRequestHeaders = (sessionCookie) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'Accept-Encoding': 'gzip, deflate, br',
       Connection: 'keep-alive',
-      'X-Pendo-Integration-Key': integrationKey,
+      Cookie: `pendo.sess.jwt2=${sessionCookie}`,
     });
 
-    const fetchAppsForEntry = async ({ domain, integrationKey }) => {
-      const endpoint = `${domain.replace(/\/$/, '')}/api/v1/aggregation`;
+    const fetchAppsForEntry = async ({ domain, subId, sessionCookie }) => {
+      const endpoint = `https://aggregations-dot-pendo-io.gke.${domain}/api/s/:${encodeURIComponent(
+        subId,
+      )}/aggregation?all=true&cachepolicy=all:ignore`;
 
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers: buildRequestHeaders(integrationKey),
+          headers: buildRequestHeaders(sessionCookie),
           body: JSON.stringify(buildAppAggregationRequest()),
         });
 
