@@ -334,7 +334,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const fetchAppsForEntry = async ({ domain, subId, sessionCookie }) => {
-      const endpoint = `https://aggregations-dot-pendo-io.gke.${domain}/api/s/:${encodeURIComponent(
+      const endpoint = `https://aggregations-dot-pendo-io.gke.${domain}/api/s/${encodeURIComponent(
         subId,
       )}/aggregation?all=true&cachepolicy=all:ignore`;
 
