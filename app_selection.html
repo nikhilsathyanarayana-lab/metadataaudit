@@ -30,7 +30,9 @@
             <tr>
               <th scope="col">Sub ID</th>
               <th scope="col">App ID</th>
-              <th scope="col" aria-label="Select app"></th>
+              <th scope="col" aria-label="Select app">
+                <input type="checkbox" id="app-selection-select-all" aria-label="Select all apps" />
+              </th>
             </tr>
           </thead>
           <tbody id="app-selection-table-body">
@@ -54,6 +56,6 @@
       </div>
     </section>
   </main>
-  <script src="main.js"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
