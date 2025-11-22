@@ -271,6 +271,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const initAppSelection = () => {
+    const isAppSelectionPage = Boolean(document.getElementById('app-selection-main'));
+
+    if (!isAppSelectionPage) {
+      return;
+    }
+
     const proceedButton = document.getElementById('app-selection-continue');
     const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
     const messageRegion = document.getElementById('app-selection-messages');
