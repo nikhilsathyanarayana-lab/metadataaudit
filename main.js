@@ -330,7 +330,26 @@ document.addEventListener('DOMContentLoaded', async () => {
       Cookie: `pendo.sess.jwt2=${sessionCookie}`,
     });
 
+    const useLiveAggregation = new URLSearchParams(window.location.search).get('live') === 'true';
+    const sampleAggregationPath = 'Aggregations/sample-apps.json';
+
     const fetchAppsForEntry = async ({ domain, subId, sessionCookie }) => {
+      if (!useLiveAggregation) {
+        try {
+          const sampleResponse = await fetch(sampleAggregationPath);
+
+          if (!sampleResponse.ok) {
+            throw new Error(`Failed to load sample aggregation data (${sampleResponse.status})`);
+          }
+
+          const sampleJson = await sampleResponse.json();
+          return sampleJson;
+        } catch (error) {
+          console.error('Sample aggregation data could not be loaded:', error);
+          return null;
+        }
+      }
+
       const baseDomain = domain?.replace(/\/?$/, '') || '';
       const endpoint = `${baseDomain}/api/s/${encodeURIComponent(
         subId,
@@ -502,6 +521,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         proceedButton.setAttribute('aria-disabled', 'true');
         updateProgress(0, 0);
         return;
+      }
+
+      if (!useLiveAggregation && progressBanner) {
+        progressBanner.textContent =
+          'Using bundled sample app data (add ?live=true to the URL to call Pendo APIs).';
       }
 
       clearError();

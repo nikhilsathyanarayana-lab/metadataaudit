@@ -1,0 +1,7 @@
+{
+  "results": [
+    { "appId": "sample-app-alpha" },
+    { "appId": "sample-app-beta" },
+    { "appId": "sample-app-gamma" }
+  ]
+}

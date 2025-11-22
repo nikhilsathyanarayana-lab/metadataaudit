@@ -19,6 +19,10 @@ Metadata Audit is a lightweight web experience that automates the metadata audit
 - **deep_dive.html**: Extends the metadata tables with an additional “Expected format” selector for each row, focusing on deeper inspection and export-only actions.
 - **Modals/export-modal.html**: Provides the export dialog markup (with XLSX and PDF options) that is injected on demand into pages needing download actions.
 
+## Working with app selection data
+- By default, app selection uses bundled sample aggregation data to avoid cross-origin request failures when running the static files locally.
+- To call the live Pendo Aggregation API instead, append `?live=true` to the `app_selection.html` URL (e.g., `app_selection.html?live=true`) and ensure requests are routed through an environment that permits the necessary CORS headers.
+
 ## JavaScript overview (main.js)
 - **loadModalTemplate(templatePath)**: Fetches and injects the export modal HTML when needed, attaching the markup to the document body.
 - **initSubIdForm()**: Drives the landing form experience—building SubID rows with domain selectors, handling integration key modal interactions, persisting launch data to local storage, and dispatching aggregation requests before redirecting to app selection.
