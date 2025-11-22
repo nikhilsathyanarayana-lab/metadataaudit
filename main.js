@@ -20,9 +20,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  const createSpinner = () => {
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    return spinner;
+  };
+
+  const createProcessingDisplay = (targetElement) => {
+    let processing = false;
+
+    const setProcessing = (isProcessing) => {
+      processing = Boolean(isProcessing);
+    };
+
+    const render = (message) => {
+      if (!targetElement) {
+        return;
+      }
+
+      targetElement.innerHTML = '';
+
+      if (processing) {
+        targetElement.appendChild(createSpinner());
+      }
+
+      const text = document.createElement('span');
+      text.textContent = message;
+      targetElement.appendChild(text);
+    };
+
+    return { render, setProcessing };
+  };
+
   const initSubIdForm = () => {
     const fieldsContainer = document.getElementById('subid-fields');
     const launchButton = document.getElementById('launch-button');
+    const launchStatus = document.getElementById('launch-status');
 
     if (!fieldsContainer || !launchButton) {
       return;
@@ -117,6 +151,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       launchButton.disabled = !allComplete;
       launchButton.setAttribute('aria-disabled', String(!allComplete));
+    };
+
+    const launchStatusDisplay = createProcessingDisplay(launchStatus);
+
+    const setFormBusy = (isBusy) => {
+      const controls = fieldsContainer.querySelectorAll('input, select, button');
+
+      controls.forEach((control) => {
+        if (!isBusy && control === launchButton) {
+          return;
+        }
+
+        control.disabled = isBusy;
+        control.setAttribute('aria-disabled', String(isBusy));
+      });
+
+      if (!isBusy) {
+        updateLaunchButtonState();
+      }
     };
 
     const handleAddSubId = () => {
@@ -283,13 +336,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       persistSubIdLaunchData();
 
-      const requests = Array.from(rows).map((row) => {
+      const totalRequests = rows.length;
+
+      setFormBusy(true);
+      launchStatusDisplay.setProcessing(true);
+      launchStatusDisplay.render(
+        `Sending ${totalRequests} request${totalRequests === 1 ? '' : 's'}...`,
+      );
+
+      let completed = 0;
+
+      const requests = Array.from(rows).map(async (row) => {
         const domainSelect = row.querySelector('.domain-select');
         const key = integrationKeys.get(row.dataset.subidRow || '') || '';
-        return sendAggregationRequest(domainSelect?.value || '', key);
+
+        await sendAggregationRequest(domainSelect?.value || '', key);
+        completed += 1;
+
+        launchStatusDisplay.setProcessing(completed < totalRequests);
+        launchStatusDisplay.render(`Fetching data (${completed}/${totalRequests})...`);
       });
 
       await Promise.all(requests);
+
+      launchStatusDisplay.setProcessing(true);
+      launchStatusDisplay.render('Requests complete. Redirecting to app selection...');
 
       window.location.href = 'app_selection.html';
     });
@@ -328,6 +399,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     };
 
+    const progressDisplay = createProcessingDisplay(progressBanner);
+
     const updateProgress = (completed, total) => {
       if (!progressBanner) {
         return;
@@ -338,7 +411,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      progressBanner.textContent = `Fetched ${completed} of ${total}`;
+      const isFetching = completed < total;
+
+      progressDisplay.setProcessing(isFetching);
+      progressDisplay.render(
+        isFetching ? `Fetching apps (${completed}/${total})...` : `Fetched ${completed} of ${total}`,
+      );
     };
 
     const parseStoredLaunchData = () => {
