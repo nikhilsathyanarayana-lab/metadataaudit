@@ -20,9 +20,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   };
 
+  const createSpinner = () => {
+    const spinner = document.createElement('span');
+    spinner.className = 'spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    return spinner;
+  };
+
   const initSubIdForm = () => {
     const fieldsContainer = document.getElementById('subid-fields');
     const launchButton = document.getElementById('launch-button');
+    const launchStatus = document.getElementById('launch-status');
 
     if (!fieldsContainer || !launchButton) {
       return;
@@ -117,6 +125,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       launchButton.disabled = !allComplete;
       launchButton.setAttribute('aria-disabled', String(!allComplete));
+    };
+
+    const renderLaunchStatus = (message, { showSpinner = false } = {}) => {
+      if (!launchStatus) {
+        return;
+      }
+
+      launchStatus.innerHTML = '';
+
+      if (showSpinner) {
+        launchStatus.appendChild(createSpinner());
+      }
+
+      const text = document.createElement('span');
+      text.textContent = message;
+      launchStatus.appendChild(text);
+    };
+
+    const setFormBusy = (isBusy) => {
+      const controls = fieldsContainer.querySelectorAll('input, select, button');
+
+      controls.forEach((control) => {
+        if (!isBusy && control === launchButton) {
+          return;
+        }
+
+        control.disabled = isBusy;
+        control.setAttribute('aria-disabled', String(isBusy));
+      });
+
+      if (!isBusy) {
+        updateLaunchButtonState();
+      }
     };
 
     const handleAddSubId = () => {
@@ -283,13 +324,30 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       persistSubIdLaunchData();
 
-      const requests = Array.from(rows).map((row) => {
+      const totalRequests = rows.length;
+
+      setFormBusy(true);
+      renderLaunchStatus(`Sending ${totalRequests} request${totalRequests === 1 ? '' : 's'}...`, {
+        showSpinner: true,
+      });
+
+      let completed = 0;
+
+      const requests = Array.from(rows).map(async (row) => {
         const domainSelect = row.querySelector('.domain-select');
         const key = integrationKeys.get(row.dataset.subidRow || '') || '';
-        return sendAggregationRequest(domainSelect?.value || '', key);
+
+        await sendAggregationRequest(domainSelect?.value || '', key);
+        completed += 1;
+
+        renderLaunchStatus(`Fetching data (${completed}/${totalRequests})...`, {
+          showSpinner: completed < totalRequests,
+        });
       });
 
       await Promise.all(requests);
+
+      renderLaunchStatus('Requests complete. Redirecting to app selection...', { showSpinner: true });
 
       window.location.href = 'app_selection.html';
     });
@@ -338,7 +396,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      progressBanner.textContent = `Fetched ${completed} of ${total}`;
+      progressBanner.innerHTML = '';
+
+      const isFetching = completed < total;
+
+      if (isFetching) {
+        progressBanner.appendChild(createSpinner());
+      }
+
+      const progressText = document.createElement('span');
+      progressText.textContent = isFetching
+        ? `Fetching apps (${completed}/${total})...`
+        : `Fetched ${completed} of ${total}`;
+
+      progressBanner.appendChild(progressText);
     };
 
     const parseStoredLaunchData = () => {
