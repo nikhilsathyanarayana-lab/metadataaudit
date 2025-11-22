@@ -157,48 +157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return select;
     };
 
-    const buildAggregationRequestBody = () => ({
-      response: { location: 'request', mimeType: 'application/json' },
-      request: {
-        requestId: 'apps-list',
-        pipeline: [
-          {
-            source: {
-              singleEvents: { appId: 'expandAppIds("*")' },
-              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
-            },
-          },
-          { group: { group: ['appId'] } },
-          { select: { appId: 'appId' } },
-        ],
-      },
-    });
-
-    const sendAggregationRequest = async (baseUrl, integrationKey) => {
-      const endpoint = `${baseUrl.replace(/\/$/, '')}/api/v1/aggregation`;
-
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Pendo-Integration-Key': integrationKey,
-          },
-          body: JSON.stringify(buildAggregationRequestBody()),
-        });
-
-        if (!response.ok) {
-          console.error(`Aggregation request failed (${response.status}): ${endpoint}`);
-          return;
-        }
-
-        const data = await response.json();
-        console.log(`Aggregation response for ${endpoint}:`, data);
-      } catch (error) {
-        console.error('Aggregation request encountered an error:', error);
-      }
-    };
-
     const addSubIdField = () => {
       subIdCount += 1;
       const rowId = `row-${subIdCount}`;
@@ -279,17 +237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     launchButton.addEventListener('click', async () => {
-      const rows = fieldsContainer.querySelectorAll('.subid-row');
-
       persistSubIdLaunchData();
-
-      const requests = Array.from(rows).map((row) => {
-        const domainSelect = row.querySelector('.domain-select');
-        const key = integrationKeys.get(row.dataset.subidRow || '') || '';
-        return sendAggregationRequest(domainSelect?.value || '', key);
-      });
-
-      await Promise.all(requests);
 
       window.location.href = 'app_selection.html';
     });
