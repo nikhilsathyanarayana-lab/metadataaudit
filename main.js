@@ -28,6 +28,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fieldsContainer = document.getElementById('subid-fields');
     const launchButton = document.getElementById('launch-button');
 
+    const isSubIdPage = Boolean(fieldsContainer || launchButton || document.getElementById('subid-card'));
+
+    if (!isSubIdPage) {
+      return;
+    }
+
     if (!fieldsContainer || !launchButton) {
       logError('SubID form initialization failed - required elements missing', new Error('Missing fieldsContainer or launchButton'));
       return;
