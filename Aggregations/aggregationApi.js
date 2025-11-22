@@ -38,8 +38,7 @@ export const postAggregationRequest = async (domain, integrationKey, requestBody
     });
 
     if (!response.ok) {
-      const errorText = await response.text().catch(() => '');
-      console.error(`Aggregation request failed (${response.status}) for ${endpoint}`, errorText || undefined);
+      console.error(`Aggregation request failed (${response.status}) for ${endpoint}`);
       return null;
     }
 
