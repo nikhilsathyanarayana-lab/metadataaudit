@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     let subIdCount = 0;
-    const sessionCookies = new Map();
+    const integrationKeys = new Map();
     let activeIntegrationRowId = null;
 
     const integrationModal = document.getElementById('integration-modal');
@@ -42,18 +42,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const setSessionCookieForRow = (rowId, cookie) => {
-      sessionCookies.set(rowId, cookie);
+    const setIntegrationKeyForRow = (rowId, key) => {
+      integrationKeys.set(rowId, key);
 
       const row = fieldsContainer.querySelector(`[data-subid-row="${rowId}"]`);
-      const keyDisplay = row?.querySelector('.integration-status');
+      const keyDisplay = row?.querySelector('.integration-key-value');
 
       if (row && keyDisplay) {
-        const hasCookie = Boolean(cookie.trim());
-        keyDisplay.textContent = hasCookie ? 'Cookie Added' : 'Cookie Required';
-        keyDisplay.classList.toggle('integration-status-added', hasCookie);
-        keyDisplay.classList.toggle('integration-status-required', !hasCookie);
-        keyDisplay.hidden = false;
+        if (key.trim()) {
+          keyDisplay.textContent = `Integration key: ${key}`;
+          keyDisplay.hidden = false;
+        } else {
+          keyDisplay.textContent = '';
+          keyDisplay.hidden = true;
+        }
       }
 
       updateLaunchButtonState();
@@ -61,8 +63,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const openIntegrationModal = (rowId) => {
       activeIntegrationRowId = rowId;
-      const existingCookie = sessionCookies.get(rowId) || '';
-      integrationInput.value = existingCookie;
+      const existingKey = integrationKeys.get(rowId) || '';
+      integrationInput.value = existingKey;
 
       integrationModal.hidden = false;
       integrationBackdrop.hidden = false;
@@ -84,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      setSessionCookieForRow(activeIntegrationRowId, integrationInput.value.trim());
+      setIntegrationKeyForRow(activeIntegrationRowId, integrationInput.value.trim());
       closeIntegrationModal();
     });
 
@@ -109,8 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         rows.length > 0 &&
         rows.every((row) => {
           const input = row.querySelector('input[name="subid[]"]');
-          const cookie = sessionCookies.get(row.dataset.subidRow || '');
-          return Boolean(input && input.value.trim() && cookie && cookie.trim());
+          const key = integrationKeys.get(row.dataset.subidRow || '');
+          return Boolean(input && input.value.trim() && key && key.trim());
         });
 
       launchButton.disabled = !allComplete;
@@ -137,9 +139,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       select.name = 'pendo-domain[]';
 
       const domains = [
-        { label: 'US', value: 'https://aggregations-dot-pendo-io.gke.us.pendo.io' },
-        { label: 'US1', value: 'https://aggregations-dot-pendo-us1.gke.us1.pendo.io' },
-        { label: 'EU', value: 'https://aggregations-dot-pendo-eu.gke.eu.pendo.io' },
+        { label: 'pendo.io', value: 'https://app.pendo.io/' },
+        { label: 'eu', value: 'https://app.eu.pendo.io/' },
+        { label: 'us1', value: 'https://us1.app.pendo.io/' },
+        { label: 'jpn', value: 'https://app.jpn.pendo.io/' },
+        { label: 'au', value: 'https://app.au.pendo.io/' },
+        { label: 'HSBC', value: 'https://app.HSBC.pendo.io/' },
       ];
 
       domains.forEach(({ label, value }) => {
@@ -150,6 +155,48 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       return select;
+    };
+
+    const buildAggregationRequestBody = () => ({
+      response: { location: 'request', mimeType: 'application/json' },
+      request: {
+        requestId: 'apps-list',
+        pipeline: [
+          {
+            source: {
+              singleEvents: { appId: 'expandAppIds("*")' },
+              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+            },
+          },
+          { group: { group: ['appId'] } },
+          { select: { appId: 'appId' } },
+        ],
+      },
+    });
+
+    const sendAggregationRequest = async (baseUrl, integrationKey) => {
+      const endpoint = `${baseUrl.replace(/\/$/, '')}/api/v1/aggregation`;
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Pendo-Integration-Key': integrationKey,
+          },
+          body: JSON.stringify(buildAggregationRequestBody()),
+        });
+
+        if (!response.ok) {
+          console.error(`Aggregation request failed (${response.status}): ${endpoint}`);
+          return;
+        }
+
+        const data = await response.json();
+        console.log(`Aggregation response for ${endpoint}:`, data);
+      } catch (error) {
+        console.error('Aggregation request encountered an error:', error);
+      }
     };
 
     const addSubIdField = () => {
@@ -179,17 +226,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const integrationButton = document.createElement('button');
       integrationButton.type = 'button';
       integrationButton.className = 'integration-btn';
-      integrationButton.textContent = 'Add cookie';
+      integrationButton.textContent = 'Add key';
       integrationButton.addEventListener('click', () => openIntegrationModal(rowId));
 
       inputGroup.append(domainSelect, input, integrationButton);
       row.append(label, inputGroup);
 
-      const sessionCookieValue = document.createElement('p');
-      sessionCookieValue.className = 'integration-key-value integration-status integration-status-required';
-      sessionCookieValue.textContent = 'Cookie Required';
-      sessionCookieValue.hidden = false;
-      row.appendChild(sessionCookieValue);
+      const integrationKeyValue = document.createElement('p');
+      integrationKeyValue.className = 'integration-key-value';
+      integrationKeyValue.hidden = true;
+      row.appendChild(integrationKeyValue);
 
       fieldsContainer.appendChild(row);
 
@@ -212,15 +258,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         .map((row) => {
           const subIdInput = row.querySelector('input[name="subid[]"]');
           const domainSelect = row.querySelector('.domain-select');
-          const sessionCookie = sessionCookies.get(row.dataset.subidRow || '') || '';
+          const integrationKey = integrationKeys.get(row.dataset.subidRow || '') || '';
 
           return {
             subId: subIdInput?.value.trim() || '',
             domain: domainSelect?.value || '',
-            sessionCookie,
+            integrationKey,
           };
         })
-        .filter(({ subId, sessionCookie }) => subId && sessionCookie);
+        .filter(({ subId, integrationKey }) => subId && integrationKey);
 
     const persistSubIdLaunchData = () => {
       const serializedRows = serializeLaunchRows();
@@ -233,7 +279,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     launchButton.addEventListener('click', async () => {
+      const rows = fieldsContainer.querySelectorAll('.subid-row');
+
       persistSubIdLaunchData();
+
+      const requests = Array.from(rows).map((row) => {
+        const domainSelect = row.querySelector('.domain-select');
+        const key = integrationKeys.get(row.dataset.subidRow || '') || '';
+        return sendAggregationRequest(domainSelect?.value || '', key);
+      });
+
+      await Promise.all(requests);
 
       window.location.href = 'app_selection.html';
     });
@@ -246,7 +302,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
     const messageRegion = document.getElementById('app-selection-messages');
     const progressBanner = document.getElementById('app-selection-progress');
-    const selectAllCheckbox = document.getElementById('app-selection-select-all');
 
     if (!proceedButton || !tableBody) {
       return;
@@ -298,7 +353,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           return [];
         }
 
-        return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.sessionCookie);
+        return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey);
       } catch (error) {
         console.error('Unable to load stored SubID data:', error);
         return [];
@@ -322,24 +377,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       },
     });
 
-    const buildRequestHeaders = (sessionCookie) => ({
+    const buildRequestHeaders = (integrationKey) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
       'Accept-Encoding': 'gzip, deflate, br',
       Connection: 'keep-alive',
-      Cookie: `pendo.sess.jwt2=${sessionCookie}`,
+      'X-Pendo-Integration-Key': integrationKey,
     });
 
-    const fetchAppsForEntry = async ({ domain, subId, sessionCookie }) => {
-      const baseDomain = domain?.replace(/\/?$/, '') || '';
-      const endpoint = `${baseDomain}/api/s/${encodeURIComponent(
-        subId,
-      )}/aggregation?all=true&cachepolicy=all:ignore`;
+    const fetchAppsForEntry = async ({ domain, integrationKey }) => {
+      const endpoint = `${domain.replace(/\/$/, '')}/api/v1/aggregation`;
 
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers: buildRequestHeaders(sessionCookie),
+          headers: buildRequestHeaders(integrationKey),
           body: JSON.stringify(buildAppAggregationRequest()),
         });
 
@@ -393,54 +445,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       return checkbox;
     };
 
-    const getRowCheckboxes = () => tableBody.querySelectorAll('input[type="checkbox"]');
-
     const handleProceedState = () => {
-      const checkboxes = getRowCheckboxes();
+      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
       const hasSelection = Array.from(checkboxes).some((box) => box.checked);
       proceedButton.disabled = !hasSelection;
       proceedButton.setAttribute('aria-disabled', String(!hasSelection));
     };
 
-    const updateSelectAllState = () => {
-      if (!selectAllCheckbox) {
-        return;
-      }
-
-      const checkboxes = getRowCheckboxes();
-      const total = checkboxes.length;
-      const checkedCount = Array.from(checkboxes).filter((box) => box.checked).length;
-
-      selectAllCheckbox.disabled = total === 0;
-      selectAllCheckbox.checked = total > 0 && checkedCount === total;
-      selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < total;
-    };
-
-    const handleCheckboxChange = () => {
-      handleProceedState();
-      updateSelectAllState();
-    };
-
     const attachCheckboxListeners = () => {
-      const checkboxes = getRowCheckboxes();
-      checkboxes.forEach((box) => box.addEventListener('change', handleCheckboxChange));
-      handleCheckboxChange();
+      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach((box) => box.addEventListener('change', handleProceedState));
+      handleProceedState();
     };
-
-    selectAllCheckbox?.addEventListener('change', (event) => {
-      const target = event.target;
-
-      if (!(target instanceof HTMLInputElement)) {
-        return;
-      }
-
-      const checkboxes = getRowCheckboxes();
-      checkboxes.forEach((box) => {
-        box.checked = target.checked;
-      });
-
-      handleCheckboxChange();
-    });
 
     const populateTableFromResponses = (responses) => {
       tableBody.innerHTML = '';
@@ -467,7 +483,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         tableBody.appendChild(row);
         proceedButton.disabled = true;
         proceedButton.setAttribute('aria-disabled', 'true');
-        updateSelectAllState();
         return;
       }
 
@@ -533,8 +548,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.href = 'metadata_fields.html';
     });
 
-    attachCheckboxListeners();
-    updateSelectAllState();
     fetchAndPopulate();
   };
 
