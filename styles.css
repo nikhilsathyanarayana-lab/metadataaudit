@@ -175,15 +175,7 @@ h1 {
 .integration-key-value {
   margin: 0;
   font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.integration-status-added {
-  color: #2f855a;
-}
-
-.integration-status-required {
-  color: #c01f3f;
+  color: #5d5d5d;
 }
 
 .domain-select {
