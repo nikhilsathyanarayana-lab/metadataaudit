@@ -46,16 +46,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       sessionCookies.set(rowId, cookie);
 
       const row = fieldsContainer.querySelector(`[data-subid-row="${rowId}"]`);
-      const keyDisplay = row?.querySelector('.integration-key-value');
+      const keyDisplay = row?.querySelector('.integration-status');
 
       if (row && keyDisplay) {
-        if (cookie.trim()) {
-          keyDisplay.textContent = `Session cookie: ${cookie}`;
-          keyDisplay.hidden = false;
-        } else {
-          keyDisplay.textContent = '';
-          keyDisplay.hidden = true;
-        }
+        const hasCookie = Boolean(cookie.trim());
+        keyDisplay.textContent = hasCookie ? 'Cookie Added' : 'Cookie Required';
+        keyDisplay.classList.toggle('integration-status-added', hasCookie);
+        keyDisplay.classList.toggle('integration-status-required', !hasCookie);
+        keyDisplay.hidden = false;
       }
 
       updateLaunchButtonState();
@@ -191,8 +189,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       row.append(label, inputGroup);
 
       const sessionCookieValue = document.createElement('p');
-      sessionCookieValue.className = 'integration-key-value';
-      sessionCookieValue.hidden = true;
+      sessionCookieValue.className = 'integration-key-value integration-status integration-status-required';
+      sessionCookieValue.textContent = 'Cookie Required';
+      sessionCookieValue.hidden = false;
       row.appendChild(sessionCookieValue);
 
       fieldsContainer.appendChild(row);
