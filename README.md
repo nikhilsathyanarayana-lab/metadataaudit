@@ -9,8 +9,7 @@ Metadata Audit is a lightweight web experience that automates the metadata audit
 - `metadata_fields.html`: Displays key metadata fields for the selected apps and provides an export action.
 - `deep_dive.html`: Additional drill-down view reached from the metadata fields screen.
 - `Modals/export-modal.html`: Template injected when users choose to export results.
-- `main.js`: Client-side logic for form handling, modal interactions, navigation between steps, and orchestrating Aggregation API requests with the provided integration keys.
-- `Aggregations/aggregationApi.js`: Shared helpers for building and posting Aggregation API requests, keeping network concerns separate from page wiring.
+- `main.js`: Client-side logic for form handling, modal interactions, navigation between steps, and sending Aggregation API requests with the provided integration keys.
 - `styles.css`: Global styling, layout, and Pendo-inspired theme tokens.
 
 ## HTML page overview
@@ -22,9 +21,9 @@ Metadata Audit is a lightweight web experience that automates the metadata audit
 
 ## JavaScript overview (main.js)
 - **loadModalTemplate(templatePath)**: Fetches and injects the export modal HTML when needed, attaching the markup to the document body.
-- **initSubIdForm()**: Drives the landing form experience—building SubID rows with domain selectors, handling integration key modal interactions, persisting launch data to local storage, and dispatching aggregation requests (via `postAggregationRequest` from `Aggregations/aggregationApi.js`) before redirecting to app selection.
-  - Internal helpers include modal open/close handlers, integration key persistence per row, dynamic add-row controls, Aggregation API request construction, and launch button state management tied to completeness of inputs.
-- **initAppSelection()**: Reads stored launch data, populates the app selection table (including a header checkbox to select all rows), and gates the Continue button behind at least one checked app before redirecting to the metadata fields page.
+- **initSubIdForm()**: Drives the landing form experience—building SubID rows with domain selectors, handling integration key modal interactions, persisting launch data to local storage, and dispatching aggregation requests before redirecting to app selection.
+  - Internal helpers include modal open/close handlers, integration key persistence per row, dynamic add-row controls, Aggregation API request construction (`buildAggregationRequestBody()`), and launch button state management tied to completeness of inputs.
+- **initAppSelection()**: Reads stored launch data, populates the app selection table, and gates the Continue button behind at least one checked app before redirecting to the metadata fields page.
 - **initExportModal()**: Wires up the export dialog (when present) to open/close controls, Escape key handling, backdrop clicks, and logging of the chosen export format.
 - **initDeepDiveNavigation()**: Navigates from the metadata fields page to the deep dive page when the Deep Dive button is clicked.
 - **initExportModalWithTemplate()**: Ensures the export modal template is loaded (injecting it if necessary) and then initializes the modal bindings for pages that present export actions.
