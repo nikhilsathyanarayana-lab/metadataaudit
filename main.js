@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const launchButton = document.getElementById('launch-button');
 
     if (!fieldsContainer || !launchButton) {
+      logError('SubID form initialization failed - required elements missing', new Error('Missing fieldsContainer or launchButton'));
       return;
     }
 
