@@ -46,3 +46,9 @@ The UI uses Pendo's core palette defined in CSS variables:
 ## Languages and packages
 - **Languages**: HTML, CSS, and vanilla JavaScript.
 - **Packages/Dependencies**: No external packages are required; the app relies on browser-native Fetch APIs.
+
+## How data moves between pages
+The static pages share data via `localStorage` so that user inputs entered on the landing page can be reused after navigation:
+- When users click **Launch** on `index.html`, `initSubIdForm()` serializes each row into an object of `{ subId, domain, integrationKey }` and stores the array under the `subidLaunchData` key in `localStorage`. Empty rows or rows missing an integration key are excluded.
+- `app_selection.html` calls `initAppSelection()`, which reads `subidLaunchData`, masks integration keys for display, and builds the selectable table. If nothing is stored, the table remains empty and the Continue button stays disabled.
+- Continuing from app selection simply navigates to `metadata_fields.html` (and optionally `deep_dive.html`), but no additional payload is passed; the initial launch data remains available in `localStorage` for reuse or inspection if needed.
