@@ -137,12 +137,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       select.name = 'pendo-domain[]';
 
       const domains = [
-        { label: 'pendo.io', value: 'app.pendo.io' },
-        { label: 'eu', value: 'app.eu.pendo.io' },
-        { label: 'us1', value: 'us1.app.pendo.io' },
-        { label: 'jpn', value: 'app.jpn.pendo.io' },
-        { label: 'au', value: 'app.au.pendo.io' },
-        { label: 'HSBC', value: 'app.HSBC.pendo.io' },
+        { label: 'US', value: 'https://aggregations-dot-pendo-io.gke.us.pendo.io' },
+        { label: 'US1', value: 'https://aggregations-dot-pendo-us1.gke.us1.pendo.io' },
+        { label: 'EU', value: 'https://aggregations-dot-pendo-eu.gke.eu.pendo.io' },
       ];
 
       domains.forEach(({ label, value }) => {
@@ -334,7 +331,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const fetchAppsForEntry = async ({ domain, subId, sessionCookie }) => {
-      const endpoint = `https://aggregations-dot-pendo-io.gke.${domain}/api/s/${encodeURIComponent(
+      const baseDomain = domain?.replace(/\/?$/, '') || '';
+      const endpoint = `${baseDomain}/api/s/${encodeURIComponent(
         subId,
       )}/aggregation?all=true&cachepolicy=all:ignore`;
 
