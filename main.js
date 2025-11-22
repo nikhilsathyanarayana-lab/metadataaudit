@@ -250,6 +250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
     const messageRegion = document.getElementById('app-selection-messages');
     const progressBanner = document.getElementById('app-selection-progress');
+    const selectAllCheckbox = document.getElementById('app-selection-select-all');
 
     if (!proceedButton || !tableBody) {
       return;
@@ -393,18 +394,54 @@ document.addEventListener('DOMContentLoaded', async () => {
       return checkbox;
     };
 
+    const getRowCheckboxes = () => tableBody.querySelectorAll('input[type="checkbox"]');
+
     const handleProceedState = () => {
-      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+      const checkboxes = getRowCheckboxes();
       const hasSelection = Array.from(checkboxes).some((box) => box.checked);
       proceedButton.disabled = !hasSelection;
       proceedButton.setAttribute('aria-disabled', String(!hasSelection));
     };
 
-    const attachCheckboxListeners = () => {
-      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
-      checkboxes.forEach((box) => box.addEventListener('change', handleProceedState));
-      handleProceedState();
+    const updateSelectAllState = () => {
+      if (!selectAllCheckbox) {
+        return;
+      }
+
+      const checkboxes = getRowCheckboxes();
+      const total = checkboxes.length;
+      const checkedCount = Array.from(checkboxes).filter((box) => box.checked).length;
+
+      selectAllCheckbox.disabled = total === 0;
+      selectAllCheckbox.checked = total > 0 && checkedCount === total;
+      selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < total;
     };
+
+    const handleCheckboxChange = () => {
+      handleProceedState();
+      updateSelectAllState();
+    };
+
+    const attachCheckboxListeners = () => {
+      const checkboxes = getRowCheckboxes();
+      checkboxes.forEach((box) => box.addEventListener('change', handleCheckboxChange));
+      handleCheckboxChange();
+    };
+
+    selectAllCheckbox?.addEventListener('change', (event) => {
+      const target = event.target;
+
+      if (!(target instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const checkboxes = getRowCheckboxes();
+      checkboxes.forEach((box) => {
+        box.checked = target.checked;
+      });
+
+      handleCheckboxChange();
+    });
 
     const populateTableFromResponses = (responses) => {
       tableBody.innerHTML = '';
@@ -431,6 +468,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tableBody.appendChild(row);
         proceedButton.disabled = true;
         proceedButton.setAttribute('aria-disabled', 'true');
+        updateSelectAllState();
         return;
       }
 
@@ -496,6 +534,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.href = 'metadata_fields.html';
     });
 
+    attachCheckboxListeners();
+    updateSelectAllState();
     fetchAndPopulate();
   };
 
