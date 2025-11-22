@@ -164,14 +164,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         pipeline: [
           {
             source: {
-              singleEvents: {
-                appId: 'expandAppIds("*")',
-                timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
-              },
+              singleEvents: { appId: 'expandAppIds("*")' },
+              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
             },
           },
-          { join: { fields: ['appId'] } },
-          { select: { appId: 'appId', appName: 'appName' } },
+          { group: { group: ['appId'] } },
+          { select: { appId: 'appId' } },
         ],
       },
     });
@@ -301,13 +299,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const initAppSelection = () => {
     const proceedButton = document.getElementById('app-selection-continue');
-    const tableBody = document.querySelector('.data-table tbody');
+    const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
+    const messageRegion = document.getElementById('app-selection-messages');
+    const progressBanner = document.getElementById('app-selection-progress');
 
     if (!proceedButton || !tableBody) {
       return;
     }
 
     const storageKey = 'subidLaunchData';
+    const responseStorageKey = 'appSelectionResponses';
+
+    const showError = (message) => {
+      if (!messageRegion) {
+        return;
+      }
+
+      messageRegion.innerHTML = '';
+      const alert = document.createElement('p');
+      alert.className = 'alert';
+      alert.textContent = message;
+      messageRegion.appendChild(alert);
+    };
+
+    const clearError = () => {
+      if (messageRegion) {
+        messageRegion.innerHTML = '';
+      }
+    };
+
+    const updateProgress = (completed, total) => {
+      if (!progressBanner) {
+        return;
+      }
+
+      if (!total) {
+        progressBanner.textContent = '';
+        return;
+      }
+
+      progressBanner.textContent = `Fetched ${completed} of ${total}`;
+    };
 
     const parseStoredLaunchData = () => {
       try {
@@ -321,35 +353,87 @@ document.addEventListener('DOMContentLoaded', async () => {
           return [];
         }
 
-        return parsed.filter((entry) => entry?.subId);
+        return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey);
       } catch (error) {
         console.error('Unable to load stored SubID data:', error);
         return [];
       }
     };
 
-    const formatDomain = (domain) => {
-      if (!domain) {
-        return 'selected domain';
-      }
+    const buildAppAggregationRequest = () => ({
+      response: { location: 'request', mimeType: 'application/json' },
+      request: {
+        requestId: 'apps-list',
+        pipeline: [
+          {
+            source: {
+              singleEvents: { appId: 'expandAppIds("*")' },
+              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+            },
+          },
+          { group: { group: ['appId'] } },
+          { select: { appId: 'appId' } },
+        ],
+      },
+    });
+
+    const buildRequestHeaders = (integrationKey) => ({
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Accept-Encoding': 'gzip, deflate, br',
+      Connection: 'keep-alive',
+      'X-Pendo-Integration-Key': integrationKey,
+    });
+
+    const fetchAppsForEntry = async ({ domain, integrationKey }) => {
+      const endpoint = `${domain.replace(/\/$/, '')}/api/v1/aggregation`;
 
       try {
-        return new URL(domain).hostname;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: buildRequestHeaders(integrationKey),
+          body: JSON.stringify(buildAppAggregationRequest()),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Aggregation request failed (${response.status}) for ${endpoint}`);
+        }
+
+        return await response.json();
       } catch (error) {
-        return domain;
+        console.error('Aggregation request encountered an error:', error);
+        return null;
       }
     };
 
-    const formatIntegrationKey = (key) => {
-      if (!key) {
-        return 'saved key';
+    const extractAppIds = (apiResponse) => {
+      if (!apiResponse) {
+        return [];
       }
 
-      if (key.length <= 8) {
-        return key;
+      const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
+
+      if (Array.isArray(apiResponse)) {
+        candidateLists.push(apiResponse);
       }
 
-      return `${key.slice(0, 4)}…${key.slice(-4)}`;
+      const flattened = candidateLists.filter(Array.isArray).flat();
+
+      const appIds = flattened
+        .map((entry) => {
+          if (typeof entry === 'string') {
+            return entry;
+          }
+
+          if (entry?.appId) {
+            return entry.appId;
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+
+      return Array.from(new Set(appIds));
     };
 
     const buildCheckbox = (subId, index) => {
@@ -361,16 +445,48 @@ document.addEventListener('DOMContentLoaded', async () => {
       return checkbox;
     };
 
-    const populateTableFromStorage = () => {
-      const storedRows = parseStoredLaunchData();
+    const handleProceedState = () => {
+      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+      const hasSelection = Array.from(checkboxes).some((box) => box.checked);
+      proceedButton.disabled = !hasSelection;
+      proceedButton.setAttribute('aria-disabled', String(!hasSelection));
+    };
 
-      if (!storedRows.length) {
+    const attachCheckboxListeners = () => {
+      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+      checkboxes.forEach((box) => box.addEventListener('change', handleProceedState));
+      handleProceedState();
+    };
+
+    const populateTableFromResponses = (responses) => {
+      tableBody.innerHTML = '';
+
+      const rows = [];
+
+      responses.forEach(({ subId, response }) => {
+        const appIds = extractAppIds(response);
+
+        if (!appIds.length) {
+          rows.push({ subId, appId: 'No apps returned' });
+          return;
+        }
+
+        appIds.forEach((appId) => rows.push({ subId, appId }));
+      });
+
+      if (!rows.length) {
+        const row = document.createElement('tr');
+        const emptyCell = document.createElement('td');
+        emptyCell.colSpan = 3;
+        emptyCell.textContent = 'No app data available.';
+        row.appendChild(emptyCell);
+        tableBody.appendChild(row);
+        proceedButton.disabled = true;
+        proceedButton.setAttribute('aria-disabled', 'true');
         return;
       }
 
-      tableBody.innerHTML = '';
-
-      storedRows.forEach(({ subId, domain, integrationKey }, index) => {
+      rows.forEach(({ subId, appId }, index) => {
         const row = document.createElement('tr');
 
         const subIdCell = document.createElement('td');
@@ -379,7 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const appIdCell = document.createElement('td');
         appIdCell.dataset.label = 'App ID';
-        appIdCell.textContent = `Apps from ${formatDomain(domain)} (${formatIntegrationKey(integrationKey)})`;
+        appIdCell.textContent = appId;
 
         const checkboxCell = document.createElement('td');
         checkboxCell.className = 'checkbox-cell';
@@ -388,29 +504,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         row.append(subIdCell, appIdCell, checkboxCell);
         tableBody.appendChild(row);
       });
+
+      attachCheckboxListeners();
     };
 
-    populateTableFromStorage();
+    const fetchAndPopulate = async () => {
+      const storedRows = parseStoredLaunchData();
 
-    const checkboxes = document.querySelectorAll('.data-table input[type="checkbox"]');
+      if (!storedRows.length) {
+        showError('API information not found.');
+        proceedButton.disabled = true;
+        proceedButton.setAttribute('aria-disabled', 'true');
+        updateProgress(0, 0);
+        return;
+      }
 
-    if (checkboxes.length === 0) {
-      return;
-    }
+      clearError();
+      updateProgress(0, storedRows.length);
 
-    const updateProceedState = () => {
-      const hasSelection = Array.from(checkboxes).some((box) => box.checked);
-      proceedButton.disabled = !hasSelection;
-      proceedButton.setAttribute('aria-disabled', String(!hasSelection));
+      let completed = 0;
+      const responses = [];
+
+      for (const entry of storedRows) {
+        const response = await fetchAppsForEntry(entry);
+        completed += 1;
+        updateProgress(completed, storedRows.length);
+
+        responses.push({ ...entry, response });
+      }
+
+      const successfulResponses = responses.filter(({ response }) => Boolean(response));
+
+      if (successfulResponses.length) {
+        localStorage.setItem(responseStorageKey, JSON.stringify(successfulResponses));
+      } else {
+        localStorage.removeItem(responseStorageKey);
+      }
+
+      populateTableFromResponses(successfulResponses);
     };
-
-    checkboxes.forEach((box) => box.addEventListener('change', updateProceedState));
 
     proceedButton.addEventListener('click', () => {
       window.location.href = 'metadata_fields.html';
     });
 
-    updateProceedState();
+    fetchAndPopulate();
   };
 
   const initExportModal = () => {

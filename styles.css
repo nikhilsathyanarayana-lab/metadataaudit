@@ -21,6 +21,30 @@ body {
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+.page-messages,
+.status-banner {
+  width: min(960px, 100%);
+}
+
+.alert {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 0, 108, 0.25);
+  background: #fff0f5;
+  color: #b00020;
+  font-weight: 700;
+  text-align: left;
+}
+
+.status-banner {
+  min-height: 2.25rem;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: #4a4a4a;
+}
+
 h1 {
   margin: 0;
   font-size: clamp(2.5rem, 5vw, 4rem);
