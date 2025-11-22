@@ -31,6 +31,8 @@ export const postAggregationRequest = async (domain, integrationKey, requestBody
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
+      mode: 'cors',
+      credentials: 'include',
       headers: buildRequestHeaders(integrationKey),
       body: JSON.stringify(requestBody),
     });
