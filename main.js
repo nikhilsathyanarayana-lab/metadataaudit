@@ -28,12 +28,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fieldsContainer = document.getElementById('subid-fields');
     const launchButton = document.getElementById('launch-button');
 
-    const isSubIdPage = Boolean(fieldsContainer || launchButton || document.getElementById('subid-card'));
-
-    if (!isSubIdPage) {
-      return;
-    }
-
     if (!fieldsContainer || !launchButton) {
       logError('SubID form initialization failed - required elements missing', new Error('Missing fieldsContainer or launchButton'));
       return;
@@ -277,12 +271,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   const initAppSelection = () => {
-    const isAppSelectionPage = Boolean(document.getElementById('app-selection-main'));
-
-    if (!isAppSelectionPage) {
-      return;
-    }
-
     const proceedButton = document.getElementById('app-selection-continue');
     const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
     const messageRegion = document.getElementById('app-selection-messages');
