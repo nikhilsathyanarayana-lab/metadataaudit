@@ -1,3 +1,11 @@
+import {
+  buildAggregationUrl,
+  buildAppDiscoveryPayload,
+  buildExamplesPayload,
+  buildMetadataFieldsPayload,
+  fetchAggregation,
+} from './Aggregations/aggregationRequests.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
   const loadModalTemplate = async (templatePath) => {
     try {
@@ -826,98 +834,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       return cookieSegment?.split('=')[1] || '';
     };
 
-    const buildAggregationUrl = (envValue, subId) => {
-      const endpointTemplate = envUrls[envValue];
-
-      return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
-    };
-
-    const buildHeaders = (jwtToken) => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Cookie: `pendo.sess.jwt2=${jwtToken}`,
-    });
-
-    const buildAppDiscoveryPayload = () => ({
-      response: { location: 'request', mimeType: 'application/json' },
-      request: {
-        requestId: 'app-discovery',
-        pipeline: [
-          {
-            source: {
-              singleEvents: { appId: 'expandAppIds("*")' },
-              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
-            },
-          },
-          { group: { group: ['appId'] } },
-          { select: { appId: 'appId' } },
-        ],
-      },
-    });
-
-    const buildMetadataFieldsPayload = (windowDays) => ({
-      response: { location: 'request', mimeType: 'application/json' },
-      request: {
-        requestId: `metadata-fields-${windowDays}`,
-        pipeline: [
-          {
-            source: {
-              singleEvents: { appId: 'expandAppIds("*")' },
-              metadata: { account: true, visitor: true },
-              timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
-            },
-          },
-          {
-            select: {
-              appId: 'appId',
-              visitorFields: 'keys(metadata.visitor)',
-              accountFields: 'keys(metadata.account)',
-            },
-          },
-        ],
-      },
-    });
-
-    const buildExamplesPayload = () => ({
-      response: { location: 'request', mimeType: 'application/json' },
-      request: {
-        requestId: 'metadata-examples',
-        pipeline: [
-          {
-            source: {
-              singleEvents: { appId: 'expandAppIds("*")' },
-              metadata: { account: true, visitor: true },
-              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
-            },
-          },
-          {
-            select: {
-              appId: 'appId',
-              examples: 'metadata',
-            },
-          },
-        ],
-      },
-    });
-
-    const fetchAggregation = async (url, payload, jwtToken) => {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: buildHeaders(jwtToken),
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => null);
-        throw new Error(
-          `Aggregation request failed (${response.status}): ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
-        );
-      }
-
-      return response.json();
-    };
-
     const ensureArray = (value) => {
       if (!value) {
         return [];
@@ -1177,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         setStatus('env', 'running', 'Resolving aggregation endpoint…');
-        const aggregationUrl = buildAggregationUrl(envValue, subIdValue);
+        const aggregationUrl = buildAggregationUrl(envUrls, envValue, subIdValue);
 
         if (!aggregationUrl) {
           const summary = 'Unable to resolve the aggregation URL.';
