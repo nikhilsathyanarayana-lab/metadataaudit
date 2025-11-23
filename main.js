@@ -634,6 +634,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const form = document.getElementById('workbook-form');
     const envSelect = document.getElementById('env-choice');
     const subIdInput = document.getElementById('subid-input');
+    const workbookNameInput = document.getElementById('workbook-name-input');
     const cookieInput = document.getElementById('cookie-input');
     const daysSelect = document.getElementById('days-window');
     const examplesToggle = document.getElementById('examples-toggle');
@@ -644,7 +645,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const endpointBlock = document.getElementById('endpoint-block');
     const workbookBlock = document.getElementById('workbook-block');
 
-    if (!form || !envSelect || !subIdInput || !cookieInput || !runButton) {
+    if (!form || !envSelect || !subIdInput || !cookieInput || !runButton || !workbookNameInput) {
       return;
     }
 
@@ -701,7 +702,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       Object.keys(statusSteps).forEach((stepId) => setStatus(stepId, 'pending'));
     };
 
-    const updatePreviews = () => {
+    const getWorkbookName = () => {
+      const subIdValue = subIdInput.value.trim() || '<sub_id>';
+      const workbookValue = workbookNameInput.value.trim();
+
+      return workbookValue || `pendo_metadata_${subIdValue}.xlsx`;
+    };
+
+    let previewTimeout;
+
+    const applyPreviews = () => {
       const subIdValue = subIdInput.value.trim() || '<sub_id>';
       const envValue = envSelect.value;
 
@@ -710,8 +720,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? endpointTemplate.replace('{sub_id}', subIdValue)
         : 'Select an environment to see the URL';
 
-      workbookName.textContent = `pendo_metadata_${subIdValue}.xlsx`;
-      workbookBlock.textContent = `pendo_metadata_${subIdValue}.xlsx`;
+      const workbookLabel = getWorkbookName();
+
+      workbookName.textContent = workbookLabel;
+      workbookBlock.textContent = workbookLabel;
       endpointPreview.textContent = endpointText;
       endpointBlock.textContent = endpointText;
       cookiePreview.textContent = cookieInput.value.trim() ? 'Cookie captured locally' : 'Waiting for cookie';
@@ -719,6 +731,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const ready = Boolean(envValue && subIdInput.value.trim() && cookieInput.value.trim());
       runButton.disabled = !ready;
       runButton.setAttribute('aria-disabled', String(!ready));
+    };
+
+    const updatePreviews = () => {
+      if (previewTimeout) {
+        clearTimeout(previewTimeout);
+      }
+
+      previewTimeout = setTimeout(applyPreviews, 150);
     };
 
     const runSimulation = () => {
@@ -731,6 +751,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const subIdLabel = subIdInput.value.trim() || '<sub_id>';
       const includeExamples = examplesToggle?.value !== 'off';
       const lookback = daysSelect?.value || '180';
+      const workbookLabel = getWorkbookName();
 
       const sequence = [
         { id: 'env', detail: `Resolved ${envLabel} base and Sub ID ${subIdLabel}.`, duration: 500 },
@@ -747,7 +768,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             : 'Skipped meta event examples per settings.',
           duration: 550,
         },
-        { id: 'excel', detail: `Workbook ready: pendo_metadata_${subIdLabel}.xlsx`, duration: 500 },
+        { id: 'excel', detail: `Workbook ready: ${workbookLabel}`, duration: 500 },
       ];
 
       resetStatuses();
@@ -771,7 +792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }, delay + 200);
     };
 
-    [envSelect, subIdInput, cookieInput, daysSelect, examplesToggle].forEach((element) =>
+    [envSelect, subIdInput, workbookNameInput, cookieInput, daysSelect, examplesToggle].forEach((element) =>
       element?.addEventListener('input', updatePreviews),
     );
 
