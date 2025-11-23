@@ -300,6 +300,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const initAppSelection = () => {
     const proceedButton = document.getElementById('app-selection-continue');
     const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
+    const headerCheckbox = document.getElementById('app-selection-header-checkbox');
     const messageRegion = document.getElementById('app-selection-messages');
     const progressBanner = document.getElementById('app-selection-progress');
 
@@ -445,18 +446,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       return checkbox;
     };
 
+    const getBodyCheckboxes = () => tableBody.querySelectorAll('input[type="checkbox"]');
+
+    const updateHeaderCheckboxState = (checkboxes) => {
+      if (!headerCheckbox) {
+        return;
+      }
+
+      const bodyCheckboxes = checkboxes || getBodyCheckboxes();
+
+      if (!bodyCheckboxes.length) {
+        headerCheckbox.checked = false;
+        headerCheckbox.indeterminate = false;
+        headerCheckbox.disabled = true;
+        return;
+      }
+
+      const checkedCount = Array.from(bodyCheckboxes).filter((box) => box.checked).length;
+      headerCheckbox.disabled = false;
+      headerCheckbox.checked = checkedCount === bodyCheckboxes.length;
+      headerCheckbox.indeterminate = checkedCount > 0 && checkedCount < bodyCheckboxes.length;
+    };
+
     const handleProceedState = () => {
-      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+      const checkboxes = getBodyCheckboxes();
       const hasSelection = Array.from(checkboxes).some((box) => box.checked);
       proceedButton.disabled = !hasSelection;
       proceedButton.setAttribute('aria-disabled', String(!hasSelection));
+      updateHeaderCheckboxState(checkboxes);
     };
 
     const attachCheckboxListeners = () => {
-      const checkboxes = tableBody.querySelectorAll('input[type="checkbox"]');
+      const checkboxes = getBodyCheckboxes();
       checkboxes.forEach((box) => box.addEventListener('change', handleProceedState));
       handleProceedState();
     };
+
+    headerCheckbox?.addEventListener('change', () => {
+      const checkboxes = getBodyCheckboxes();
+      checkboxes.forEach((box) => {
+        box.checked = headerCheckbox.checked;
+      });
+      handleProceedState();
+    });
 
     const populateTableFromResponses = (responses) => {
       tableBody.innerHTML = '';
@@ -483,6 +515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tableBody.appendChild(row);
         proceedButton.disabled = true;
         proceedButton.setAttribute('aria-disabled', 'true');
+        updateHeaderCheckboxState();
         return;
       }
 
@@ -548,6 +581,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.location.href = 'metadata_fields.html';
     });
 
+    attachCheckboxListeners();
     fetchAndPopulate();
   };
 
