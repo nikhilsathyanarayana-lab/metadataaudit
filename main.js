@@ -663,11 +663,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         region.id = 'workbook-messages';
         region.className = 'page-messages';
 
+        const progress = document.createElement('p');
+        progress.id = 'workbook-progress';
+        progress.className = 'status-banner';
+        progress.textContent = 'Waiting to start the workbook run.';
+
+        const alert = document.createElement('p');
+        alert.id = 'workbook-errors';
+        alert.className = 'alert';
+        alert.setAttribute('role', 'alert');
+        alert.hidden = true;
+
+        region.append(progress, alert);
+
         const content = document.querySelector('main.content');
         content?.parentNode?.insertBefore(region, content);
 
         return region;
       })();
+
+    const progressIndicator = messageRegion.querySelector('#workbook-progress');
+    const errorAlert = messageRegion.querySelector('#workbook-errors');
 
     const statusSteps = Array.from(document.querySelectorAll('[data-step]')).reduce((acc, element) => {
       const stepId = element.getAttribute('data-step');
@@ -704,6 +720,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           running: 'Running',
           success: 'Done',
           error: 'Error',
+          fail: 'Failed',
         };
 
         step.pill.textContent = labelMap[state] || 'Pending';
@@ -718,23 +735,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       Object.keys(statusSteps).forEach((stepId) => setStatus(stepId, 'pending'));
     };
 
+    const setProgress = (message) => {
+      if (progressIndicator) {
+        progressIndicator.textContent = message;
+      }
+    };
+
     const showMessage = (message, tone = 'error') => {
       if (!messageRegion) {
         return;
       }
 
-      messageRegion.innerHTML = '';
+      if (tone === 'error' && errorAlert) {
+        errorAlert.textContent = message;
+        errorAlert.hidden = false;
+        return;
+      }
 
-      const banner = document.createElement('p');
-      banner.className = tone === 'error' ? 'alert' : 'status-banner';
-      banner.textContent = message;
-
-      messageRegion.appendChild(banner);
+      setProgress(message);
     };
 
     const clearMessage = () => {
-      if (messageRegion) {
-        messageRegion.innerHTML = '';
+      if (errorAlert) {
+        errorAlert.hidden = true;
+        errorAlert.textContent = '';
       }
     };
 
@@ -1089,6 +1113,37 @@ document.addEventListener('DOMContentLoaded', async () => {
       return workbookLibsPromise;
     };
 
+    const summarizeError = (error) => {
+      const rawMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+      const message = rawMessage || 'Unknown workbook error.';
+      const lowered = message.toLowerCase();
+
+      if (lowered.includes('jwt2')) {
+        return 'Missing or invalid pendo.sess.jwt2 cookie.';
+      }
+
+      if (message.includes('401')) {
+        return 'Authentication failed (401). Check the environment and cookie.';
+      }
+
+      if (lowered.includes('failed to fetch') || lowered.includes('network')) {
+        return 'Network error while contacting the Aggregations API.';
+      }
+
+      return message;
+    };
+
+    const markStepFailure = (stepId, error, fallbackDetail) => {
+      const summary = summarizeError(error);
+      const detail = fallbackDetail ? `${fallbackDetail} ${summary}` : summary;
+
+      setStatus(stepId, 'fail', detail);
+      showMessage(summary, 'error');
+      setProgress(`Workbook failed during ${stepId}: ${summary}`);
+
+      return summary;
+    };
+
     const runWorkbook = async () => {
       if (runButton.disabled) {
         return;
@@ -1096,9 +1151,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       clearMessage();
       resetStatuses();
+      setProgress('Running workbook flow…');
       runButton.textContent = 'Running…';
       runButton.disabled = true;
       runButton.setAttribute('aria-disabled', 'true');
+
+      let lastErrorSummary = '';
 
       try {
         const envValue = envSelect.value;
@@ -1108,27 +1166,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lookback = Number(daysSelect?.value || '180');
 
         if (!envValue || !subIdValue || !jwtToken) {
-          setStatus('env', 'error', 'Please provide an environment, Sub ID, and JWT2 cookie.');
-          throw new Error('Environment, Sub ID, and cookie are required.');
+          const summary = !jwtToken
+            ? 'Missing pendo.sess.jwt2 cookie. Paste the cookie before running.'
+            : 'Please provide an environment and Sub ID.';
+
+          setStatus('env', 'fail', summary);
+          showMessage(summary, 'error');
+          setProgress(`Workbook failed: ${summary}`);
+          throw new Error(summary);
         }
 
         setStatus('env', 'running', 'Resolving aggregation endpoint…');
         const aggregationUrl = buildAggregationUrl(envValue, subIdValue);
 
         if (!aggregationUrl) {
-          setStatus('env', 'error', 'Unable to resolve the aggregation URL.');
-          throw new Error('Invalid environment choice.');
+          const summary = 'Unable to resolve the aggregation URL.';
+          setStatus('env', 'fail', summary);
+          showMessage(summary, 'error');
+          setProgress(`Workbook failed: ${summary}`);
+          throw new Error(summary);
         }
 
         setStatus('env', 'success', aggregationUrl);
 
         setStatus('apps', 'running', 'Discovering appIds via expandAppIds("*").');
-        const appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), jwtToken);
+        let appsResponse;
+
+        try {
+          appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), jwtToken);
+        } catch (error) {
+          lastErrorSummary = markStepFailure('apps', error, 'App discovery failed.');
+          throw error;
+        }
+
         const appIds = extractAppIds(appsResponse);
 
         if (!appIds.length) {
-          setStatus('apps', 'error', 'No apps returned for this Sub ID.');
-          throw new Error('No appIds were returned from the aggregation API.');
+          const summary = 'No appIds were returned from the aggregation API.';
+          setStatus('apps', 'fail', 'No apps returned for this Sub ID.');
+          showMessage(summary, 'error');
+          setProgress(`Workbook failed: ${summary}`);
+          lastErrorSummary = summary;
+          throw new Error(summary);
         }
 
         setStatus('apps', 'success', `Found ${appIds.length} app(s) for ${subIdValue}.`);
@@ -1142,8 +1221,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const fieldResponses = [];
 
         for (const windowDays of fieldWindows) {
-          const response = await fetchAggregation(aggregationUrl, buildMetadataFieldsPayload(windowDays), jwtToken);
-          fieldResponses.push({ windowDays, response });
+          try {
+            const response = await fetchAggregation(aggregationUrl, buildMetadataFieldsPayload(windowDays), jwtToken);
+            fieldResponses.push({ windowDays, response });
+          } catch (error) {
+            lastErrorSummary = markStepFailure(
+              'fields',
+              error,
+              `Metadata field fetch failed for the ${windowDays} day window.`,
+            );
+            throw error;
+          }
         }
 
         setStatus('fields', 'success', `Collected metadata fields for ${fieldWindows.join(' & ')} days.`);
@@ -1152,9 +1240,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (includeExamples) {
           setStatus('meta', 'running', 'Requesting metadata value examples.');
-          const examplesResponse = await fetchAggregation(aggregationUrl, buildExamplesPayload(), jwtToken);
-          examplesRows = parseExamples(examplesResponse, subIdValue);
-          setStatus('meta', 'success', `Parsed ${examplesRows.length} example rows.`);
+          try {
+            const examplesResponse = await fetchAggregation(aggregationUrl, buildExamplesPayload(), jwtToken);
+            examplesRows = parseExamples(examplesResponse, subIdValue);
+            setStatus('meta', 'success', `Parsed ${examplesRows.length} example rows.`);
+          } catch (error) {
+            lastErrorSummary = markStepFailure('meta', error, 'Example metadata fetch failed.');
+            throw error;
+          }
         } else {
           setStatus('meta', 'success', 'Skipped meta event examples per settings.');
         }
@@ -1193,19 +1286,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         setStatus('excel', 'success', `Workbook ready: ${workbookLabel}`);
         showMessage(`Workbook downloaded as ${workbookLabel}.`, 'info');
+        setProgress(`Workbook downloaded as ${workbookLabel}.`);
       } catch (error) {
         console.error('Workbook run failed:', error);
-        const message = error instanceof Error ? error.message : 'Unknown error while running workbook.';
+        const message = summarizeError(error);
+        lastErrorSummary = lastErrorSummary || message;
         showMessage(message, 'error');
+        setProgress(`Workbook failed: ${message}`);
 
         ['env', 'apps', 'fields', 'meta', 'excel'].forEach((stepId) => {
           const step = statusSteps[stepId];
           if (step?.element.dataset.status === 'running' || step?.element.dataset.status === 'pending') {
-            setStatus(stepId, 'error', message);
+            setStatus(stepId, 'fail', message);
           }
         });
       } finally {
-        runButton.textContent = 'Run workbook';
+        const truncatedError = lastErrorSummary && lastErrorSummary.length > 90
+          ? `${lastErrorSummary.slice(0, 87)}…`
+          : lastErrorSummary;
+
+        runButton.textContent = truncatedError ? `Retry run (${truncatedError})` : 'Run workbook';
+
+        if (truncatedError) {
+          runButton.setAttribute('aria-label', `Retry workbook run. Last error: ${truncatedError}`);
+        } else {
+          runButton.removeAttribute('aria-label');
+        }
         runButton.disabled = false;
         runButton.setAttribute('aria-disabled', 'false');
         updatePreviews();
