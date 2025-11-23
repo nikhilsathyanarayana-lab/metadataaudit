@@ -649,10 +649,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
+    runButton.textContent = 'Run workbook';
+
     const envUrls = {
       eu: 'https://aggregations-dot-pendo-eu.gke.eu.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
       us: 'https://aggregations-dot-pendo-io.gke.us.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
     };
+
+    const messageRegion =
+      document.getElementById('workbook-messages') ||
+      (() => {
+        const region = document.createElement('div');
+        region.id = 'workbook-messages';
+        region.className = 'page-messages';
+
+        const content = document.querySelector('main.content');
+        content?.parentNode?.insertBefore(region, content);
+
+        return region;
+      })();
 
     const statusSteps = Array.from(document.querySelectorAll('[data-step]')).reduce((acc, element) => {
       const stepId = element.getAttribute('data-step');
@@ -688,6 +703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           pending: 'Pending',
           running: 'Running',
           success: 'Done',
+          error: 'Error',
         };
 
         step.pill.textContent = labelMap[state] || 'Pending';
@@ -700,6 +716,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const resetStatuses = () => {
       Object.keys(statusSteps).forEach((stepId) => setStatus(stepId, 'pending'));
+    };
+
+    const showMessage = (message, tone = 'error') => {
+      if (!messageRegion) {
+        return;
+      }
+
+      messageRegion.innerHTML = '';
+
+      const banner = document.createElement('p');
+      banner.className = tone === 'error' ? 'alert' : 'status-banner';
+      banner.textContent = message;
+
+      messageRegion.appendChild(banner);
+    };
+
+    const clearMessage = () => {
+      if (messageRegion) {
+        messageRegion.innerHTML = '';
+      }
     };
 
     const getWorkbookName = () => {
@@ -741,55 +777,439 @@ document.addEventListener('DOMContentLoaded', async () => {
       previewTimeout = setTimeout(applyPreviews, 150);
     };
 
-    const runSimulation = () => {
+    const extractJwtToken = (rawCookie) => {
+      const trimmed = rawCookie.trim();
+
+      if (!trimmed) {
+        return '';
+      }
+
+      const regexMatch = trimmed.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
+
+      if (regexMatch?.[1]) {
+        return regexMatch[1].trim();
+      }
+
+      if (!trimmed.includes('=')) {
+        return trimmed;
+      }
+
+      const cookieSegment = trimmed
+        .split(';')
+        .map((segment) => segment.trim())
+        .find((segment) => segment.toLowerCase().startsWith('pendo.sess.jwt2='));
+
+      return cookieSegment?.split('=')[1] || '';
+    };
+
+    const buildAggregationUrl = (envValue, subId) => {
+      const endpointTemplate = envUrls[envValue];
+
+      return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
+    };
+
+    const buildHeaders = (jwtToken) => ({
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      Cookie: `pendo.sess.jwt2=${jwtToken}`,
+    });
+
+    const buildAppDiscoveryPayload = () => ({
+      response: { location: 'request', mimeType: 'application/json' },
+      request: {
+        requestId: 'app-discovery',
+        pipeline: [
+          {
+            source: {
+              singleEvents: { appId: 'expandAppIds("*")' },
+              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+            },
+          },
+          { group: { group: ['appId'] } },
+          { select: { appId: 'appId' } },
+        ],
+      },
+    });
+
+    const buildMetadataFieldsPayload = (windowDays) => ({
+      response: { location: 'request', mimeType: 'application/json' },
+      request: {
+        requestId: `metadata-fields-${windowDays}`,
+        pipeline: [
+          {
+            source: {
+              singleEvents: { appId: 'expandAppIds("*")' },
+              metadata: { account: true, visitor: true },
+              timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+            },
+          },
+          {
+            select: {
+              appId: 'appId',
+              visitorFields: 'keys(metadata.visitor)',
+              accountFields: 'keys(metadata.account)',
+            },
+          },
+        ],
+      },
+    });
+
+    const buildExamplesPayload = () => ({
+      response: { location: 'request', mimeType: 'application/json' },
+      request: {
+        requestId: 'metadata-examples',
+        pipeline: [
+          {
+            source: {
+              singleEvents: { appId: 'expandAppIds("*")' },
+              metadata: { account: true, visitor: true },
+              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+            },
+          },
+          {
+            select: {
+              appId: 'appId',
+              examples: 'metadata',
+            },
+          },
+        ],
+      },
+    });
+
+    const fetchAggregation = async (url, payload, jwtToken) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: buildHeaders(jwtToken),
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => null);
+        throw new Error(
+          `Aggregation request failed (${response.status}): ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
+        );
+      }
+
+      return response.json();
+    };
+
+    const ensureArray = (value) => {
+      if (!value) {
+        return [];
+      }
+
+      if (Array.isArray(value)) {
+        return value;
+      }
+
+      if (typeof value === 'object') {
+        return Object.values(value);
+      }
+
+      if (typeof value === 'string') {
+        return value.split(',').map((entry) => entry.trim());
+      }
+
+      return [];
+    };
+
+    const extractAppIds = (apiResponse) => {
+      const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
+
+      if (Array.isArray(apiResponse)) {
+        candidateLists.push(apiResponse);
+      }
+
+      const flattened = candidateLists.filter(Array.isArray).flat();
+
+      const appIds = flattened
+        .map((entry) => {
+          if (typeof entry === 'string') {
+            return entry;
+          }
+
+          if (entry?.appId) {
+            return entry.appId;
+          }
+
+          if (entry?.id) {
+            return entry.id;
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+
+      return Array.from(new Set(appIds));
+    };
+
+    const normalizeFields = (value) => {
+      if (!value) {
+        return [];
+      }
+
+      if (Array.isArray(value)) {
+        return value.map((field) => (typeof field === 'string' ? field : JSON.stringify(field))).filter(Boolean);
+      }
+
+      if (typeof value === 'object') {
+        return Object.keys(value);
+      }
+
+      if (typeof value === 'string') {
+        return value.split(',').map((field) => field.trim()).filter(Boolean);
+      }
+
+      return [];
+    };
+
+    const parseMetadataFields = (response, subId, windowDays) => {
+      const rows = [];
+      const records = ensureArray(response?.results).length ? ensureArray(response?.results) : ensureArray(response);
+
+      records.forEach((record) => {
+        const appId = record?.appId || record?.id || record?.app || 'Unknown app';
+        const visitorFields = normalizeFields(record?.visitorFields || record?.visitor || record?.visitorMetadata);
+        const accountFields = normalizeFields(record?.accountFields || record?.account || record?.accountMetadata);
+
+        visitorFields.forEach((field) =>
+          rows.push({ SubID: subId, AppID: appId, Scope: 'visitor', Field: field, WindowDays: windowDays }),
+        );
+
+        accountFields.forEach((field) =>
+          rows.push({ SubID: subId, AppID: appId, Scope: 'account', Field: field, WindowDays: windowDays }),
+        );
+      });
+
+      if (!rows.length && response) {
+        rows.push({
+          SubID: subId,
+          AppID: 'n/a',
+          Scope: 'visitor/account',
+          Field: 'No fields parsed',
+          WindowDays: windowDays,
+          Raw: JSON.stringify(response).slice(0, 2000),
+        });
+      }
+
+      return rows;
+    };
+
+    const parseExamples = (response, subId) => {
+      const rows = [];
+      const records = ensureArray(response?.results).length ? ensureArray(response?.results) : ensureArray(response);
+
+      records.forEach((record) => {
+        const appId = record?.appId || record?.id || record?.app || 'Unknown app';
+        const examples = ensureArray(record?.examples || record?.metadata || record?.values);
+
+        examples.forEach((example) => {
+          const fieldKey = example?.key || example?.field || example?.name || example?.id;
+          const exampleValue =
+            example?.value !== undefined
+              ? example.value
+              : example?.example ?? example?.sample ?? JSON.stringify(example ?? {});
+          const count = example?.count || example?.total || example?.occurrences || '';
+
+          if (fieldKey) {
+            rows.push({
+              SubID: subId,
+              AppID: appId,
+              Field: fieldKey,
+              Example: typeof exampleValue === 'string' ? exampleValue : JSON.stringify(exampleValue),
+              Count: count,
+            });
+          }
+        });
+
+        if (!examples.length && (record?.visitor || record?.account)) {
+          const visitorExamples = record?.visitor || {};
+          Object.entries(visitorExamples).forEach(([key, value]) =>
+            rows.push({
+              SubID: subId,
+              AppID: appId,
+              Field: key,
+              Example: typeof value === 'string' ? value : JSON.stringify(value),
+              Count: '',
+            }),
+          );
+
+          const accountExamples = record?.account || {};
+          Object.entries(accountExamples).forEach(([key, value]) =>
+            rows.push({
+              SubID: subId,
+              AppID: appId,
+              Field: key,
+              Example: typeof value === 'string' ? value : JSON.stringify(value),
+              Count: '',
+            }),
+          );
+        }
+      });
+
+      if (!rows.length && response) {
+        rows.push({
+          SubID: subId,
+          AppID: 'n/a',
+          Field: 'No examples returned',
+          Example: 'Examples were requested but no fields were parsed.',
+          Count: '',
+        });
+      }
+
+      return rows;
+    };
+
+    let workbookLibsPromise;
+
+    const loadScript = (src, globalName) =>
+      new Promise((resolve, reject) => {
+        if (globalName && window[globalName]) {
+          resolve(window[globalName]);
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve(window[globalName]);
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.head.appendChild(script);
+      });
+
+    const ensureWorkbookLibs = () => {
+      if (!workbookLibsPromise) {
+        workbookLibsPromise = Promise.all([
+          loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'XLSX'),
+          loadScript('https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs'),
+        ]);
+      }
+
+      return workbookLibsPromise;
+    };
+
+    const runWorkbook = async () => {
       if (runButton.disabled) {
         return;
       }
 
-      let delay = 0;
-      const envLabel = envSelect.value === 'eu' ? 'EU' : 'US';
-      const subIdLabel = subIdInput.value.trim() || '<sub_id>';
-      const includeExamples = examplesToggle?.value !== 'off';
-      const lookback = daysSelect?.value || '180';
-      const workbookLabel = getWorkbookName();
-
-      const sequence = [
-        { id: 'env', detail: `Resolved ${envLabel} base and Sub ID ${subIdLabel}.`, duration: 500 },
-        { id: 'apps', detail: 'Requested appIds via expandAppIds("*") on the 7-day window.', duration: 550 },
-        {
-          id: 'fields',
-          detail: `Collected visitor/account fields for 7d and ${lookback}d windows.`,
-          duration: 650,
-        },
-        {
-          id: 'meta',
-          detail: includeExamples
-            ? 'Captured 7d meta event values for examples tab.'
-            : 'Skipped meta event examples per settings.',
-          duration: 550,
-        },
-        { id: 'excel', detail: `Workbook ready: ${workbookLabel}`, duration: 500 },
-      ];
-
+      clearMessage();
       resetStatuses();
       runButton.textContent = 'Running…';
       runButton.disabled = true;
       runButton.setAttribute('aria-disabled', 'true');
 
-      sequence.forEach(({ id, detail, duration }) => {
-        const start = delay;
-        const finish = delay + duration;
+      try {
+        const envValue = envSelect.value;
+        const subIdValue = subIdInput.value.trim();
+        const jwtToken = extractJwtToken(cookieInput.value);
+        const includeExamples = examplesToggle?.value !== 'off';
+        const lookback = Number(daysSelect?.value || '180');
 
-        setTimeout(() => setStatus(id, 'running'), start);
-        setTimeout(() => setStatus(id, 'success', detail), finish);
+        if (!envValue || !subIdValue || !jwtToken) {
+          setStatus('env', 'error', 'Please provide an environment, Sub ID, and JWT2 cookie.');
+          throw new Error('Environment, Sub ID, and cookie are required.');
+        }
 
-        delay = finish + 150;
-      });
+        setStatus('env', 'running', 'Resolving aggregation endpoint…');
+        const aggregationUrl = buildAggregationUrl(envValue, subIdValue);
 
-      setTimeout(() => {
-        runButton.textContent = 'Simulate run';
+        if (!aggregationUrl) {
+          setStatus('env', 'error', 'Unable to resolve the aggregation URL.');
+          throw new Error('Invalid environment choice.');
+        }
+
+        setStatus('env', 'success', aggregationUrl);
+
+        setStatus('apps', 'running', 'Discovering appIds via expandAppIds("*").');
+        const appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), jwtToken);
+        const appIds = extractAppIds(appsResponse);
+
+        if (!appIds.length) {
+          setStatus('apps', 'error', 'No apps returned for this Sub ID.');
+          throw new Error('No appIds were returned from the aggregation API.');
+        }
+
+        setStatus('apps', 'success', `Found ${appIds.length} app(s) for ${subIdValue}.`);
+
+        setStatus('fields', 'running', `Requesting metadata fields for 7d${lookback !== 7 ? ` and ${lookback}d` : ''}.`);
+        const fieldWindows = [7];
+        if (lookback !== 7) {
+          fieldWindows.push(lookback);
+        }
+
+        const fieldResponses = [];
+
+        for (const windowDays of fieldWindows) {
+          const response = await fetchAggregation(aggregationUrl, buildMetadataFieldsPayload(windowDays), jwtToken);
+          fieldResponses.push({ windowDays, response });
+        }
+
+        setStatus('fields', 'success', `Collected metadata fields for ${fieldWindows.join(' & ')} days.`);
+
+        let examplesRows = [];
+
+        if (includeExamples) {
+          setStatus('meta', 'running', 'Requesting metadata value examples.');
+          const examplesResponse = await fetchAggregation(aggregationUrl, buildExamplesPayload(), jwtToken);
+          examplesRows = parseExamples(examplesResponse, subIdValue);
+          setStatus('meta', 'success', `Parsed ${examplesRows.length} example rows.`);
+        } else {
+          setStatus('meta', 'success', 'Skipped meta event examples per settings.');
+        }
+
+        const fieldsRows = fieldResponses.flatMap(({ windowDays, response }) =>
+          parseMetadataFields(response, subIdValue, windowDays),
+        );
+
+        setStatus('excel', 'running', 'Building workbook…');
+        await ensureWorkbookLibs();
+
+        const workbook = XLSX.utils.book_new();
+
+        const fieldsSheet = XLSX.utils.json_to_sheet(
+          fieldsRows.length ? fieldsRows : [{ Note: 'No metadata fields returned from the Aggregations API.' }],
+        );
+        XLSX.utils.book_append_sheet(workbook, fieldsSheet, 'Fields');
+
+        const examplesSheet = XLSX.utils.json_to_sheet(
+          includeExamples
+            ? examplesRows.length
+              ? examplesRows
+              : [{ Note: 'Examples were requested but no values were parsed.' }]
+            : [{ Note: 'Examples were skipped per settings.' }],
+        );
+        XLSX.utils.book_append_sheet(workbook, examplesSheet, 'Examples');
+
+        const workbookLabel = getWorkbookName();
+        const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        saveAs(
+          new Blob([workbookArray], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          }),
+          workbookLabel,
+        );
+
+        setStatus('excel', 'success', `Workbook ready: ${workbookLabel}`);
+        showMessage(`Workbook downloaded as ${workbookLabel}.`, 'info');
+      } catch (error) {
+        console.error('Workbook run failed:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error while running workbook.';
+        showMessage(message, 'error');
+
+        ['env', 'apps', 'fields', 'meta', 'excel'].forEach((stepId) => {
+          const step = statusSteps[stepId];
+          if (step?.element.dataset.status === 'running' || step?.element.dataset.status === 'pending') {
+            setStatus(stepId, 'error', message);
+          }
+        });
+      } finally {
+        runButton.textContent = 'Run workbook';
+        runButton.disabled = false;
+        runButton.setAttribute('aria-disabled', 'false');
         updatePreviews();
-      }, delay + 200);
+      }
     };
 
     [envSelect, subIdInput, workbookNameInput, cookieInput, daysSelect, examplesToggle].forEach((element) =>
@@ -798,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     runButton.addEventListener('click', (event) => {
       event.preventDefault();
-      runSimulation();
+      runWorkbook();
     });
 
     updatePreviews();
