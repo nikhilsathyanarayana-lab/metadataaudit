@@ -21,6 +21,44 @@ body {
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+.global-nav {
+  width: min(960px, 100%);
+  padding: 0.5rem 0.85rem;
+  background: #fff;
+  border: 1px solid rgba(224, 0, 108, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-link {
+  color: var(--pendo-charcoal);
+  text-decoration: none;
+  font-weight: 700;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nav-link:hover {
+  color: var(--pendo-pink);
+  background: #fff7fb;
+  border-color: rgba(224, 0, 108, 0.25);
+  box-shadow: 0 6px 18px rgba(224, 0, 108, 0.16);
+}
+
+.nav-link[aria-current="page"] {
+  color: var(--pendo-pink);
+  background: #fff0f5;
+  border-color: rgba(224, 0, 108, 0.35);
+}
+
 .page-messages,
 .status-banner {
   width: min(960px, 100%);
