@@ -88,8 +88,6 @@ $statusCode = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: 500;
 $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'application/json';
 $error = curl_error($ch);
 
-curl_close($ch);
-
 if ($responseBody === false) {
     http_response_code(502);
     echo json_encode(['error' => 'Failed to contact Aggregations API.', 'details' => $error]);
