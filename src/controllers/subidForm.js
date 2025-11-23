@@ -1,3 +1,5 @@
+import { createAddButton, createDomainSelect, createModalControls } from '../ui/components.js';
+
 const storageKey = 'subidLaunchData';
 
 export const querySubIdFormElements = () => {
@@ -44,6 +46,11 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
     elements;
   let activeIntegrationRowId = null;
 
+  const { open: showIntegrationModal, close: hideIntegrationModal } = createModalControls(
+    integrationModal,
+    integrationBackdrop,
+  );
+
   const setIntegrationKeyForRow = (rowId, key) => {
     integrationKeys.set(rowId, key);
 
@@ -68,19 +75,13 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
     const existingKey = integrationKeys.get(rowId) || '';
     integrationInput.value = existingKey;
 
-    integrationModal.hidden = false;
-    integrationBackdrop.hidden = false;
-    integrationModal.classList.add('is-visible');
-    integrationBackdrop.classList.add('is-visible');
+    showIntegrationModal();
     integrationInput.focus();
   };
 
   const closeIntegrationModal = () => {
     activeIntegrationRowId = null;
-    integrationModal.classList.remove('is-visible');
-    integrationBackdrop.classList.remove('is-visible');
-    integrationModal.hidden = true;
-    integrationBackdrop.hidden = true;
+    hideIntegrationModal();
   };
 
   integrationSave.addEventListener('click', () => {
@@ -107,30 +108,6 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
 export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, updateLaunchButtonState) => {
   const { fieldsContainer } = elements;
   let subIdCount = 0;
-
-  const buildDomainSelect = () => {
-    const select = document.createElement('select');
-    select.className = 'domain-select';
-    select.name = 'pendo-domain[]';
-
-    const domains = [
-      { label: 'pendo.io', value: 'https://app.pendo.io/' },
-      { label: 'eu', value: 'https://app.eu.pendo.io/' },
-      { label: 'us1', value: 'https://us1.app.pendo.io/' },
-      { label: 'jpn', value: 'https://app.jpn.pendo.io/' },
-      { label: 'au', value: 'https://app.au.pendo.io/' },
-      { label: 'HSBC', value: 'https://app.HSBC.pendo.io/' },
-    ];
-
-    domains.forEach(({ label, value }) => {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      select.appendChild(option);
-    });
-
-    return select;
-  };
 
   const serializeLaunchRows = () =>
     Array.from(fieldsContainer.querySelectorAll('.subid-row'))
@@ -171,7 +148,7 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
     input.placeholder = 'Enter SubID';
     input.required = true;
 
-    const domainSelect = buildDomainSelect();
+    const domainSelect = createDomainSelect();
 
     const integrationButton = document.createElement('button');
     integrationButton.type = 'button';
@@ -199,12 +176,7 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
       existingButton.remove();
     }
 
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = 'add-subid-btn';
-    addButton.setAttribute('aria-label', 'Add another SubID');
-    addButton.textContent = '+';
-    addButton.addEventListener('click', handleAddSubId);
+    const addButton = createAddButton(handleAddSubId);
 
     inputGroup.appendChild(addButton);
 
