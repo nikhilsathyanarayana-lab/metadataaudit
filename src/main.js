@@ -7,6 +7,7 @@ import {
 } from '../Aggregations/aggregationRequests.js';
 import { loadTemplate } from './controllers/modalLoader.js';
 import { initSubIdForm } from './controllers/subidForm.js';
+import { fetchAppsForEntry } from './services/requests.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -72,52 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (error) {
         console.error('Unable to load stored SubID data:', error);
         return [];
-      }
-    };
-
-    const buildAppAggregationRequest = () => ({
-      response: { location: 'request', mimeType: 'application/json' },
-      request: {
-        requestId: 'apps-list',
-        pipeline: [
-          {
-            source: {
-              singleEvents: { appId: 'expandAppIds("*")' },
-              timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
-            },
-          },
-          { group: { group: ['appId'] } },
-          { select: { appId: 'appId' } },
-        ],
-      },
-    });
-
-    const buildRequestHeaders = (integrationKey) => ({
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      'Accept-Encoding': 'gzip, deflate, br',
-      Connection: 'keep-alive',
-      'X-Pendo-Integration-Key': integrationKey,
-    });
-
-    const fetchAppsForEntry = async ({ domain, integrationKey }) => {
-      const endpoint = `${domain.replace(/\/$/, '')}/api/v1/aggregation`;
-
-      try {
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: buildRequestHeaders(integrationKey),
-          body: JSON.stringify(buildAppAggregationRequest()),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Aggregation request failed (${response.status}) for ${endpoint}`);
-        }
-
-        return await response.json();
-      } catch (error) {
-        console.error('Aggregation request encountered an error:', error);
-        return null;
       }
     };
 
