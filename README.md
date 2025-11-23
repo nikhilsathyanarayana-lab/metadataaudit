@@ -8,7 +8,7 @@ Metadata Audit is a lightweight web experience that automates the metadata audit
 - `app_selection.html`: Selection step that lists discovered apps so users can choose the ones to audit further.
 - `metadata_fields.html`: Displays key metadata fields for the selected apps and provides an export action.
 - `deep_dive.html`: Additional drill-down view reached from the metadata fields screen.
-- `workbook_ui.html`: A front-end companion for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and simulate the workflow.
+- `workbook_ui.html`: A front-end companion for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and simulate the workflow with a browser-only run.
 - `Modals/export-modal.html`: Template injected when users choose to export results.
 - `main.js`: Client-side logic for form handling, modal interactions, navigation between steps, and sending Aggregation API requests with the provided integration keys.
 - `styles.css`: Global styling, layout, and Pendo-inspired theme tokens.
@@ -18,6 +18,7 @@ Metadata Audit is a lightweight web experience that automates the metadata audit
 - **app_selection.html**: Renders a selectable table of apps per SubID using stored launch data. A Continue button is enabled once any checkbox is checked, advancing users to the metadata fields view.
 - **metadata_fields.html**: Presents visitor and account metadata tables with retention counts for 180-, 30-, and 7-day windows. Header actions include Deep Dive navigation and opening the export modal for downloads.
 - **deep_dive.html**: Extends the metadata tables with an additional “Expected format” selector for each row, focusing on deeper inspection and export-only actions.
+- **workbook_ui.html**: Walks through the Python workbook script in a safe mock run. Users choose a Pendo environment (US/EU), enter a Sub ID, optional workbook filename, and paste a `pendo.sess.jwt2` cookie. The page surfaces a live endpoint preview, workbook naming pill, and cookie status, and then visualizes each script phase (environment resolution, app discovery, field capture, meta example analysis, workbook write-out). A request preview card repeats the resolved URL, filename, and tips for avoiding 401 errors.
 - **Modals/export-modal.html**: Provides the export dialog markup (with XLSX and PDF options) that is injected on demand into pages needing download actions.
 
 ## JavaScript overview (main.js)
