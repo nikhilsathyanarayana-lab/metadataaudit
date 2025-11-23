@@ -805,7 +805,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return 'Missing or invalid pendo.sess.jwt2 cookie.';
       }
 
-      if (message.includes('401')) {
+      if (message.trim() === '401' || lowered === 'unauthorized') {
         return 'Authentication failed (401). Check the environment and cookie.';
       }
 

@@ -111,10 +111,39 @@ export const fetchAggregation = async (url, payload, cookieHeaderValue, options 
   });
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => null);
-    throw new Error(
-      `Aggregation request failed (${response.status}): ${response.statusText}${errorText ? ` - ${errorText}` : ''}`,
-    );
+    const rawBody = await response.text().catch(() => '');
+    let parsedBody;
+
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : null;
+    } catch (parseError) {
+      parsedBody = null;
+    }
+
+    const extractDetails = () => {
+      if (parsedBody && typeof parsedBody === 'object') {
+        const { error, message, overall, fields } = parsedBody;
+        const fieldText = Array.isArray(fields)
+          ? fields.join('; ')
+          : fields && typeof fields === 'object'
+            ? Object.values(fields).join('; ')
+            : fields;
+
+        return [overall, fieldText, message, error].filter(Boolean).join(' ');
+      }
+
+      return rawBody?.trim() || '';
+    };
+
+    const detail = extractDetails();
+    const statusLabel = response.status || 'unknown status';
+    const message = detail
+      ? `Aggregation request failed (${statusLabel}): ${detail}`
+      : `Aggregation request failed (status ${statusLabel}).`;
+
+    const error = new Error(message);
+    error.details = { status: response.status, body: parsedBody || rawBody };
+    throw error;
   }
 
   return response.json();
