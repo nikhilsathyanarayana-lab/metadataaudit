@@ -73,6 +73,8 @@ $ch = curl_init($aggregationUrl);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_MAXREDIRS => 5,
     CURLOPT_HTTPHEADER => [
         'Content-Type: application/json',
         'Accept: application/json',
