@@ -820,29 +820,28 @@ document.addEventListener('DOMContentLoaded', async () => {
       previewTimeout = setTimeout(applyPreviews, 150);
     };
 
-    const extractJwtToken = (rawCookie) => {
+    const buildCookieHeaderValue = (rawCookie) => {
       const trimmed = rawCookie.trim();
 
       if (!trimmed) {
         return '';
       }
 
-      const regexMatch = trimmed.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
+      const withoutLabel = trimmed.toLowerCase().startsWith('cookie:')
+        ? trimmed.slice(trimmed.indexOf(':') + 1).trim()
+        : trimmed;
 
-      if (regexMatch?.[1]) {
-        return regexMatch[1].trim();
+      if (withoutLabel.includes('=')) {
+        return withoutLabel;
       }
 
-      if (!trimmed.includes('=')) {
-        return trimmed;
+      const regexMatch = withoutLabel.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
+
+      if (regexMatch?.[0]) {
+        return regexMatch[0].trim();
       }
 
-      const cookieSegment = trimmed
-        .split(';')
-        .map((segment) => segment.trim())
-        .find((segment) => segment.toLowerCase().startsWith('pendo.sess.jwt2='));
-
-      return cookieSegment?.split('=')[1] || '';
+      return `pendo.sess.jwt2=${withoutLabel}`;
     };
 
     const ensureArray = (value) => {
@@ -1088,12 +1087,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       try {
         const envValue = envSelect.value;
         const subIdValue = subIdInput.value.trim();
-        const jwtToken = extractJwtToken(cookieInput.value);
+        const cookieHeaderValue = buildCookieHeaderValue(cookieInput.value);
         const includeExamples = examplesToggle?.value !== 'off';
         const lookback = Number(daysSelect?.value || '180');
 
-        if (!envValue || !subIdValue || !jwtToken) {
-          const summary = !jwtToken
+        if (!envValue || !subIdValue || !cookieHeaderValue) {
+          const summary = !cookieHeaderValue
             ? 'Missing pendo.sess.jwt2 cookie. Paste the cookie before running.'
             : 'Please provide an environment and Sub ID.';
 
@@ -1120,7 +1119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let appsResponse;
 
         try {
-          appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), jwtToken);
+          appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), cookieHeaderValue);
         } catch (error) {
           lastErrorSummary = markStepFailure('apps', error, 'App discovery failed.');
           throw error;
@@ -1149,7 +1148,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         for (const windowDays of fieldWindows) {
           try {
-            const response = await fetchAggregation(aggregationUrl, buildMetadataFieldsPayload(windowDays), jwtToken);
+            const response = await fetchAggregation(
+              aggregationUrl,
+              buildMetadataFieldsPayload(windowDays),
+              cookieHeaderValue,
+            );
             fieldResponses.push({ windowDays, response });
           } catch (error) {
             lastErrorSummary = markStepFailure(
@@ -1168,7 +1171,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (includeExamples) {
           setStatus('meta', 'running', 'Requesting metadata value examples.');
           try {
-            const examplesResponse = await fetchAggregation(aggregationUrl, buildExamplesPayload(), jwtToken);
+            const examplesResponse = await fetchAggregation(
+              aggregationUrl,
+              buildExamplesPayload(),
+              cookieHeaderValue,
+            );
             examplesRows = parseExamples(examplesResponse, subIdValue);
             setStatus('meta', 'success', `Parsed ${examplesRows.length} example rows.`);
           } catch (error) {

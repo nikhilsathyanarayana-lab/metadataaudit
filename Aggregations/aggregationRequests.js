@@ -5,10 +5,10 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
   return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
 };
 
-export const buildHeaders = (jwtToken) => ({
+export const buildHeaders = (cookieHeaderValue) => ({
   'Content-Type': 'application/json',
   Accept: 'application/json',
-  Cookie: `pendo.sess.jwt2=${jwtToken}`,
+  cookie: cookieHeaderValue,
 });
 
 export const buildAppDiscoveryPayload = () => ({
@@ -73,11 +73,11 @@ export const buildExamplesPayload = () => ({
   },
 });
 
-export const fetchAggregation = async (url, payload, jwtToken) => {
+export const fetchAggregation = async (url, payload, cookieHeaderValue) => {
   const endpoint = normalizeDomain(url);
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: buildHeaders(jwtToken),
+    headers: buildHeaders(cookieHeaderValue),
     body: JSON.stringify(payload),
     credentials: 'include',
   });
