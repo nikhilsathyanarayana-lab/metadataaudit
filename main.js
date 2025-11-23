@@ -1119,7 +1119,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         let appsResponse;
 
         try {
-          appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), cookieHeaderValue);
+          appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), cookieHeaderValue, {
+            region: envValue,
+            subId: subIdValue,
+          });
         } catch (error) {
           lastErrorSummary = markStepFailure('apps', error, 'App discovery failed.');
           throw error;
@@ -1152,6 +1155,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               aggregationUrl,
               buildMetadataFieldsPayload(windowDays),
               cookieHeaderValue,
+              {
+                region: envValue,
+                subId: subIdValue,
+              },
             );
             fieldResponses.push({ windowDays, response });
           } catch (error) {
@@ -1171,11 +1178,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (includeExamples) {
           setStatus('meta', 'running', 'Requesting metadata value examples.');
           try {
-            const examplesResponse = await fetchAggregation(
-              aggregationUrl,
-              buildExamplesPayload(),
-              cookieHeaderValue,
-            );
+            const examplesResponse = await fetchAggregation(aggregationUrl, buildExamplesPayload(), cookieHeaderValue, {
+              region: envValue,
+              subId: subIdValue,
+            });
             examplesRows = parseExamples(examplesResponse, subIdValue);
             setStatus('meta', 'success', `Parsed ${examplesRows.length} example rows.`);
           } catch (error) {

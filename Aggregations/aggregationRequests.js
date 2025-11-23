@@ -11,6 +11,15 @@ export const buildHeaders = (cookieHeaderValue) => ({
   cookie: cookieHeaderValue,
 });
 
+const extractJwtToken = (cookieHeaderValue) => {
+  if (!cookieHeaderValue) {
+    return '';
+  }
+
+  const match = cookieHeaderValue.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
+  return match?.[1] || '';
+};
+
 export const buildAppDiscoveryPayload = () => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
@@ -73,13 +82,32 @@ export const buildExamplesPayload = () => ({
   },
 });
 
-export const fetchAggregation = async (url, payload, cookieHeaderValue) => {
-  const endpoint = normalizeDomain(url);
-  const response = await fetch(endpoint, {
+export const fetchAggregation = async (url, payload, cookieHeaderValue, options = {}) => {
+  const { region, subId, proxyEndpoint = 'proxy.php' } = options;
+  const token = extractJwtToken(cookieHeaderValue);
+
+  if (!region || !subId) {
+    throw new Error('Region and Sub ID are required for the proxy request.');
+  }
+
+  if (!token) {
+    throw new Error('Missing pendo.sess.jwt2 token for the proxy request.');
+  }
+
+  const response = await fetch(proxyEndpoint, {
     method: 'POST',
-    headers: buildHeaders(cookieHeaderValue),
-    body: JSON.stringify(payload),
-    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      payload,
+      region,
+      subId,
+      token,
+      endpointPreview: normalizeDomain(url),
+    }),
+    credentials: 'same-origin',
   });
 
   if (!response.ok) {
