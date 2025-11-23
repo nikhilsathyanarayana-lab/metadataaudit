@@ -8,6 +8,7 @@ Metadata Audit is a lightweight web experience that automates the metadata audit
 - `app_selection.html`: Selection step that lists discovered apps so users can choose the ones to audit further.
 - `metadata_fields.html`: Displays key metadata fields for the selected apps and provides an export action.
 - `deep_dive.html`: Additional drill-down view reached from the metadata fields screen.
+- `workbook_ui.html`: A front-end companion for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and simulate the workflow.
 - `Modals/export-modal.html`: Template injected when users choose to export results.
 - `main.js`: Client-side logic for form handling, modal interactions, navigation between steps, and sending Aggregation API requests with the provided integration keys.
 - `styles.css`: Global styling, layout, and Pendo-inspired theme tokens.
