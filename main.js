@@ -490,8 +490,44 @@ document.addEventListener('DOMContentLoaded', async () => {
       attachCheckboxListeners();
     };
 
+    const renderLaunchDataRows = (rows) => {
+      tableBody.innerHTML = '';
+
+      if (!rows.length) {
+        updateHeaderCheckboxState();
+        proceedButton.disabled = true;
+        proceedButton.setAttribute('aria-disabled', 'true');
+        return;
+      }
+
+      rows.forEach(({ subId }) => {
+        const row = document.createElement('tr');
+
+        const subIdCell = document.createElement('td');
+        subIdCell.dataset.label = 'Sub ID';
+        subIdCell.textContent = subId;
+
+        const loadingCell = document.createElement('td');
+        loadingCell.dataset.label = 'App ID';
+        loadingCell.textContent = 'Loading apps…';
+
+        const placeholderCheckboxCell = document.createElement('td');
+        placeholderCheckboxCell.className = 'checkbox-cell';
+        placeholderCheckboxCell.textContent = '—';
+
+        row.append(subIdCell, loadingCell, placeholderCheckboxCell);
+        tableBody.appendChild(row);
+      });
+
+      proceedButton.disabled = true;
+      proceedButton.setAttribute('aria-disabled', 'true');
+      updateHeaderCheckboxState();
+    };
+
     const fetchAndPopulate = async () => {
       const storedRows = parseStoredLaunchData();
+
+      renderLaunchDataRows(storedRows);
 
       if (!storedRows.length) {
         showError('API information not found.');
