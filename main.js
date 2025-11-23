@@ -664,34 +664,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       us: 'https://aggregations-dot-pendo-io.gke.us.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
     };
 
-    const messageRegion =
-      document.getElementById('workbook-messages') ||
-      (() => {
-        const region = document.createElement('div');
-        region.id = 'workbook-messages';
-        region.className = 'page-messages';
+    const messageRegion = document.querySelector('.page-messages') || (() => {
+      const region = document.createElement('div');
+      region.className = 'page-messages';
 
-        const progress = document.createElement('p');
-        progress.id = 'workbook-progress';
-        progress.className = 'status-banner';
-        progress.textContent = 'Waiting to start the workbook run.';
+      const content = document.querySelector('main.content');
+      content?.parentNode?.insertBefore(region, content);
 
-        const alert = document.createElement('p');
-        alert.id = 'workbook-errors';
-        alert.className = 'alert';
-        alert.setAttribute('role', 'alert');
-        alert.hidden = true;
+      return region;
+    })();
 
-        region.append(progress, alert);
+    messageRegion.id = messageRegion.id || 'workbook-messages';
 
-        const content = document.querySelector('main.content');
-        content?.parentNode?.insertBefore(region, content);
+    const ensureChild = (selector, createNode) => {
+      const existing = messageRegion.querySelector(selector);
+      if (existing) {
+        return existing;
+      }
 
-        return region;
-      })();
+      const node = createNode();
+      messageRegion.appendChild(node);
+      return node;
+    };
 
-    const progressIndicator = messageRegion.querySelector('#workbook-progress');
-    const errorAlert = messageRegion.querySelector('#workbook-errors');
+    const progressIndicator = ensureChild('#workbook-progress', () => {
+      const progress = document.createElement('p');
+      progress.id = 'workbook-progress';
+      progress.className = 'status-banner';
+      progress.textContent = 'Waiting to start the workbook run.';
+      return progress;
+    });
+
+    const errorAlert = ensureChild('#workbook-errors', () => {
+      const alert = document.createElement('p');
+      alert.id = 'workbook-errors';
+      alert.className = 'alert';
+      alert.setAttribute('role', 'alert');
+      alert.hidden = true;
+      return alert;
+    });
 
     const statusSteps = Array.from(document.querySelectorAll('[data-step]')).reduce((acc, element) => {
       const stepId = element.getAttribute('data-step');
