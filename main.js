@@ -630,9 +630,163 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   };
 
+  const initWorkbookUi = () => {
+    const form = document.getElementById('workbook-form');
+    const envSelect = document.getElementById('env-choice');
+    const subIdInput = document.getElementById('subid-input');
+    const cookieInput = document.getElementById('cookie-input');
+    const daysSelect = document.getElementById('days-window');
+    const examplesToggle = document.getElementById('examples-toggle');
+    const runButton = document.getElementById('workbook-run');
+    const workbookName = document.getElementById('workbook-name');
+    const endpointPreview = document.getElementById('endpoint-preview');
+    const cookiePreview = document.getElementById('cookie-preview');
+    const endpointBlock = document.getElementById('endpoint-block');
+    const workbookBlock = document.getElementById('workbook-block');
+
+    if (!form || !envSelect || !subIdInput || !cookieInput || !runButton) {
+      return;
+    }
+
+    const envUrls = {
+      eu: 'https://aggregations-dot-pendo-eu.gke.eu.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
+      us: 'https://aggregations-dot-pendo-io.gke.us.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
+    };
+
+    const statusSteps = Array.from(document.querySelectorAll('[data-step]')).reduce((acc, element) => {
+      const stepId = element.getAttribute('data-step');
+
+      if (!stepId) {
+        return acc;
+      }
+
+      const pill = element.querySelector('.status-pill');
+      const detail = element.querySelector('[data-status-detail]');
+
+      acc[stepId] = {
+        element,
+        pill,
+        detail,
+        defaultDetail: detail?.textContent?.trim() || '',
+      };
+
+      return acc;
+    }, {});
+
+    const setStatus = (stepId, state, detailText) => {
+      const step = statusSteps[stepId];
+
+      if (!step) {
+        return;
+      }
+
+      step.element.dataset.status = state;
+
+      if (step.pill) {
+        const labelMap = {
+          pending: 'Pending',
+          running: 'Running',
+          success: 'Done',
+        };
+
+        step.pill.textContent = labelMap[state] || 'Pending';
+      }
+
+      if (step.detail) {
+        step.detail.textContent = detailText || step.defaultDetail;
+      }
+    };
+
+    const resetStatuses = () => {
+      Object.keys(statusSteps).forEach((stepId) => setStatus(stepId, 'pending'));
+    };
+
+    const updatePreviews = () => {
+      const subIdValue = subIdInput.value.trim() || '<sub_id>';
+      const envValue = envSelect.value;
+
+      const endpointTemplate = envUrls[envValue];
+      const endpointText = endpointTemplate
+        ? endpointTemplate.replace('{sub_id}', subIdValue)
+        : 'Select an environment to see the URL';
+
+      workbookName.textContent = `pendo_metadata_${subIdValue}.xlsx`;
+      workbookBlock.textContent = `pendo_metadata_${subIdValue}.xlsx`;
+      endpointPreview.textContent = endpointText;
+      endpointBlock.textContent = endpointText;
+      cookiePreview.textContent = cookieInput.value.trim() ? 'Cookie captured locally' : 'Waiting for cookie';
+
+      const ready = Boolean(envValue && subIdInput.value.trim() && cookieInput.value.trim());
+      runButton.disabled = !ready;
+      runButton.setAttribute('aria-disabled', String(!ready));
+    };
+
+    const runSimulation = () => {
+      if (runButton.disabled) {
+        return;
+      }
+
+      let delay = 0;
+      const envLabel = envSelect.value === 'eu' ? 'EU' : 'US';
+      const subIdLabel = subIdInput.value.trim() || '<sub_id>';
+      const includeExamples = examplesToggle?.value !== 'off';
+      const lookback = daysSelect?.value || '180';
+
+      const sequence = [
+        { id: 'env', detail: `Resolved ${envLabel} base and Sub ID ${subIdLabel}.`, duration: 500 },
+        { id: 'apps', detail: 'Requested appIds via expandAppIds("*") on the 7-day window.', duration: 550 },
+        {
+          id: 'fields',
+          detail: `Collected visitor/account fields for 7d and ${lookback}d windows.`,
+          duration: 650,
+        },
+        {
+          id: 'meta',
+          detail: includeExamples
+            ? 'Captured 7d meta event values for examples tab.'
+            : 'Skipped meta event examples per settings.',
+          duration: 550,
+        },
+        { id: 'excel', detail: `Workbook ready: pendo_metadata_${subIdLabel}.xlsx`, duration: 500 },
+      ];
+
+      resetStatuses();
+      runButton.textContent = 'Running…';
+      runButton.disabled = true;
+      runButton.setAttribute('aria-disabled', 'true');
+
+      sequence.forEach(({ id, detail, duration }) => {
+        const start = delay;
+        const finish = delay + duration;
+
+        setTimeout(() => setStatus(id, 'running'), start);
+        setTimeout(() => setStatus(id, 'success', detail), finish);
+
+        delay = finish + 150;
+      });
+
+      setTimeout(() => {
+        runButton.textContent = 'Simulate run';
+        updatePreviews();
+      }, delay + 200);
+    };
+
+    [envSelect, subIdInput, cookieInput, daysSelect, examplesToggle].forEach((element) =>
+      element?.addEventListener('input', updatePreviews),
+    );
+
+    runButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      runSimulation();
+    });
+
+    updatePreviews();
+  };
+
   initSubIdForm();
   initAppSelection();
   initDeepDiveNavigation();
+  initWorkbookUi();
 
   const initExportModalWithTemplate = async () => {
     const exportButton = document.getElementById('export-button');

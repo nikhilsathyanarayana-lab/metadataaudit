@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metadata Excel Builder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-header" id="workbook-header">
+    <div class="header-row">
+      <div class="header-copy">
+        <p class="eyebrow">Pendo Aggregations → Metadata Excel</p>
+        <h1 class="page-title">Workbook UI</h1>
+        <p class="section-hint">Front-end companion for the cookie-only, env-aware script that outputs the two-tab Excel.</p>
+      </div>
+      <div class="header-actions">
+        <a class="tertiary-btn" href="index.html">Back to audit tools</a>
+        <button class="primary-btn" id="workbook-run" type="button" disabled aria-disabled="true">Simulate run</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="content" aria-label="Workbook builder content">
+    <section class="card" aria-labelledby="workbook-form-title">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title" id="workbook-form-title">Inputs for the workbook</h2>
+          <p class="section-hint">Match the Python script by setting the region, Sub ID, and the <code>pendo.sess.jwt2</code> cookie. Nothing is transmitted — values stay in the browser.</p>
+        </div>
+      </div>
+      <form class="workbook-form" id="workbook-form">
+        <div class="input-grid">
+          <div class="field">
+            <label class="input-label" for="env-choice">Environment</label>
+            <select id="env-choice" class="format-select" name="environment">
+              <option value="">Select a region</option>
+              <option value="us">US</option>
+              <option value="eu">EU</option>
+            </select>
+            <p class="helper-text">Uses <code>select_api_base</code> logic (US or EU only). Wrong region returns a 401.</p>
+          </div>
+
+          <div class="field">
+            <label class="input-label" for="subid-input">Sub ID</label>
+            <input id="subid-input" type="text" placeholder="ex: 5946650304315392" autocomplete="off">
+            <p class="helper-text">Included in the Aggregations URL and in the generated filename.</p>
+          </div>
+
+          <div class="field full">
+            <label class="input-label" for="cookie-input">pendo.sess.jwt2 cookie</label>
+            <textarea id="cookie-input" rows="3" placeholder="Paste either pendo.sess.jwt2=ey... or the full cookie header"></textarea>
+            <p class="helper-text">The script extracts <code>pendo.sess.jwt2</code> automatically. Paste the exact cookie from the matching region.</p>
+          </div>
+
+          <div class="field">
+            <label class="input-label" for="days-window">Lookback (days)</label>
+            <select id="days-window" class="format-select">
+              <option value="7">7 days</option>
+              <option value="180" selected>180 days (for field names)</option>
+            </select>
+            <p class="helper-text">Discovery always starts at 7 days; 180 days is used for broader field coverage.</p>
+          </div>
+
+          <div class="field">
+            <label class="input-label" for="examples-toggle">Include meta examples</label>
+            <select id="examples-toggle" class="format-select">
+              <option value="on" selected>Yes — show 7d examples</option>
+              <option value="off">No — skip examples</option>
+            </select>
+            <p class="helper-text">Matches the script’s examples tab and value summarization for visitor/account metadata.</p>
+          </div>
+        </div>
+
+        <div class="pill-row" aria-live="polite">
+          <div class="pill">
+            <p class="eyebrow">Workbook name</p>
+            <p class="pill-value" id="workbook-name">pendo_metadata_&lt;sub_id&gt;.xlsx</p>
+          </div>
+          <div class="pill">
+            <p class="eyebrow">Aggregations endpoint</p>
+            <p class="pill-value" id="endpoint-preview">Select an environment to see the URL</p>
+          </div>
+          <div class="pill">
+            <p class="eyebrow">Cookie status</p>
+            <p class="pill-value" id="cookie-preview">Waiting for cookie</p>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="status-title">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title" id="status-title">Script flow status</h2>
+          <p class="section-hint">A visual map of the Python steps: aggregation calls, metadata analysis, and workbook assembly.</p>
+        </div>
+        <span class="status-hint">This is a front-end simulation; your cookie never leaves the browser.</span>
+      </div>
+      <div class="status-steps" id="status-steps">
+        <div class="status-step" data-step="env" data-status="pending">
+          <div class="status-icon" aria-hidden="true"></div>
+          <div class="status-copy">
+            <p class="status-title">Resolve environment & API base</p>
+            <p class="status-detail" data-status-detail>Uses EU/US switch to pick the Aggregations base URL.</p>
+          </div>
+          <span class="status-pill">Pending</span>
+        </div>
+        <div class="status-step" data-step="apps" data-status="pending">
+          <div class="status-icon" aria-hidden="true"></div>
+          <div class="status-copy">
+            <p class="status-title">Discover appIds (last 7 days)</p>
+            <p class="status-detail" data-status-detail>Calls <code>expandAppIds("*")</code> and groups by <code>appId</code>.</p>
+          </div>
+          <span class="status-pill">Pending</span>
+        </div>
+        <div class="status-step" data-step="fields" data-status="pending">
+          <div class="status-icon" aria-hidden="true"></div>
+          <div class="status-copy">
+            <p class="status-title">Capture metadata fields</p>
+            <p class="status-detail" data-status-detail>Pull visitor/account fields for 7d and 180d windows.</p>
+          </div>
+          <span class="status-pill">Pending</span>
+        </div>
+        <div class="status-step" data-step="meta" data-status="pending">
+          <div class="status-icon" aria-hidden="true"></div>
+          <div class="status-copy">
+            <p class="status-title">Analyze meta events (examples)</p>
+            <p class="status-detail" data-status-detail>Parses <code>visitor.*</code> and <code>account.*</code> keys for value summaries.</p>
+          </div>
+          <span class="status-pill">Pending</span>
+        </div>
+        <div class="status-step" data-step="excel" data-status="pending">
+          <div class="status-icon" aria-hidden="true"></div>
+          <div class="status-copy">
+            <p class="status-title">Write two-tab workbook</p>
+            <p class="status-detail" data-status-detail>Outputs field names plus the examples tab to <code>pendo_metadata_&lt;sub_id&gt;.xlsx</code>.</p>
+          </div>
+          <span class="status-pill">Pending</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="payload-title">
+      <div class="card-header">
+        <div class="form-intro">
+          <h2 class="section-title" id="payload-title">Request preview & tips</h2>
+          <p class="section-hint">Review the exact endpoint, payload intent, and troubleshooting hints before running the script.</p>
+        </div>
+      </div>
+      <div class="preview-grid">
+        <div class="preview-block">
+          <p class="eyebrow">Endpoint</p>
+          <code class="code-block" id="endpoint-block">Pick an environment to view the full URL.</code>
+        </div>
+        <div class="preview-block">
+          <p class="eyebrow">Workbook output</p>
+          <code class="code-block" id="workbook-block">pendo_metadata_&lt;sub_id&gt;.xlsx</code>
+        </div>
+        <div class="preview-block">
+          <p class="eyebrow">Cookie handling</p>
+          <p class="helper-text">The script extracts <code>pendo.sess.jwt2</code> from a bare token or a full header and reuses it for request headers and cookies.</p>
+        </div>
+      </div>
+      <div class="callout" role="note">
+        <p class="callout-title">Troubleshooting 401s</p>
+        <ul class="callout-list">
+          <li>Make sure the cookie comes from the same region (EU vs US) as the endpoint.</li>
+          <li>Paste only the <code>pendo.sess.jwt2</code> token or the full cookie header — both are accepted.</li>
+          <li>Renew your Pendo session and copy the cookie again if authentication fails.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>
