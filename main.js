@@ -660,7 +660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     runButton.textContent = 'Run workbook';
 
     const envUrls = {
-      eu: 'https://aggregations-dot-pendo-eu.gke.eu.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
+      eu: 'https://aggregations-dot-pendo-io.gke.eu.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
       us: 'https://aggregations-dot-pendo-io.gke.us.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
     };
 
