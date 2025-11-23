@@ -640,6 +640,16 @@ textarea:focus {
   color: #2c6b2f;
 }
 
+.status-step[data-status="fail"] .status-icon {
+  background: #f25c3b;
+  box-shadow: 0 0 0 3px rgba(242, 92, 59, 0.25);
+}
+
+.status-step[data-status="fail"] .status-pill {
+  background: #ffe6e0;
+  color: #a12c12;
+}
+
 .preview-grid {
   margin-top: 0.5rem;
   display: grid;
