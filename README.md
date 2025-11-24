@@ -5,6 +5,11 @@ This project is a web-based tool designed to automate the metadata audit process
 
 The tool supports two methods for pulling metadata: one using an integration key with the Engage API, and another using a cookie-based approach.
 
+## Prerequisites
+- **Hosting**: GitHub Pages cannot run this project because it requires PHP support. Use a server or local environment capable of running PHP with cURL enabled.
+- **Authentication**: Provide either an integration key with read access or a superuser session cookie.
+- **Browser**: Any modern browser that supports the Fetch API and `localStorage` (e.g., Chrome, Firefox, or Edge).
+
 ## Project structure
 - `index.html`: Landing view where auditors enter SubIDs, choose a Pendo domain, and link integration keys before triggering aggregation requests.
 - `app_selection.html`: Selection step that lists discovered apps so users can choose the ones to audit further.
