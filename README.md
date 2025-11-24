@@ -1,7 +1,9 @@
 # Metadata Audit
 
-## Purpose
-Metadata Audit is a lightweight web experience that automates the metadata audit process for Pendo implementations. It guides users through providing SubIDs and integration keys, fetches app metadata via the Pendo Aggregation API, and consolidates results across audit steps.
+## Overview
+This project is a web-based tool designed to automate the metadata audit process for Pendo implementations. It allows internal users to input subscription identifiers and quickly retrieve and consolidate metadata across multiple apps. The goal is to ensure that metadata is consistent and to identify any discrepancies in how data is reported.
+
+The tool supports two methods for pulling metadata: one using an integration key with the Engage API, and another using a cookie-based approach.
 
 ## Project structure
 - `index.html`: Landing view where auditors enter SubIDs, choose a Pendo domain, and link integration keys before triggering aggregation requests.
