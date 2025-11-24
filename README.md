@@ -10,6 +10,19 @@ The tool supports two methods for pulling metadata: one using an integration key
 - **Authentication**: Provide either an integration key with read access or a superuser session cookie.
 - **Browser**: Any modern browser that supports the Fetch API and `localStorage` (e.g., Chrome, Firefox, or Edge).
 
+## Launching the app locally
+Follow these steps to serve the project on your Mac:
+
+1. If you do not have PHP installed, open **Pendo Self Service** and choose the option to install **Homebrew**. This is the fastest way to get the package manager without running scripts manually.
+2. Still inside Pendo Self Service, request admin approval to run a Homebrew command. Ask your admin to run `brew install php` through the installer so PHP is installed system-wide. Skip this step if PHP is already available on your machine.
+3. Clone the repository and move into the project directory:
+   ```bash
+   git clone https://github.com/your-org/metadataaudit.git
+   cd metadataaudit
+   php -S localhost:8000
+   ```
+4. Visit `http://localhost:8000` in your browser and open `index.html` to begin the workflow. You can navigate directly to `app_selection.html`, `metadata_fields.html`, `deep_dive.html`, or `workbook_ui.html` if you need to test a specific page.
+
 ## Project structure
 - `index.html`: Landing view where auditors enter SubIDs, choose a Pendo domain, and link integration keys before triggering aggregation requests.
 - `app_selection.html`: Selection step that lists discovered apps so users can choose the ones to audit further.
