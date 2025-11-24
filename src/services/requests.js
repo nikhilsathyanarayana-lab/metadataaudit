@@ -4,7 +4,43 @@
  * @property {string} integrationKey Pendo integration key for authentication.
  */
 
+/**
+ * @typedef {Object} AggregationProxyOptions
+ * @property {string} region Environment slug used by the proxy.
+ * @property {string} subId Subscription ID for the workbook requests.
+ * @property {string} [proxyEndpoint] Optional proxy endpoint override.
+ */
+
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
+
+export const buildAggregationUrl = (envUrls, envValue, subId) => {
+  const endpointTemplate = envUrls?.[envValue];
+  return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
+};
+
+export const buildCookieHeaderValue = (rawCookie) => {
+  const trimmed = rawCookie.trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  const withoutLabel = trimmed.toLowerCase().startsWith('cookie:')
+    ? trimmed.slice(trimmed.indexOf(':') + 1).trim()
+    : trimmed;
+
+  if (withoutLabel.includes('=')) {
+    return withoutLabel;
+  }
+
+  const regexMatch = withoutLabel.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
+
+  if (regexMatch?.[0]) {
+    return regexMatch[0].trim();
+  }
+
+  return `pendo.sess.jwt2=${withoutLabel}`;
+};
 
 /**
  * Build the aggregation payload used to discover available apps.
@@ -23,6 +59,68 @@ export const buildAppAggregationRequest = () => ({
       },
       { group: { group: ['appId'] } },
       { select: { appId: 'appId' } },
+    ],
+  },
+});
+
+export const buildAppDiscoveryPayload = () => ({
+  response: { location: 'request', mimeType: 'application/json' },
+  request: {
+    requestId: 'app-discovery',
+    pipeline: [
+      {
+        source: {
+          singleEvents: { appId: 'expandAppIds("*")' },
+          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+        },
+      },
+      { group: { group: ['appId'] } },
+      { select: { appId: 'appId' } },
+    ],
+  },
+});
+
+export const buildMetadataFieldsPayload = (windowDays) => ({
+  response: { location: 'request', mimeType: 'application/json' },
+  request: {
+    requestId: `metadata-fields-${windowDays}`,
+    pipeline: [
+      {
+        source: {
+          singleEvents: { appId: 'expandAppIds("*")' },
+          metadata: { account: true, visitor: true },
+          timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+        },
+      },
+      {
+        select: {
+          appId: 'appId',
+          visitorFields: 'keys(metadata.visitor)',
+          accountFields: 'keys(metadata.account)',
+        },
+      },
+    ],
+  },
+});
+
+export const buildExamplesPayload = () => ({
+  response: { location: 'request', mimeType: 'application/json' },
+  request: {
+    requestId: 'metadata-examples',
+    pipeline: [
+      {
+        source: {
+          singleEvents: { appId: 'expandAppIds("*")' },
+          metadata: { account: true, visitor: true },
+          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+        },
+      },
+      {
+        select: {
+          appId: 'appId',
+          examples: 'metadata',
+        },
+      },
     ],
   },
 });
@@ -68,8 +166,111 @@ export const fetchAppsForEntry = async (entry, fetchImpl = fetch) => {
   }
 };
 
+const extractJwtToken = (cookieHeaderValue) => {
+  if (!cookieHeaderValue) {
+    return '';
+  }
+
+  const match = cookieHeaderValue.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
+  return match?.[1] || '';
+};
+
+export const buildHeaders = (cookieHeaderValue) => ({
+  'Content-Type': 'application/json',
+  Accept: 'application/json',
+  cookie: cookieHeaderValue,
+});
+
+/**
+ * Proxy an aggregation request through the PHP endpoint.
+ * @param {string} url Aggregations API endpoint.
+ * @param {object} payload Aggregations request payload.
+ * @param {string} cookieHeaderValue Raw cookie header including pendo.sess.jwt2.
+ * @param {AggregationProxyOptions} options Proxy configuration.
+ * @param {typeof fetch} fetchImpl Fetch implementation override for testing.
+ */
+export const fetchAggregation = async (
+  url,
+  payload,
+  cookieHeaderValue,
+  options = {},
+  fetchImpl = fetch,
+) => {
+  const { region, subId, proxyEndpoint = 'proxy.php' } = options;
+  const token = extractJwtToken(cookieHeaderValue);
+
+  if (!region || !subId) {
+    throw new Error('Region and Sub ID are required for the proxy request.');
+  }
+
+  if (!token) {
+    throw new Error('Missing pendo.sess.jwt2 token for the proxy request.');
+  }
+
+  const response = await fetchImpl(proxyEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      payload,
+      region,
+      subId,
+      token,
+      endpointPreview: normalizeDomain(url),
+    }),
+    credentials: 'same-origin',
+  });
+
+  if (!response.ok) {
+    const rawBody = await response.text().catch(() => '');
+    let parsedBody;
+
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : null;
+    } catch (parseError) {
+      parsedBody = null;
+    }
+
+    const extractDetails = () => {
+      if (parsedBody && typeof parsedBody === 'object') {
+        const { error, message, overall, fields } = parsedBody;
+        const fieldText = Array.isArray(fields)
+          ? fields.join('; ')
+          : fields && typeof fields === 'object'
+            ? Object.values(fields).join('; ')
+            : fields;
+
+        return [overall, fieldText, message, error].filter(Boolean).join(' ');
+      }
+
+      return rawBody?.trim() || '';
+    };
+
+    const detail = extractDetails();
+    const statusLabel = response.status || 'unknown status';
+    const message = detail
+      ? `Aggregation request failed (${statusLabel}): ${detail}`
+      : `Aggregation request failed (status ${statusLabel}).`;
+
+    const error = new Error(message);
+    error.details = { status: response.status, body: parsedBody || rawBody };
+    throw error;
+  }
+
+  return response.json();
+};
+
 export default {
+  buildAggregationUrl,
   buildAppAggregationRequest,
+  buildAppDiscoveryPayload,
+  buildCookieHeaderValue,
+  buildExamplesPayload,
+  buildHeaders,
+  buildMetadataFieldsPayload,
   buildRequestHeaders,
+  fetchAggregation,
   fetchAppsForEntry,
 };

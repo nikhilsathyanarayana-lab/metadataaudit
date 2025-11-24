@@ -1,13 +1,14 @@
+import { loadTemplate } from './controllers/modalLoader.js';
+import { initSubIdForm } from './controllers/subidForm.js';
 import {
   buildAggregationUrl,
   buildAppDiscoveryPayload,
+  buildCookieHeaderValue,
   buildExamplesPayload,
   buildMetadataFieldsPayload,
   fetchAggregation,
-} from '../Aggregations/aggregationRequests.js';
-import { loadTemplate } from './controllers/modalLoader.js';
-import { initSubIdForm } from './controllers/subidForm.js';
-import { fetchAppsForEntry } from './services/requests.js';
+  fetchAppsForEntry,
+} from './services/requests.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -530,30 +531,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       previewTimeout = setTimeout(applyPreviews, 150);
-    };
-
-    const buildCookieHeaderValue = (rawCookie) => {
-      const trimmed = rawCookie.trim();
-
-      if (!trimmed) {
-        return '';
-      }
-
-      const withoutLabel = trimmed.toLowerCase().startsWith('cookie:')
-        ? trimmed.slice(trimmed.indexOf(':') + 1).trim()
-        : trimmed;
-
-      if (withoutLabel.includes('=')) {
-        return withoutLabel;
-      }
-
-      const regexMatch = withoutLabel.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
-
-      if (regexMatch?.[0]) {
-        return regexMatch[0].trim();
-      }
-
-      return `pendo.sess.jwt2=${withoutLabel}`;
     };
 
     const ensureArray = (value) => {
