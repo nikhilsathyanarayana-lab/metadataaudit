@@ -12,7 +12,7 @@ The tool supports two methods for pulling metadata: one using an integration key
 - `deep_dive.html`: Additional drill-down view reached from the metadata fields screen.
 - `workbook_ui.html`: A front-end companion for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and simulate the workflow with a browser-only run.
 - `Modals/export-modal.html`: Template injected when users choose to export results.
-- `src/main.js`: Client-side logic for form handling, modal interactions, navigation between steps, and sending Aggregation API requests with the provided integration keys.
+- `src/entries/`: Page-level bootstraps that import only the controllers and services each HTML view needs, plus a shared startup that injects the export modal template when required.
 - `src/controllers/`: Controllers for discrete UI behaviors, such as SubID form wiring and modal template injection.
 - `styles.css`: Global styling, layout, and Pendo-inspired theme tokens.
 
@@ -24,14 +24,14 @@ The tool supports two methods for pulling metadata: one using an integration key
 - **workbook_ui.html**: Walks through the Python workbook script in a safe mock run. Users choose a Pendo environment (US/EU), enter a Sub ID, optional workbook filename, and paste a `pendo.sess.jwt2` cookie. The page surfaces a live endpoint preview, workbook naming pill, and cookie status, and then visualizes each script phase (environment resolution, app discovery, field capture, meta example analysis, workbook write-out). A request preview card repeats the resolved URL, filename, and tips for avoiding 401 errors.
 - **Modals/export-modal.html**: Provides the export dialog markup (with XLSX and PDF options) that is injected on demand into pages needing download actions.
 
-## JavaScript overview (src/main.js + controllers)
+## JavaScript overview (entries + controllers)
 - **loadTemplate(path)**: Exported from `src/controllers/modalLoader.js`, fetches and injects the export modal HTML when needed, attaching the markup to the document body.
 - **initSubIdForm()**: Exported from `src/controllers/subidForm.js`, drives the landing form experience—building SubID rows with domain selectors, handling integration key modal interactions, persisting launch data to local storage, and dispatching aggregation requests before redirecting to app selection.
   - Internal helpers now cover modal open/close handlers, integration key persistence per row, dynamic add-row controls, and launch button state management tied to completeness of inputs.
-- **initAppSelection()**: Reads stored launch data, populates the app selection table, and gates the Continue button behind at least one checked app before redirecting to the metadata fields page.
-- **initExportModal()**: Wires up the export dialog (when present) to open/close controls, Escape key handling, backdrop clicks, and logging of the chosen export format.
-- **initDeepDiveNavigation()**: Navigates from the metadata fields page to the deep dive page when the Deep Dive button is clicked.
-- **initExportModalWithTemplate()**: Ensures the export modal template is loaded (injecting it if necessary) and then initializes the modal bindings for pages that present export actions.
+- **initAppSelection()**: Exported from `src/pages/appSelection.js`, reads stored launch data, populates the app selection table, and gates the Continue button behind at least one checked app before redirecting to the metadata fields page.
+- **initWorkbookUi()**: Exported from `src/pages/workbookUi.js`, orchestrates the cookie-based workbook flow (endpoint resolution, Aggregations calls, XLSX assembly) when the workbook form is present.
+- **initDeepDiveNavigation()**: Exported from `src/pages/navigation.js`, navigates from the metadata fields page to the deep dive page when the Deep Dive button is clicked.
+- **bootstrapShared()**: Exported from `src/entries/shared.js`, injects the shared export modal template when needed and binds the modal controls for pages that surface an export button.
 
 ## What’s still missing
 - Runbook details such as how to serve the static pages locally, expected API responses from Pendo, and example payloads aren’t described yet.
@@ -39,7 +39,7 @@ The tool supports two methods for pulling metadata: one using an integration key
 - The README does not yet cover styling tokens in `styles.css` or any plans for unit or integration testing of the client logic.
 
 ## Pendo integration
-- **Pendo Aggregation API**: `src/main.js` posts to each environment's `/api/v1/aggregation` endpoint with the user-supplied integration key to retrieve app metadata across domains.
+- **Pendo Aggregation API**: `src/pages/workbookUi.js` posts to each environment's `/api/v1/aggregation` endpoint with the user-supplied integration key to retrieve app metadata across domains.
 - **Domains**: The SubID form allows choosing from multiple Pendo environments (pendo.io, eu, us1, jpn, au, HSBC) before dispatching API calls.
 
 ## Colour scheme
