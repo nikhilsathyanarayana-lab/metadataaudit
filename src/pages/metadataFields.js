@@ -7,6 +7,28 @@ const LOOKBACK_WINDOWS = [180, 30, 7];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const storageKey = 'appSelectionResponses';
 
+const setupProgressTracker = (totalCalls) => {
+  const progressText = document.getElementById('metadata-fields-progress-text');
+
+  const updateText = (completed) => {
+    if (!progressText) {
+      return;
+    }
+
+    if (!totalCalls) {
+      progressText.textContent = 'No API calls to make.';
+      return;
+    }
+
+    const boundedCompleted = Math.min(completed, totalCalls);
+    progressText.textContent = `API calls: ${boundedCompleted}/${totalCalls}`;
+  };
+
+  updateText(0);
+
+  return updateText;
+};
+
 const createMessageRegion = () => {
   const existing = document.getElementById('metadata-fields-messages');
   if (existing) {
@@ -187,7 +209,9 @@ const updateCellContent = (cell, fields, label) => {
   cell.textContent = fields.join(', ');
 };
 
-const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion) => {
+const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion, updateProgress) => {
+  let completedCalls = 0;
+
   for (const entry of entries) {
     const visitorCells = visitorRows.find((row) => row.entry === entry)?.cells;
     const accountCells = accountRows.find((row) => row.entry === entry)?.cells;
@@ -223,6 +247,9 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
         visitorCells[windowDays].textContent = cellMessage;
         accountCells[windowDays].textContent = cellMessage;
       }
+
+      completedCalls += 1;
+      updateProgress(completedCalls);
     }
   }
 };
@@ -238,15 +265,19 @@ export const initMetadataFields = () => {
   const messageRegion = createMessageRegion();
   const entries = buildAppEntries();
 
+  const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
+  const updateProgress = setupProgressTracker(totalCalls);
+
   if (!entries.length) {
     showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
     renderTableRows(visitorTableBody, []);
     renderTableRows(accountTableBody, []);
+    updateProgress(0);
     return;
   }
 
   const visitorRows = renderTableRows(visitorTableBody, entries);
   const accountRows = renderTableRows(accountTableBody, entries);
 
-  fetchAndPopulate(entries, visitorRows, accountRows, messageRegion);
+  fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress);
 };
