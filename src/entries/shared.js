@@ -1,4 +1,5 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
+import { exportMetadataPdf } from '../controllers/pdfExport.js';
 
 const initExportModal = () => {
   const exportButton = document.getElementById('export-button');
@@ -31,9 +32,13 @@ const initExportModal = () => {
   closeButtons.forEach((button) => button.addEventListener('click', closeModal));
 
   formatButtons.forEach((button) => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       const format = button.getAttribute('data-format');
-      console.info(`Export selected: ${format?.toUpperCase()}`);
+      if (format === 'pdf') {
+        await exportMetadataPdf();
+      } else {
+        console.info(`Export selected: ${format?.toUpperCase()}`);
+      }
       closeModal();
     });
   });
