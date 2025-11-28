@@ -80,6 +80,50 @@ export const buildAppDiscoveryPayload = () => ({
   },
 });
 
+export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
+  response: { mimeType: 'application/json' },
+  request: {
+    name: 'metadata-fields-for-app',
+    pipeline: [
+      {
+        spawn: [
+          [
+            {
+              source: {
+                singleEvents: { appId },
+                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+              },
+            },
+            { filter: 'contains(type,`meta`)' },
+            { unmarshal: { metadata: 'title' } },
+            { filter: '!isNil(metadata.visitor)' },
+            { eval: { visitorMetadata: 'keys(metadata.visitor)' } },
+            { unwind: { field: 'visitorMetadata' } },
+            { group: { group: ['appId', 'visitorMetadata'] } },
+            { group: { group: ['appId'], fields: { visitorMetadata: { list: 'visitorMetadata' } } } },
+          ],
+          [
+            {
+              source: {
+                singleEvents: { appId },
+                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+              },
+            },
+            { filter: 'contains(type,`meta`)' },
+            { unmarshal: { metadata: 'title' } },
+            { filter: '!isNil(metadata.account)' },
+            { eval: { accountMetadata: 'keys(metadata.account)' } },
+            { unwind: { field: 'accountMetadata' } },
+            { group: { group: ['appId', 'accountMetadata'] } },
+            { group: { group: ['appId'], fields: { accountMetadata: { list: 'accountMetadata' } } } },
+          ],
+        ],
+      },
+      { join: { fields: ['appId'] } },
+    ],
+  },
+});
+
 export const buildMetadataFieldsPayload = (windowDays) => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
@@ -145,21 +189,8 @@ export const buildRequestHeaders = (integrationKey) => ({
  * @returns {Promise<object|null>}
  */
 export const fetchAppsForEntry = async (entry, fetchImpl = fetch) => {
-  const { domain, integrationKey } = entry;
-  const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation`;
-
   try {
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers: buildRequestHeaders(integrationKey),
-      body: JSON.stringify(buildAppAggregationRequest()),
-    });
-
-    if (!response?.ok) {
-      throw new Error(`Aggregation request failed (${response?.status}) for ${endpoint}`);
-    }
-
-    return await response.json();
+    return await postAggregationWithIntegrationKey(entry, buildAppAggregationRequest(), fetchImpl);
   } catch (error) {
     console.error('Aggregation request encountered an error:', error);
     return null;
@@ -180,6 +211,37 @@ export const buildHeaders = (cookieHeaderValue) => ({
   Accept: 'application/json',
   cookie: cookieHeaderValue,
 });
+
+/**
+ * Post an aggregation payload using an integration key.
+ * @param {AppAggregationEntry} entry
+ * @param {object} payload
+ * @param {typeof fetch} fetchImpl
+ * @returns {Promise<object>}
+ */
+export const postAggregationWithIntegrationKey = async (entry, payload, fetchImpl = fetch) => {
+  const { domain, integrationKey } = entry || {};
+
+  if (!domain || !integrationKey) {
+    throw new Error('Domain and integration key are required for the aggregation request.');
+  }
+
+  const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation`;
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: buildRequestHeaders(integrationKey),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response?.ok) {
+    const rawBody = await response.text().catch(() => '');
+    const detail = rawBody?.trim() ? `: ${rawBody.trim()}` : '';
+    const statusLabel = response?.status || 'unknown status';
+    throw new Error(`Aggregation request failed (${statusLabel})${detail}`);
+  }
+
+  return response.json();
+};
 
 /**
  * Proxy an aggregation request through the PHP endpoint.
@@ -264,6 +326,7 @@ export const fetchAggregation = async (
 
 export default {
   buildAggregationUrl,
+  buildMetadataFieldsForAppPayload,
   buildAppAggregationRequest,
   buildAppDiscoveryPayload,
   buildCookieHeaderValue,
@@ -271,6 +334,7 @@ export default {
   buildHeaders,
   buildMetadataFieldsPayload,
   buildRequestHeaders,
+  postAggregationWithIntegrationKey,
   fetchAggregation,
   fetchAppsForEntry,
 };

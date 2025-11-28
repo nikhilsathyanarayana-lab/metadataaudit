@@ -5,8 +5,10 @@ import {
   buildAppAggregationRequest,
   buildCookieHeaderValue,
   buildAppDiscoveryPayload,
+  buildMetadataFieldsForAppPayload,
   fetchAggregation,
   fetchAppsForEntry,
+  postAggregationWithIntegrationKey,
 } from './requests.js';
 
 test('buildCookieHeaderValue normalizes different formats', () => {
@@ -50,6 +52,22 @@ test('buildAppDiscoveryPayload maintains the expected shape', () => {
   assert.ok(Array.isArray(payload.request?.pipeline));
 });
 
+test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
+  const payload = buildMetadataFieldsForAppPayload('app-1', 30);
+  const { request } = payload;
+
+  assert.equal(request?.name, 'metadata-fields-for-app');
+  assert.equal(request?.pipeline?.[0]?.spawn?.length, 2);
+
+  const visitorSource = request?.pipeline?.[0]?.spawn?.[0]?.[0]?.source;
+  const accountSource = request?.pipeline?.[0]?.spawn?.[1]?.[0]?.source;
+
+  assert.equal(visitorSource?.singleEvents?.appId, 'app-1');
+  assert.equal(visitorSource?.timeSeries?.count, -30);
+  assert.equal(accountSource?.singleEvents?.appId, 'app-1');
+  assert.equal(accountSource?.timeSeries?.count, -30);
+});
+
 test('fetchAggregation proxies the request with extracted token', async () => {
   const payload = { test: true };
   const calls = [];
@@ -90,4 +108,22 @@ test('fetchAggregation errors when token is missing', async () => {
       ),
     /pendo.sess.jwt2/,
   );
+});
+
+test('postAggregationWithIntegrationKey forwards the request payload', async () => {
+  const calls = [];
+  const fetchMock = async (url, options) => {
+    calls.push({ url, options });
+    return { ok: true, json: async () => ({ ok: true }) };
+  };
+
+  const payload = { request: { requestId: 'test' } };
+  const entry = { domain: 'https://apps.example.com', integrationKey: 'abc' };
+
+  const response = await postAggregationWithIntegrationKey(entry, payload, fetchMock);
+
+  assert.deepEqual(response, { ok: true });
+  assert.equal(calls[0].url, 'https://apps.example.com/api/v1/aggregation');
+  assert.equal(calls[0].options.headers['X-Pendo-Integration-Key'], 'abc');
+  assert.equal(JSON.parse(calls[0].options.body).request.requestId, 'test');
 });
