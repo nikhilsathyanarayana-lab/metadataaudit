@@ -794,6 +794,7 @@ textarea:focus {
 .pdf-title-block h1 {
   margin: 0;
   font-size: 1.6rem;
+  color: #ffffff;
 }
 
 .pdf-title-block p {
@@ -806,6 +807,7 @@ textarea:focus {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-weight: 700;
+  color: #ffffff;
 }
 
 .pdf-subtitle {
