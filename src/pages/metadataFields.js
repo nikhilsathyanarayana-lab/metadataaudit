@@ -210,7 +210,7 @@ const renderTableRows = (tableBody, entries) => {
 };
 
 const populateAppNameCells = (rows, entry, appName) => {
-  const label = appName || 'Unknown app';
+  const label = appName || '';
   rows
     .filter((row) => row.entry === entry)
     .forEach(({ appNameCell }) => {
@@ -239,7 +239,7 @@ const populateAppNames = async (entries, visitorRows, accountRows, messageRegion
 
       return appNamePromises.get(entry.appId).then((resolvedName) => {
         if (!resolvedName) {
-          return populateAppNameCells(allRows, entry, entry.appName);
+          return populateAppNameCells(allRows, entry, entry.appName || '');
         }
 
         entry.appName = resolvedName;

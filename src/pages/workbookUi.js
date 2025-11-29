@@ -15,7 +15,7 @@ export const parseExamples = (response, subId) => {
   const rows = [];
 
   response.results.forEach((record) => {
-    const appId = record?.appId || 'Unknown app';
+    const appId = record?.appId || '';
     const fieldExamples = record?.fields || {};
     const accountExamples = record?.account || {};
 
@@ -264,7 +264,7 @@ export const initWorkbookUi = () => {
     }
 
     return response.results.flatMap((record) => {
-      const appId = record?.appId || 'Unknown app';
+      const appId = record?.appId || '';
 
       if (!record?.fields) {
         return [];
