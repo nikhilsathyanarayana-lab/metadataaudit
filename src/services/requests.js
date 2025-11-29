@@ -80,46 +80,46 @@ export const buildAppDiscoveryPayload = () => ({
   },
 });
 
-export const buildMetadataFieldsTimeSeriesSlice = (appId, startOffsetDays = 0, windowDays = 30) => ({
-  singleEvents: { appId },
-  timeSeries: {
-    first: startOffsetDays
-      ? `startOfPeriod("dayRange", dateAdd(now(), -${startOffsetDays}, "days"))`
-      : 'startOfPeriod("dayRange", now())',
-    count: -Number(windowDays),
-    period: 'dayRange',
-  },
-});
-
-export const buildMetadataFieldsForAppPayload = (appId, windowDays, startOffsetDays = 0) => ({
+export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
   response: { mimeType: 'application/json' },
   request: {
     name: 'metadata-fields-for-app',
     pipeline: [
       {
-        source: {
-          ...buildMetadataFieldsTimeSeriesSlice(appId, startOffsetDays, windowDays),
-        },
+        spawn: [
+          [
+            {
+              source: {
+                singleEvents: { appId },
+                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+              },
+            },
+            { filter: 'contains(type,`meta`)' },
+            { unmarshal: { metadata: 'title' } },
+            { filter: '!isNil(metadata.visitor)' },
+            { eval: { visitorMetadata: 'keys(metadata.visitor)' } },
+            { unwind: { field: 'visitorMetadata' } },
+            { group: { group: ['appId', 'visitorMetadata'] } },
+            { group: { group: ['appId'], fields: { visitorMetadata: { list: 'visitorMetadata' } } } },
+          ],
+          [
+            {
+              source: {
+                singleEvents: { appId },
+                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+              },
+            },
+            { filter: 'contains(type,`meta`)' },
+            { unmarshal: { metadata: 'title' } },
+            { filter: '!isNil(metadata.account)' },
+            { eval: { accountMetadata: 'keys(metadata.account)' } },
+            { unwind: { field: 'accountMetadata' } },
+            { group: { group: ['appId', 'accountMetadata'] } },
+            { group: { group: ['appId'], fields: { accountMetadata: { list: 'accountMetadata' } } } },
+          ],
+        ],
       },
-      { filter: 'contains(type,`meta`)' },
-      { unmarshal: { metadata: 'title' } },
-      {
-        eval: {
-          visitorMetadata: 'if(isNil(metadata.visitor), [], keys(metadata.visitor))',
-          accountMetadata: 'if(isNil(metadata.account), [], keys(metadata.account))',
-        },
-      },
-      { unwind: { field: 'visitorMetadata', optional: true } },
-      { unwind: { field: 'accountMetadata', optional: true } },
-      {
-        group: {
-          group: ['appId'],
-          fields: {
-            visitorMetadata: { listDistinct: 'visitorMetadata' },
-            accountMetadata: { listDistinct: 'accountMetadata' },
-          },
-        },
-      },
+      { join: { fields: ['appId'] } },
     ],
   },
 });
@@ -366,7 +366,6 @@ export default {
   buildCookieHeaderValue,
   buildExamplesPayload,
   buildHeaders,
-  buildMetadataFieldsTimeSeriesSlice,
   buildMetadataFieldsPayload,
   buildRequestHeaders,
   fetchAppNameById,
