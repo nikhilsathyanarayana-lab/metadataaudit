@@ -10,8 +10,105 @@ const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
 const manualAppNameStorageKey = 'manualAppNames';
+const metadataFieldStorageKey = 'metadataFieldRecords';
+const metadataFieldStorageVersion = 1;
 let manualAppNameCache = null;
 let metadataFieldsReadyPromise = Promise.resolve();
+let metadataSnapshot = new Map();
+
+const buildMetadataRecordKey = (appId, windowDays) => `${appId}::${windowDays}`;
+
+const loadMetadataSnapshot = () => {
+  metadataSnapshot = new Map();
+
+  try {
+    const raw = localStorage.getItem(metadataFieldStorageKey);
+
+    if (!raw) {
+      return metadataSnapshot;
+    }
+
+    const parsed = JSON.parse(raw);
+    const records = parsed?.records;
+
+    if (parsed?.version !== metadataFieldStorageVersion || !Array.isArray(records)) {
+      return metadataSnapshot;
+    }
+
+    records.forEach((record) => {
+      if (!record?.appId || !Number.isFinite(record?.windowDays)) {
+        return;
+      }
+
+      const key = buildMetadataRecordKey(record.appId, record.windowDays);
+      metadataSnapshot.set(key, record);
+    });
+  } catch (error) {
+    console.error('Unable to load stored metadata fields:', error);
+  }
+
+  return metadataSnapshot;
+};
+
+const persistMetadataSnapshot = () => {
+  const serialized = {
+    version: metadataFieldStorageVersion,
+    updatedAt: new Date().toISOString(),
+    records: Array.from(metadataSnapshot.values()),
+  };
+
+  localStorage.setItem(metadataFieldStorageKey, JSON.stringify(serialized));
+};
+
+const updateMetadataSnapshotEntry = (
+  entry,
+  windowDays,
+  visitorFields,
+  accountFields,
+  manualAppNames,
+) => {
+  if (!entry?.appId || !Number.isFinite(windowDays)) {
+    return;
+  }
+
+  const record = {
+    version: metadataFieldStorageVersion,
+    updatedAt: new Date().toISOString(),
+    appId: entry.appId,
+    appName: entry.appName || manualAppNames?.get(entry.appId) || '',
+    subId: entry.subId,
+    domain: entry.domain,
+    integrationKey: entry.integrationKey,
+    windowDays,
+    visitorFields,
+    accountFields,
+  };
+
+  metadataSnapshot.set(buildMetadataRecordKey(entry.appId, windowDays), record);
+  persistMetadataSnapshot();
+};
+
+const syncMetadataSnapshotAppName = (appId, appName) => {
+  if (!appId) {
+    return;
+  }
+
+  let updated = false;
+  metadataSnapshot.forEach((record, key) => {
+    if (record.appId === appId) {
+      metadataSnapshot.set(key, {
+        ...record,
+        appName,
+        updatedAt: new Date().toISOString(),
+      });
+      updated = true;
+    }
+  });
+
+  if (updated) {
+    persistMetadataSnapshot();
+  }
+};
 
 const setupProgressTracker = (initialTotalCalls) => {
   const progressText = document.getElementById('metadata-fields-progress-text');
@@ -280,7 +377,7 @@ const updateManualAppNameFeedback = (tone, message) => {
   feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
 };
 
-const setupManualAppNameModal = async (manualAppNames, entries, allRows) => {
+const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncAppName) => {
   if (!document.getElementById('app-name-modal')) {
     await loadTemplate('Modals/app-name-modal.html');
   }
@@ -339,6 +436,7 @@ const setupManualAppNameModal = async (manualAppNames, entries, allRows) => {
 
     manualAppNames.set(activeEntry.appId, appName);
     persistManualAppNames(manualAppNames);
+    syncAppName?.(activeEntry.appId, appName);
 
     entries
       .filter((entry) => entry.appId === activeEntry.appId)
@@ -412,6 +510,7 @@ const fetchAndPopulate = async (
   messageRegion,
   updateProgress,
   addTotalCalls,
+  manualAppNames,
 ) => {
   let completedCalls = 0;
 
@@ -440,6 +539,8 @@ const fetchAndPopulate = async (
         baseRequestAttempted = true;
         updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
         updateCellContent(accountCells[windowDays], accountFields, 'account');
+
+        updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
 
         visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
         accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
@@ -480,6 +581,8 @@ const fetchAndPopulate = async (
 
             updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
             updateCellContent(accountCells[windowDays], accountFields, 'account');
+
+            updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
 
             visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
@@ -538,6 +641,7 @@ export const initMetadataFields = () => {
     }
 
     const messageRegion = createMessageRegion();
+    loadMetadataSnapshot();
     const manualAppNames = loadManualAppNames();
     const entries = buildAppEntries(manualAppNames);
 
@@ -562,7 +666,12 @@ export const initMetadataFields = () => {
       }
     });
 
-    const openAppNameModal = await setupManualAppNameModal(manualAppNames, entries, allRows);
+    const openAppNameModal = await setupManualAppNameModal(
+      manualAppNames,
+      entries,
+      allRows,
+      syncMetadataSnapshotAppName,
+    );
 
     if (typeof openAppNameModal === 'function') {
       allRows.forEach(({ entry, appNameButton }) => {
@@ -580,6 +689,7 @@ export const initMetadataFields = () => {
       messageRegion,
       updateProgress,
       addTotalCalls,
+      manualAppNames,
     );
   })();
 
