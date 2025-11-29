@@ -317,9 +317,13 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
       let tooMuchData = false;
       let encounteredError = false;
 
-      for (const offset of sliceOffsets) {
+      const slicePayloads = sliceOffsets.map((offset) => ({
+        offset,
+        payload: buildMetadataFieldsForAppPayload(entry.appId, sliceWindow, offset),
+      }));
+
+      for (const { offset, payload } of slicePayloads) {
         try {
-          const payload = buildMetadataFieldsForAppPayload(entry.appId, sliceWindow, offset);
           const response = await postAggregationWithIntegrationKey(entry, payload);
           const { visitorFields, accountFields } = parseMetadataFields(response);
 

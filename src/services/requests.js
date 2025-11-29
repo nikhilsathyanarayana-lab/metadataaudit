@@ -97,38 +97,29 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays, startOffsetD
     name: 'metadata-fields-for-app',
     pipeline: [
       {
-        spawn: [
-          [
-            {
-              source: {
-                ...buildMetadataFieldsTimeSeriesSlice(appId, startOffsetDays, windowDays),
-              },
-            },
-            { filter: 'contains(type,`meta`)' },
-            { unmarshal: { metadata: 'title' } },
-            { filter: '!isNil(metadata.visitor)' },
-            { eval: { visitorMetadata: 'keys(metadata.visitor)' } },
-            { unwind: { field: 'visitorMetadata' } },
-            { group: { group: ['appId', 'visitorMetadata'] } },
-            { group: { group: ['appId'], fields: { visitorMetadata: { list: 'visitorMetadata' } } } },
-          ],
-          [
-            {
-              source: {
-                ...buildMetadataFieldsTimeSeriesSlice(appId, startOffsetDays, windowDays),
-              },
-            },
-            { filter: 'contains(type,`meta`)' },
-            { unmarshal: { metadata: 'title' } },
-            { filter: '!isNil(metadata.account)' },
-            { eval: { accountMetadata: 'keys(metadata.account)' } },
-            { unwind: { field: 'accountMetadata' } },
-            { group: { group: ['appId', 'accountMetadata'] } },
-            { group: { group: ['appId'], fields: { accountMetadata: { list: 'accountMetadata' } } } },
-          ],
-        ],
+        source: {
+          ...buildMetadataFieldsTimeSeriesSlice(appId, startOffsetDays, windowDays),
+        },
       },
-      { join: { fields: ['appId'] } },
+      { filter: 'contains(type,`meta`)' },
+      { unmarshal: { metadata: 'title' } },
+      {
+        eval: {
+          visitorMetadata: 'isNil(metadata.visitor) ? [] : keys(metadata.visitor)',
+          accountMetadata: 'isNil(metadata.account) ? [] : keys(metadata.account)',
+        },
+      },
+      { unwind: { field: 'visitorMetadata', optional: true } },
+      { unwind: { field: 'accountMetadata', optional: true } },
+      {
+        group: {
+          group: ['appId'],
+          fields: {
+            visitorMetadata: { listDistinct: 'visitorMetadata' },
+            accountMetadata: { listDistinct: 'accountMetadata' },
+          },
+        },
+      },
     ],
   },
 });
