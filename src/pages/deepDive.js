@@ -1,12 +1,14 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
+import {
+  applyManualAppNames,
+  loadManualAppNames,
+  setManualAppName,
+} from '../services/appNames.js';
 
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
-const manualAppNameStorageKey = 'manualAppNames';
 const appSelectionStorageKey = 'appSelectionResponses';
 const TARGET_LOOKBACK = 180;
-
-let manualAppNameCache = null;
 
 const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
@@ -38,32 +40,6 @@ const extractAppIds = (apiResponse) => {
   return Array.from(new Set(appIds));
 };
 
-const loadManualAppNames = () => {
-  if (manualAppNameCache instanceof Map) {
-    return manualAppNameCache;
-  }
-
-  try {
-    const raw = localStorage.getItem(manualAppNameStorageKey);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
-    manualAppNameCache = new Map(entries);
-  } catch (error) {
-    console.error('Unable to parse manual app names:', error);
-    manualAppNameCache = new Map();
-  }
-
-  return manualAppNameCache;
-};
-
-const persistManualAppNames = (appNameMap) => {
-  if (!(appNameMap instanceof Map)) {
-    return;
-  }
-
-  const serialized = Object.fromEntries(appNameMap.entries());
-  localStorage.setItem(manualAppNameStorageKey, JSON.stringify(serialized));
-};
 
 const loadAppSelections = () => {
   try {
@@ -189,12 +165,6 @@ const groupMetadataByApp = (records) => {
 
   return Array.from(grouped.values());
 };
-
-const applyManualAppNames = (rows, manualAppNames) =>
-  rows.map((row) => ({
-    ...row,
-    appName: manualAppNames.get(row.appId) || row.appName || '',
-  }));
 
 const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -379,8 +349,7 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) =>
       return;
     }
 
-    manualAppNames.set(activeRow.appId, appName);
-    persistManualAppNames(manualAppNames);
+    setManualAppName(manualAppNames, activeRow.appId, appName);
     syncMetadataRecordsAppName(activeRow.appId, appName);
 
     rows
