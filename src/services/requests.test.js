@@ -6,6 +6,7 @@ import {
   buildCookieHeaderValue,
   buildAppDiscoveryPayload,
   buildMetadataFieldsForAppPayload,
+  buildChunkedMetadataFieldPayloads,
   fetchAggregation,
   fetchAppsForEntry,
   postAggregationWithIntegrationKey,
@@ -66,6 +67,22 @@ test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
   assert.equal(visitorSource?.timeSeries?.count, -30);
   assert.equal(accountSource?.singleEvents?.appId, 'app-1');
   assert.equal(accountSource?.timeSeries?.count, -30);
+});
+
+test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () => {
+  const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
+
+  assert.equal(payloads.length, 6);
+  assert.ok(payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)));
+
+  const extractTimeSeries = (payload) =>
+    payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+
+  const expectedOffsets = ['now()', 'now()-30d', 'now()-60d', 'now()-90d', 'now()-120d', 'now()-150d'];
+  payloads.forEach((payload, idx) => {
+    const series = extractTimeSeries(payload);
+    assert.ok(series.every((item) => item?.first === expectedOffsets[idx] && item?.count === -30));
+  });
 });
 
 test('fetchAggregation proxies the request with extracted token', async () => {

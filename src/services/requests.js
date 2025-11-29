@@ -124,6 +124,60 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
   },
 });
 
+/**
+ * Build chunked payloads for metadata field requests when a single window is too large.
+ * Each payload mirrors the base metadata fields request but scopes the time range to a
+ * specific 30-day window so callers can retry across the last 180 days in smaller slices.
+ *
+ * @param {string} appId Application ID for the metadata request.
+ * @param {number} windowDays Original window size requested (e.g. 180).
+ * @param {number} [chunkSize=30] Number of days per chunk.
+ * @returns {object[]} Array of payloads covering the requested window in chunks.
+ */
+export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize = 30) => {
+  const normalizedWindow = Number(windowDays);
+
+  if (!appId || !normalizedWindow || chunkSize <= 0) {
+    return [];
+  }
+
+  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
+  const payloads = [];
+
+  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
+    const startOffset = Math.max(
+      0,
+      Math.min((chunkIndex - 1) * chunkSize, normalizedWindow - chunkSize),
+    );
+    const count = -Math.min(chunkSize, normalizedWindow - (chunkIndex - 1) * chunkSize);
+
+    const payload = buildMetadataFieldsForAppPayload(appId, windowDays);
+    const spawn = payload?.request?.pipeline?.[0]?.spawn;
+
+    if (Array.isArray(spawn)) {
+      spawn.forEach((branch) => {
+        const source = branch?.[0]?.source;
+
+        if (source?.timeSeries) {
+          source.timeSeries = {
+            ...source.timeSeries,
+            first: startOffset ? `now()-${startOffset}d` : 'now()',
+            count,
+          };
+        }
+      });
+    }
+
+    if (payload?.request) {
+      payload.request.requestId = `${payload.request.requestId || payload.request.name || 'metadata-fields'}-chunk-${chunkIndex}`;
+    }
+
+    payloads.push(payload);
+  }
+
+  return payloads;
+};
+
 export const buildMetadataFieldsPayload = (windowDays) => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
@@ -363,6 +417,7 @@ export default {
   buildMetadataFieldsForAppPayload,
   buildAppAggregationRequest,
   buildAppDiscoveryPayload,
+  buildChunkedMetadataFieldPayloads,
   buildCookieHeaderValue,
   buildExamplesPayload,
   buildHeaders,
