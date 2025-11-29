@@ -51,12 +51,16 @@ Follow these steps to serve the project on your Mac:
 
 ## JavaScript overview (entries + controllers)
 - **loadTemplate(path)**: Exported from `src/controllers/modalLoader.js`, fetches and injects the export modal HTML when needed, attaching the markup to the document body.
+- **exportMetadataPdf() / exportMetadataXlsx()**: Exported from `src/controllers/pdfExport.js` and `src/controllers/xlsxExport.js`, respectively. They lazy-load their CDN script dependencies, prompt for file names (with a modal fallback for XLSX), and serialize the visible metadata tables into downloadable files.
 - **initSubIdForm()**: Exported from `src/controllers/subidForm.js`, drives the landing form experience—building SubID rows with domain selectors, handling integration key modal interactions, persisting launch data to local storage, and dispatching aggregation requests before redirecting to app selection.
   - Internal helpers now cover modal open/close handlers, integration key persistence per row, dynamic add-row controls, and launch button state management tied to completeness of inputs.
 - **initAppSelection()**: Exported from `src/pages/appSelection.js`, reads stored launch data, populates the app selection table, and gates the Continue button behind at least one checked app before redirecting to the metadata fields page.
 - **initWorkbookUi()**: Exported from `src/pages/workbookUi.js`, orchestrates the cookie-based workbook flow (endpoint resolution, Aggregations calls, XLSX assembly) when the workbook form is present.
 - **initDeepDiveNavigation()**: Exported from `src/pages/navigation.js`, navigates from the metadata fields page to the deep dive page when the Deep Dive button is clicked.
-- **bootstrapShared()**: Exported from `src/entries/shared.js`, injects the shared export modal template when needed and binds the modal controls for pages that surface an export button.
+- **bootstrapShared()**: Exported from `src/entries/shared.js`, injects the shared export modal template (and the XLSX naming modal) when needed, then binds export button listeners that delegate to the PDF/XLSX controllers.
+- **Requests helpers**: `src/services/requests.js` centralizes payload builders for aggregation and metadata endpoints and offers helpers for cookie header normalization and aggregation URL composition.
+- **UI utilities**: `src/ui/components.js` exposes DOM helpers for domain pickers, add/remove buttons, and modal visibility toggles used by the SubID form and modal controllers.
+- **Entry wiring**: Each entry file calls `bootstrapShared()` first to ensure export modals are loaded before page scripts run—`index.js` wires the landing SubID form, `app_selection.js` initializes the app chooser, `metadata_fields.js` combines Deep Dive navigation with metadata table binding, `deep_dive.js` loads shared modals for export-only flows, and `workbook_ui.js` bootstraps the workbook helper page.
 
 ## What’s still missing
 - Runbook details such as how to serve the static pages locally, expected API responses from Pendo, and example payloads aren’t described yet.
