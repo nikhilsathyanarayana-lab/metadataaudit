@@ -65,10 +65,8 @@ test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
 
   assert.equal(visitorSource?.singleEvents?.appId, 'app-1');
   assert.equal(visitorSource?.timeSeries?.count, -30);
-  assert.equal(visitorSource?.timeSeries?.last, 'dateAdd(now(), -30, "days")');
   assert.equal(accountSource?.singleEvents?.appId, 'app-1');
   assert.equal(accountSource?.timeSeries?.count, -30);
-  assert.equal(accountSource?.timeSeries?.last, 'dateAdd(now(), -30, "days")');
 });
 
 test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () => {
@@ -83,20 +81,20 @@ test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () =
     payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
 
   const getOffset = (timeSeries) => {
-    const match = timeSeries?.last?.match(/dateAdd\(now\(\), -(\d+), "days"\)/);
+    const match = timeSeries?.first?.match(/dateAdd\(now\(\), -(\d+), "days"\)/);
     return Number(match?.[1]);
   };
 
   payloads.forEach((payload, idx) => {
     const series = extractTimeSeries(payload);
-    const expectedLast = `dateAdd(now(), -${(idx + 1) * 30}, "days")`;
+    const expectedFirst = `dateAdd(now(), -${idx * 30}, "days")`;
     const expectedCount = -30;
 
     assert.ok(
       series.every(
         (item) =>
-          typeof item?.last === 'string' &&
-          item?.last === expectedLast &&
+          typeof item?.first === 'string' &&
+          item?.first === expectedFirst &&
           item?.count === expectedCount &&
           item?.period === 'dayRange',
       ),

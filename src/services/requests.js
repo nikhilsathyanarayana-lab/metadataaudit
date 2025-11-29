@@ -54,11 +54,7 @@ export const buildAppAggregationRequest = () => ({
       {
         source: {
           singleEvents: { appId: 'expandAppIds("*")' },
-          timeSeries: {
-            period: 'dayRange',
-            last: 'dateAdd(now(), -7, "days")',
-            count: -7,
-          },
+          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
         },
       },
       { group: { group: ['appId'] } },
@@ -75,11 +71,7 @@ export const buildAppDiscoveryPayload = () => ({
       {
         source: {
           singleEvents: { appId: 'expandAppIds("*")' },
-          timeSeries: {
-            period: 'dayRange',
-            last: 'dateAdd(now(), -7, "days")',
-            count: -7,
-          },
+          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
         },
       },
       { group: { group: ['appId'] } },
@@ -99,11 +91,7 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
             {
               source: {
                 singleEvents: { appId },
-                timeSeries: {
-                  period: 'dayRange',
-                  last: `dateAdd(now(), -${Number(windowDays)}, "days")`,
-                  count: -Number(windowDays),
-                },
+                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
               },
             },
             { filter: 'contains(type,`meta`)' },
@@ -118,11 +106,7 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
             {
               source: {
                 singleEvents: { appId },
-                timeSeries: {
-                  period: 'dayRange',
-                  last: `dateAdd(now(), -${Number(windowDays)}, "days")`,
-                  count: -Number(windowDays),
-                },
+                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
               },
             },
             { filter: 'contains(type,`meta`)' },
@@ -164,7 +148,7 @@ export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize =
     const remaining = normalizedWindow - startOffset;
     const chunkDays = Math.min(chunkSize, remaining);
     const count = -chunkDays;
-    const last = `dateAdd(now(), -${startOffset + chunkDays}, "days")`;
+    const first = `dateAdd(now(), -${startOffset}, "days")`;
 
     const payload = buildMetadataFieldsForAppPayload(appId, windowDays);
     const spawn = payload?.request?.pipeline?.[0]?.spawn;
@@ -176,7 +160,7 @@ export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize =
         if (source?.timeSeries) {
           source.timeSeries = {
             ...source.timeSeries,
-            last,
+            first,
             count,
             period: 'dayRange',
           };
@@ -203,11 +187,7 @@ export const buildMetadataFieldsPayload = (windowDays) => ({
         source: {
           singleEvents: { appId: 'expandAppIds("*")' },
           metadata: { account: true, visitor: true },
-          timeSeries: {
-            period: 'dayRange',
-            last: `dateAdd(now(), -${Number(windowDays)}, "days")`,
-            count: -Number(windowDays),
-          },
+          timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
         },
       },
       {
@@ -230,11 +210,7 @@ export const buildExamplesPayload = () => ({
         source: {
           singleEvents: { appId: 'expandAppIds("*")' },
           metadata: { account: true, visitor: true },
-          timeSeries: {
-            period: 'dayRange',
-            last: 'dateAdd(now(), -7, "days")',
-            count: -7,
-          },
+          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
         },
       },
       {

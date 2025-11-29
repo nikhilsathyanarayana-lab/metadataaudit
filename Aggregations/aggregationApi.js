@@ -8,11 +8,7 @@ const buildAggregationRequestBody = () => ({
       {
         source: {
           singleEvents: { appId: 'expandAppIds("*")' },
-          timeSeries: {
-            period: 'dayRange',
-            last: 'dateAdd(now(), -7, "days")',
-            count: -7,
-          },
+          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
         },
       },
       { group: { group: ['appId'] } },
