@@ -7,6 +7,52 @@ import {
   fetchAggregation,
 } from '../services/requests.js';
 
+export const parseExamples = (response, subId) => {
+  if (!response?.results) {
+    return [];
+  }
+
+  const rows = [];
+
+  response.results.forEach((record) => {
+    const appId = record?.appId || 'Unknown app';
+    const fieldExamples = record?.fields || {};
+    const accountExamples = record?.account || {};
+
+    Object.entries(fieldExamples).forEach(([field, examples]) => {
+      rows.push({
+        SubID: subId,
+        AppID: appId,
+        Field: field,
+        Example: examples?.value,
+        Count: examples?.count,
+      });
+    });
+
+    Object.entries(accountExamples).forEach(([key, value]) =>
+      rows.push({
+        SubID: subId,
+        AppID: appId,
+        Field: key,
+        Example: typeof value === 'string' ? value : JSON.stringify(value),
+        Count: '',
+      }),
+    );
+
+    if (!Object.keys(fieldExamples).length && !Object.keys(accountExamples).length) {
+      rows.push({
+        SubID: subId,
+        AppID: 'n/a',
+        Field: 'No examples returned',
+        Example: 'Examples were requested but no fields were parsed.',
+        Count: '',
+      });
+    }
+  });
+
+  return rows;
+};
+
 export const initWorkbookUi = () => {
   const form = document.getElementById('workbook-form');
   const envSelect = document.getElementById('env-choice');
@@ -233,56 +279,6 @@ export const initWorkbookUi = () => {
     });
   };
 
-  const parseExamples = (response, subId) => {
-    if (!response?.results) {
-      return [];
-    }
-
-    const rows = [];
-
-    response.results.forEach((record) => {
-      const appId = record?.appId || 'Unknown app';
-      const fieldExamples = record?.fields || {};
-
-      Object.entries(fieldExamples).forEach(([field, examples]) => {
-        rows.push({
-          SubID: subId,
-          AppID: appId,
-          Field: field,
-          Example: examples?.value,
-          Count: examples?.count,
-        });
-
-        if (record?.account) {
-          const accountExamples = record?.account || {};
-          Object.entries(accountExamples).forEach(([key, value]) =>
-            rows.push({
-              SubID: subId,
-              AppID: appId,
-              Field: key,
-              Example: typeof value === 'string' ? value : JSON.stringify(value),
-              Count: '',
-            }),
-          );
-        }
-      });
-
-      if (!rows.length && response) {
-        rows.push({
-          SubID: subId,
-          AppID: 'n/a',
-          Field: 'No examples returned',
-          Example: 'Examples were requested but no fields were parsed.',
-          Count: '',
-        });
-      }
-
-      return rows;
-    });
-
-    return rows;
-  };
-
   let workbookLibsPromise;
 
   const loadScript = (src, globalName) =>
@@ -311,7 +307,7 @@ export const initWorkbookUi = () => {
     return workbookLibsPromise;
   };
 
-  const summarizeError = (error) => {
+const summarizeError = (error) => {
     const rawMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
     const message = rawMessage || 'Unknown workbook error.';
     const lowered = message.toLowerCase();
