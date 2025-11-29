@@ -5,6 +5,7 @@ import {
   buildAppAggregationRequest,
   buildCookieHeaderValue,
   buildAppDiscoveryPayload,
+  buildMetaEventsPayload,
   buildMetadataFieldsForAppPayload,
   buildChunkedMetadataFieldPayloads,
   fetchAggregation,
@@ -23,6 +24,22 @@ test('buildAggregationUrl interpolates the subscription id', () => {
   const result = buildAggregationUrl(envUrls, 'us', '1234');
 
   assert.equal(result, 'https://example.com/api/1234/aggregation');
+});
+
+test('buildMetaEventsPayload uses a single request with pipeline', () => {
+  const payload = buildMetaEventsPayload('app-123', 10);
+
+  assert.equal(payload.response?.location, 'request');
+  assert.ok(Array.isArray(payload.request?.pipeline));
+  assert.ok(!payload.requests);
+
+  const source = payload.request?.pipeline?.[0]?.source;
+  assert.equal(source?.singleEvents?.appId, 'app-123');
+  assert.equal(source?.timeSeries?.count, -10);
+  assert.equal(source?.timeSeries?.period, 'dayRange');
+
+  const filterStep = payload.request?.pipeline?.[1];
+  assert.equal(filterStep?.filter, 'contains(type,`meta`)');
 });
 
 test('fetchAppsForEntry posts to the aggregation endpoint with headers', async () => {

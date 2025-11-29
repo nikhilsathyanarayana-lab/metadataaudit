@@ -20,19 +20,17 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
 
 export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
   response: { location: 'request', mimeType: 'application/json' },
-  requests: [
-    {
-      pipeline: [
-        {
-          source: {
-            singleEvents: { appId },
-            timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
-          },
+  request: {
+    pipeline: [
+      {
+        source: {
+          singleEvents: { appId },
+          timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
         },
-        { filter: 'contains(type,`meta`)' },
-      ],
-    },
-  ],
+      },
+      { filter: 'contains(type,`meta`)' },
+    ],
+  },
 });
 
 export const buildCookieHeaderValue = (rawCookie) => {
