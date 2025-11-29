@@ -11,8 +11,9 @@ const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
 let metadataFieldsReadyPromise = Promise.resolve();
 
-const setupProgressTracker = (totalCalls) => {
+const setupProgressTracker = (initialTotalCalls) => {
   const progressText = document.getElementById('metadata-fields-progress-text');
+  let totalCalls = initialTotalCalls;
 
   const updateText = (completed) => {
     if (!progressText) {
@@ -28,9 +29,17 @@ const setupProgressTracker = (totalCalls) => {
     progressText.textContent = `API calls: ${boundedCompleted}/${totalCalls}`;
   };
 
+  const addCalls = (additionalCalls) => {
+    if (!Number.isFinite(additionalCalls) || additionalCalls <= 0) {
+      return;
+    }
+
+    totalCalls += additionalCalls;
+  };
+
   updateText(0);
 
-  return updateText;
+  return { updateText, addCalls, getTotalCalls: () => totalCalls };
 };
 
 const createMessageRegion = () => {
@@ -299,7 +308,14 @@ const updateCellContent = (cell, fields, label) => {
   cell.textContent = fields.join(', ');
 };
 
-const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion, updateProgress) => {
+const fetchAndPopulate = async (
+  entries,
+  visitorRows,
+  accountRows,
+  messageRegion,
+  updateProgress,
+  addTotalCalls,
+) => {
   let completedCalls = 0;
 
   for (const entry of entries) {
@@ -311,24 +327,32 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
     }
 
     for (const windowDays of LOOKBACK_WINDOWS) {
+      let baseRequestAttempted = false;
+
       try {
         const payload = buildMetadataFieldsForAppPayload(entry.appId, windowDays);
         const response = await postAggregationWithIntegrationKey(entry, payload);
         const { visitorFields, accountFields } = parseMetadataFields(response);
 
+        baseRequestAttempted = true;
         updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
         updateCellContent(accountCells[windowDays], accountFields, 'account');
 
         visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
         accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
       } catch (error) {
+        baseRequestAttempted = true;
         const errorMessage = error?.message || 'Unable to fetch metadata fields.';
         const tooMuchData = RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
         const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
+        let handledByChunks = false;
 
         if (tooMuchData) {
           const chunkedPayloads = buildChunkedMetadataFieldPayloads(entry.appId, windowDays);
           const aggregatedResults = [];
+
+          addTotalCalls(chunkedPayloads.length);
+          updateProgress(completedCalls);
 
           try {
             for (const chunkedPayload of chunkedPayloads) {
@@ -341,6 +365,9 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
               } else if (Array.isArray(chunkResponse)) {
                 aggregatedResults.push(...chunkResponse);
               }
+
+              completedCalls += 1;
+              updateProgress(completedCalls);
             }
 
             const { visitorFields, accountFields } = parseMetadataFields(aggregatedResults);
@@ -350,31 +377,43 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
 
             visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-            completedCalls += 1;
-            updateProgress(completedCalls);
-            continue;
+            handledByChunks = true;
           } catch (chunkError) {
             console.error('Chunked metadata field request failed:', chunkError);
           }
         } else {
           console.error('Metadata field request failed:', error);
-          showMessage(
-            messageRegion,
-            `Metadata request failed for app ${entry.appId} (${windowDays}d): ${errorMessage}`,
-            'error',
-          );
         }
 
-        updateCellContent(visitorCells[windowDays], [], 'visitor');
-        updateCellContent(accountCells[windowDays], [], 'account');
-        visitorCells[windowDays].textContent = cellMessage;
-        accountCells[windowDays].textContent = cellMessage;
-        visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
-        accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+        if (!handledByChunks) {
+          if (tooMuchData) {
+            showMessage(
+              messageRegion,
+              `Metadata request too large for app ${entry.appId} (${windowDays}d). Try a smaller window.`,
+              'error',
+            );
+          } else {
+            const generalMessage = errorMessage?.trim() || 'Unable to fetch metadata fields.';
+            showMessage(
+              messageRegion,
+              `Metadata request failed for app ${entry.appId} (${windowDays}d): ${generalMessage}`,
+              'error',
+            );
+          }
+
+          updateCellContent(visitorCells[windowDays], [], 'visitor');
+          updateCellContent(accountCells[windowDays], [], 'account');
+          visitorCells[windowDays].textContent = cellMessage;
+          accountCells[windowDays].textContent = cellMessage;
+          visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+          accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+        }
       }
 
-      completedCalls += 1;
-      updateProgress(completedCalls);
+      if (baseRequestAttempted) {
+        completedCalls += 1;
+        updateProgress(completedCalls);
+      }
     }
   }
 };
@@ -392,7 +431,7 @@ export const initMetadataFields = () => {
     const entries = buildAppEntries();
 
     const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
-    const updateProgress = setupProgressTracker(totalCalls);
+    const { updateText: updateProgress, addCalls: addTotalCalls } = setupProgressTracker(totalCalls);
 
     if (!entries.length) {
       showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
@@ -407,7 +446,14 @@ export const initMetadataFields = () => {
 
     const appNamePromise = populateAppNames(entries, visitorRows, accountRows, messageRegion);
 
-    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress);
+    await fetchAndPopulate(
+      entries,
+      visitorRows,
+      accountRows,
+      messageRegion,
+      updateProgress,
+      addTotalCalls,
+    );
     await appNamePromise;
   })();
 
