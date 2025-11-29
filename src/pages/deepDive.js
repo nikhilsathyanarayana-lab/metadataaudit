@@ -1,7 +1,7 @@
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
 const appSelectionStorageKey = 'appSelectionResponses';
-const LOOKBACK_WINDOWS = [180, 30, 7];
+const TARGET_LOOKBACK = 180;
 
 const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
@@ -86,24 +86,28 @@ const groupMetadataByApp = (records) => {
   const grouped = new Map();
 
   records.forEach((record) => {
+    if (record.windowDays !== TARGET_LOOKBACK) {
+      return;
+    }
+
     const appId = record.appId;
     const existing = grouped.get(appId) || {
       appId,
       appName: record.appName || '',
       subId: record.subId || '',
-      visitorCounts: {},
-      accountCounts: {},
+      visitorFields: [],
+      accountFields: [],
     };
 
     existing.appName = existing.appName || record.appName || '';
     existing.subId = existing.subId || record.subId || '';
 
     if (Array.isArray(record.visitorFields)) {
-      existing.visitorCounts[record.windowDays] = record.visitorFields.length;
+      existing.visitorFields = record.visitorFields;
     }
 
     if (Array.isArray(record.accountFields)) {
-      existing.accountCounts[record.windowDays] = record.accountFields.length;
+      existing.accountFields = record.accountFields;
     }
 
     grouped.set(appId, existing);
@@ -115,7 +119,7 @@ const groupMetadataByApp = (records) => {
 const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
   const emptyCell = document.createElement('td');
-  emptyCell.colSpan = 6;
+  emptyCell.colSpan = 4;
   emptyCell.textContent = message;
   row.appendChild(emptyCell);
   tableBody.appendChild(row);
@@ -167,14 +171,13 @@ const renderTable = (tableBody, rows, type) => {
     row.appendChild(subIdCell);
     row.appendChild(appIdCell);
 
-    LOOKBACK_WINDOWS.forEach((windowDays) => {
-      const countCell = document.createElement('td');
-      countCell.dataset.label = `${windowDays} days`;
-      const counts = type === 'visitor' ? rowData.visitorCounts : rowData.accountCounts;
-      const value = counts?.[windowDays];
-      countCell.textContent = Number.isFinite(value) ? value : '—';
-      row.appendChild(countCell);
-    });
+    const fieldsCell = document.createElement('td');
+    fieldsCell.dataset.label = 'Metadata fields (180 days)';
+    const fields = type === 'visitor' ? rowData.visitorFields : rowData.accountFields;
+    fieldsCell.textContent = fields?.length
+      ? fields.join(', ')
+      : 'No metadata fields captured for 180 days';
+    row.appendChild(fieldsCell);
 
     const formatCell = document.createElement('td');
     formatCell.dataset.label = 'Expected format';
@@ -203,8 +206,8 @@ export const initDeepDive = () => {
     const selectionRows = selections.map((entry) => ({
       appId: entry.appId,
       subId: entry.subId,
-      visitorCounts: {},
-      accountCounts: {},
+      visitorFields: [],
+      accountFields: [],
     }));
 
     rows = selectionRows;
