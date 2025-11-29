@@ -1,6 +1,7 @@
 import {
   buildMetadataFieldsForAppPayload,
   postAggregationWithIntegrationKey,
+  fetchAppNameById,
 } from '../services/requests.js';
 
 const LOOKBACK_WINDOWS = [180, 30, 7];
@@ -76,6 +77,34 @@ const parseStoredSelection = () => {
   }
 };
 
+const extractAppNames = (apiResponse) => {
+  if (!apiResponse) {
+    return new Map();
+  }
+
+  const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
+
+  if (Array.isArray(apiResponse)) {
+    candidateLists.push(apiResponse);
+  }
+
+  const flattened = candidateLists.filter(Array.isArray).flat();
+  const appNameMap = new Map();
+
+  flattened.forEach((entry) => {
+    if (!entry || typeof entry !== 'object' || !entry.appId) {
+      return;
+    }
+
+    const candidateName = entry.appName || entry.name || entry.label || entry.title;
+    if (candidateName) {
+      appNameMap.set(entry.appId, candidateName);
+    }
+  });
+
+  return appNameMap;
+};
+
 const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
     return [];
@@ -111,11 +140,13 @@ const buildAppEntries = () => {
   const entries = [];
 
   storedResponses.forEach((record) => {
+    const appNames = extractAppNames(record.response);
     const appIds = extractAppIds(record.response);
     appIds.forEach((appId) => {
       entries.push({
         subId: record.subId,
         appId,
+        appName: appNames.get(appId),
         domain: record.domain,
         integrationKey: record.integrationKey,
       });
@@ -138,7 +169,7 @@ const renderTableRows = (tableBody, entries) => {
   if (!entries.length) {
     const row = document.createElement('tr');
     const emptyCell = document.createElement('td');
-    emptyCell.colSpan = 5;
+    emptyCell.colSpan = 6;
     emptyCell.textContent = 'No app selections available.';
     row.appendChild(emptyCell);
     tableBody.appendChild(row);
@@ -152,6 +183,10 @@ const renderTableRows = (tableBody, entries) => {
     subIdCell.dataset.label = 'Sub ID';
     subIdCell.textContent = entry.subId;
 
+    const appNameCell = document.createElement('td');
+    appNameCell.dataset.label = 'App Name';
+    appNameCell.textContent = entry.appName || 'Loading app name…';
+
     const appIdCell = document.createElement('td');
     appIdCell.dataset.label = 'App ID';
     appIdCell.textContent = entry.appId;
@@ -162,11 +197,63 @@ const renderTableRows = (tableBody, entries) => {
       return acc;
     }, {});
 
-    row.append(subIdCell, appIdCell, ...LOOKBACK_WINDOWS.map((windowDays) => windowCells[windowDays]));
+    row.append(
+      subIdCell,
+      appNameCell,
+      appIdCell,
+      ...LOOKBACK_WINDOWS.map((windowDays) => windowCells[windowDays]),
+    );
     tableBody.appendChild(row);
 
-    return { entry, cells: windowCells };
+    return { entry, cells: windowCells, appNameCell };
   });
+};
+
+const populateAppNameCells = (rows, entry, appName) => {
+  const label = appName || '';
+  rows
+    .filter((row) => row.entry === entry)
+    .forEach(({ appNameCell }) => {
+      if (appNameCell) {
+        appNameCell.textContent = label;
+      }
+    });
+};
+
+const populateAppNames = async (entries, visitorRows, accountRows, messageRegion) => {
+  const appNamePromises = new Map();
+  const allRows = [...visitorRows, ...accountRows];
+
+  entries.forEach((entry) => {
+    if (entry.appName) {
+      populateAppNameCells(allRows, entry, entry.appName);
+    }
+  });
+
+  const pendingLookups = entries
+    .filter((entry) => !entry.appName)
+    .map((entry) => {
+      if (!appNamePromises.has(entry.appId)) {
+        appNamePromises.set(entry.appId, fetchAppNameById(entry, entry.appId));
+      }
+
+      return appNamePromises.get(entry.appId).then((resolvedName) => {
+        if (!resolvedName) {
+          return populateAppNameCells(allRows, entry, entry.appName || '');
+        }
+
+        entry.appName = resolvedName;
+        populateAppNameCells(allRows, entry, resolvedName);
+        return resolvedName;
+      });
+    });
+
+  try {
+    await Promise.all(pendingLookups);
+  } catch (error) {
+    console.error('Unable to populate app names:', error);
+    showMessage(messageRegion, 'Unable to fetch app names for some entries.', 'error');
+  }
 };
 
 const parseMetadataFields = (apiResponse) => {
@@ -281,7 +368,10 @@ export const initMetadataFields = () => {
     const visitorRows = renderTableRows(visitorTableBody, entries);
     const accountRows = renderTableRows(accountTableBody, entries);
 
+    const appNamePromise = populateAppNames(entries, visitorRows, accountRows, messageRegion);
+
     await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress);
+    await appNamePromise;
   })();
 
   return metadataFieldsReadyPromise;

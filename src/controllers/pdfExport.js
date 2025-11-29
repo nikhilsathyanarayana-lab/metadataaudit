@@ -54,13 +54,38 @@ const extractCellValue = (cell) => {
   return cell.textContent.trim();
 };
 
+const combineAppIdentifiers = (headers, rows) => {
+  const appNameIndex = headers.findIndex((header) => header.toLowerCase() === 'app name');
+  const appIdIndex = headers.findIndex((header) => header.toLowerCase() === 'app id');
+
+  if (appNameIndex === -1 || appIdIndex === -1) {
+    return { headers, rows };
+  }
+
+  const primaryIndex = Math.min(appNameIndex, appIdIndex);
+  const removalIndex = appNameIndex === primaryIndex ? appIdIndex : appNameIndex;
+
+  const updatedHeaders = [...headers];
+  updatedHeaders.splice(removalIndex, 1);
+
+  const updatedRows = rows.map((row) => {
+    const combinedValue = [row[appNameIndex], row[appIdIndex]].filter(Boolean).join('\n');
+    const updatedRow = [...row];
+    updatedRow[primaryIndex] = combinedValue;
+    updatedRow.splice(removalIndex, 1);
+    return updatedRow;
+  });
+
+  return { headers: updatedHeaders, rows: updatedRows };
+};
+
 const collectTableData = (table) => {
-  const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
-  const rows = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
+  let headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+  let rows = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
     Array.from(row.querySelectorAll('td')).map(extractCellValue),
   );
 
-  return { headers, rows };
+  return combineAppIdentifiers(headers, rows);
 };
 
 const createTableElement = ({ title, hint, headers, rows }) => {
@@ -97,6 +122,7 @@ const createTableElement = ({ title, hint, headers, rows }) => {
     cells.forEach((value) => {
       const td = document.createElement('td');
       td.textContent = value;
+      td.style.whiteSpace = 'pre-line';
       tr.appendChild(td);
     });
     tbody.appendChild(tr);

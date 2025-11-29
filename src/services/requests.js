@@ -183,6 +183,40 @@ export const buildRequestHeaders = (integrationKey) => ({
 });
 
 /**
+ * Fetch the app name for a given app ID using the Aggregations domain and integration key.
+ * @param {AppAggregationEntry} entry
+ * @param {string} appId
+ * @param {typeof fetch} fetchImpl
+ * @returns {Promise<string|null>}
+ */
+export const fetchAppNameById = async (entry, appId, fetchImpl = fetch) => {
+  const { domain, integrationKey } = entry || {};
+
+  if (!domain || !integrationKey || !appId) {
+    return null;
+  }
+
+  const endpoint = `${normalizeDomain(domain)}/api/v1/app/${encodeURIComponent(appId)}`;
+
+  try {
+    const response = await fetchImpl(endpoint, {
+      method: 'GET',
+      headers: buildRequestHeaders(integrationKey),
+    });
+
+    if (!response?.ok) {
+      throw new Error(`App lookup failed (${response?.status || 'unknown status'})`);
+    }
+
+    const data = await response.json();
+    return data?.appName || data?.name || null;
+  } catch (error) {
+    console.error('Unable to fetch app name:', error);
+    return null;
+  }
+};
+
+/**
  * Fetch the app aggregation for a single SubID entry.
  * @param {AppAggregationEntry} entry
  * @param {typeof fetch} fetchImpl
@@ -334,6 +368,7 @@ export default {
   buildHeaders,
   buildMetadataFieldsPayload,
   buildRequestHeaders,
+  fetchAppNameById,
   postAggregationWithIntegrationKey,
   fetchAggregation,
   fetchAppsForEntry,
