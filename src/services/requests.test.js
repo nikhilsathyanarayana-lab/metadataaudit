@@ -101,6 +101,20 @@ test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () =
         ),
       );
     });
+
+    const firstValues = payloads.map((payload) => extractTimeSeries(payload).map((item) => item?.first));
+
+    assert.ok(firstValues.every((series) => series.every((first) => typeof first === 'number')));
+
+    for (let i = 0; i < payloads.length - 1; i += 1) {
+      const currentSeries = extractTimeSeries(payloads[i]);
+      const nextSeries = extractTimeSeries(payloads[i + 1]);
+
+      currentSeries.forEach((currentItem, branchIdx) => {
+        const nextItem = nextSeries[branchIdx];
+        assert.equal(currentItem.first - nextItem.first, 30 * msPerDay);
+      });
+    }
   } finally {
     Date.now = originalNow;
   }
