@@ -32,9 +32,13 @@ Follow these steps to serve the project on your Mac:
 - `metadata_fields.html`: Displays key metadata fields for the selected apps and provides an export action.
 - `deep_dive.html`: Additional drill-down view reached from the metadata fields screen.
 - `workbook_ui.html`: A front-end companion for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and simulate the workflow with a browser-only run.
-- `Modals/export-modal.html`: Template injected when users choose to export results.
+- `Aggregations/`: Standalone scripts and tests that exercise the Aggregation API and workbook generation paths.
+- `Modals/`: Shared dialog templates injected into pages, including `app-name-modal.html` for app discovery naming, `export-modal.html` for downloads, and `xlsx-naming-modal.html` for workbook filename guidance.
 - `src/entries/`: Page-level bootstraps that import only the controllers and services each HTML view needs, plus a shared startup that injects the export modal template when required.
 - `src/controllers/`: Controllers for discrete UI behaviors, such as SubID form wiring and modal template injection.
+- `src/pages/`: Page orchestration scripts that wire together controllers and services for each HTML view.
+- `src/services/`: API helpers and utility functions used by controllers and pages.
+- `src/ui/`: UI-specific utilities and helpers shared across views.
 - `styles.css`: Global styling, layout, and Pendo-inspired theme tokens.
 
 ## HTML page overview
