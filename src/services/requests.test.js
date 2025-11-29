@@ -70,52 +70,45 @@ test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
 });
 
 test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () => {
-  const originalNow = Date.now;
-  const mockedNow = 1_700_000_000_000;
-  const msPerDay = 24 * 60 * 60 * 1000;
+  const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
 
-  try {
-    Date.now = () => mockedNow;
-    const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
+  assert.equal(payloads.length, 6);
+  assert.ok(
+    payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)),
+  );
 
-    assert.equal(payloads.length, 6);
+  const extractTimeSeries = (payload) =>
+    payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+
+  const getOffset = (timeSeries) => {
+    const match = timeSeries?.first?.match(/dateAdd\(now\(\), -(\d+), "days"\)/);
+    return Number(match?.[1]);
+  };
+
+  payloads.forEach((payload, idx) => {
+    const series = extractTimeSeries(payload);
+    const expectedFirst = `dateAdd(now(), -${idx * 30}, "days")`;
+    const expectedCount = -30;
+
     assert.ok(
-      payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)),
+      series.every(
+        (item) =>
+          typeof item?.first === 'string' &&
+          item?.first === expectedFirst &&
+          item?.count === expectedCount &&
+          item?.period === 'dayRange',
+      ),
     );
+  });
 
-    const extractTimeSeries = (payload) =>
-      payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+  for (let i = 0; i < payloads.length - 1; i += 1) {
+    const currentSeries = extractTimeSeries(payloads[i]);
+    const nextSeries = extractTimeSeries(payloads[i + 1]);
 
-    payloads.forEach((payload, idx) => {
-      const series = extractTimeSeries(payload);
-      const expectedFirst = new Date(mockedNow - idx * 30 * msPerDay).toISOString();
-      const expectedCount = -30;
-
-      assert.ok(
-        series.every(
-          (item) =>
-            typeof item?.first === 'string' &&
-            item?.first === expectedFirst &&
-            item?.count === expectedCount &&
-            item?.period === 'dayRange',
-        ),
-      );
+    currentSeries.forEach((currentItem, branchIdx) => {
+      const nextItem = nextSeries[branchIdx];
+      assert.equal(getOffset(nextItem) - getOffset(currentItem), 30);
     });
-
-    for (let i = 0; i < payloads.length - 1; i += 1) {
-      const currentSeries = extractTimeSeries(payloads[i]);
-      const nextSeries = extractTimeSeries(payloads[i + 1]);
-
-      currentSeries.forEach((currentItem, branchIdx) => {
-        const nextItem = nextSeries[branchIdx];
-        const currentDate = Date.parse(currentItem.first);
-        const nextDate = Date.parse(nextItem.first);
-
-        assert.equal(currentDate - nextDate, 30 * msPerDay);
-      });
-    }
-  } finally {
-    Date.now = originalNow;
   }
 });
 
