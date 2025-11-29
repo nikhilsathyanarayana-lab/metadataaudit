@@ -63,9 +63,12 @@ Follow these steps to serve the project on your Mac:
 - **Entry wiring**: Each entry file calls `bootstrapShared()` first to ensure export modals are loaded before page scripts run—`index.js` wires the landing SubID form, `app_selection.js` initializes the app chooser, `metadata_fields.js` combines Deep Dive navigation with metadata table binding, `deep_dive.js` loads shared modals for export-only flows, and `workbook_ui.js` bootstraps the workbook helper page.
 
 ## What’s still missing
-- Runbook details such as how to serve the static pages locally, expected API responses from Pendo, and example payloads aren’t described yet.
-- There are no instructions for managing authentication secrets beyond manual integration key entry or for handling failed aggregation requests surfaced in the console.
-- The README does not yet cover styling tokens in `styles.css` or any plans for unit or integration testing of the client logic.
+- **API request/response examples**: Document sample Aggregations payloads (e.g., `buildAppAggregationRequest`, `buildMetadataFieldsForAppPayload`, chunked requests) and expected responses for common success and failure cases.
+  - *Next step*: Add example JSON bodies and response snippets to a dedicated section that mirrors the payload builders in `src/services/requests.js`, including how errors propagate through the proxy.
+- **Authentication handling guidance**: Clarify when to use integration keys versus `pendo.sess.jwt2` cookies, how to format the cookie header, and what to expect from authentication failures.
+  - *Next step*: Write a short auth guide that covers secret handling, masking/validation behavior in the UI, and troubleshooting for 401/403 responses from both direct and proxied requests.
+- **Testing strategy**: Outline how to validate the workbook flow and controllers (e.g., stubbed fetch for Aggregations, DOM-driven smoke checks for page scripts).
+  - *Next step*: Propose a lightweight test plan (unit tests around `src/services/requests.js`, fixture-driven DOM tests for `src/pages/*.js`, and a manual workbook runbook) and identify preferred tools or runners.
 
 ## Pendo integration
 - **Pendo Aggregation API**: `src/pages/workbookUi.js` posts to each environment's `/api/v1/aggregation` endpoint with the user-supplied integration key to retrieve app metadata across domains.
