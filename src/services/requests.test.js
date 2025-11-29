@@ -70,53 +70,52 @@ test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
 });
 
 test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () => {
-  const originalNow = Date.now;
-  const mockedNow = 1_700_000_000_000;
-  const msPerDay = 24 * 60 * 60 * 1000;
+  const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
 
-  try {
-    Date.now = () => mockedNow;
-    const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
+  assert.equal(payloads.length, 6);
+  assert.ok(
+    payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)),
+  );
 
-    assert.equal(payloads.length, 6);
+  const extractTimeSeries = (payload) =>
+    payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+
+  const getOffsetDays = (timeSeries) => {
+    if (timeSeries.first === 'now()') return 0;
+    const match = timeSeries.first?.match(/dateAdd\(now\(\), -(\d+), "days"\)/);
+    return match ? Number(match[1]) : Number.NaN;
+  };
+
+  payloads.forEach((payload, idx) => {
+    const series = extractTimeSeries(payload);
+    const expectedFirst =
+      idx === 0 ? 'now()' : `dateAdd(now(), -${idx * 30}, "days")`;
+    const expectedCount = -30;
+
     assert.ok(
-      payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)),
+      series.every(
+        (item) =>
+          typeof item?.first === 'string' &&
+          item?.first === expectedFirst &&
+          item?.count === expectedCount &&
+          item?.period === 'dayRange',
+      ),
     );
+  });
 
-    const extractTimeSeries = (payload) =>
-      payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+  for (let i = 0; i < payloads.length - 1; i += 1) {
+    const currentSeries = extractTimeSeries(payloads[i]);
+    const nextSeries = extractTimeSeries(payloads[i + 1]);
 
-    payloads.forEach((payload, idx) => {
-      const series = extractTimeSeries(payload);
-      const expectedFirst = mockedNow - idx * 30 * msPerDay;
-      const expectedCount = -(30 * msPerDay);
+    currentSeries.forEach((currentItem, branchIdx) => {
+      const nextItem = nextSeries[branchIdx];
+      const currentOffset = getOffsetDays(currentItem);
+      const nextOffset = getOffsetDays(nextItem);
 
-      assert.ok(
-        series.every(
-          (item) =>
-            typeof item?.first === 'number' &&
-            item?.first === expectedFirst &&
-            item?.count === expectedCount &&
-            item?.period === 'millisecondRange',
-        ),
-      );
+      assert.equal(Number.isNaN(currentOffset), false);
+      assert.equal(Number.isNaN(nextOffset), false);
+      assert.equal(nextOffset - currentOffset, 30);
     });
-
-    const firstValues = payloads.map((payload) => extractTimeSeries(payload).map((item) => item?.first));
-
-    assert.ok(firstValues.every((series) => series.every((first) => typeof first === 'number')));
-
-    for (let i = 0; i < payloads.length - 1; i += 1) {
-      const currentSeries = extractTimeSeries(payloads[i]);
-      const nextSeries = extractTimeSeries(payloads[i + 1]);
-
-      currentSeries.forEach((currentItem, branchIdx) => {
-        const nextItem = nextSeries[branchIdx];
-        assert.equal(currentItem.first - nextItem.first, 30 * msPerDay);
-      });
-    }
-  } finally {
-    Date.now = originalNow;
   }
 });
 
