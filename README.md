@@ -1,7 +1,10 @@
 # Metadata Audit
 
 ## Overview
-This project is a web-based tool designed to automate the metadata audit process for Pendo implementations. It allows internal users to input subscription identifiers and quickly retrieve and consolidate metadata across multiple apps. The goal is to ensure that metadata is consistent and to identify any discrepancies in how data is reported.
+This project is a web-based tool designed to automate the metadata audit process for Pendo
+implementations. It allows internal users to input subscription identifiers and quickly
+retrieve and consolidate metadata across multiple apps. The goal is to ensure that metadata
+is consistent and to identify any discrepancies in how data is reported.
 
 The tool supports two methods for pulling metadata: one using an integration key with the Engage API, and another using a cookie-based approach.
 
