@@ -82,10 +82,11 @@ export const buildAppDiscoveryPayload = () => ({
 
 export const buildMetadataFieldsTimeSeriesSlice = (appId, startOffsetDays = 0, windowDays = 30) => ({
   singleEvents: { appId },
+  metadata: { account: true, visitor: true },
   timeSeries: {
     first: startOffsetDays
-      ? `dateAdd(now(), -${startOffsetDays}, 'days')`
-      : 'now()',
+      ? `startOfPeriod("dayRange", dateAdd(now(), -${startOffsetDays}, "days"))`
+      : 'startOfPeriod("dayRange", now())',
     count: -Number(windowDays),
     period: 'dayRange',
   },

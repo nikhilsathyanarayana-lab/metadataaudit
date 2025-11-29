@@ -6,6 +6,7 @@ import {
   buildCookieHeaderValue,
   buildAppDiscoveryPayload,
   buildMetadataFieldsForAppPayload,
+  buildMetadataFieldsTimeSeriesSlice,
   fetchAggregation,
   fetchAppsForEntry,
   postAggregationWithIntegrationKey,
@@ -57,15 +58,32 @@ test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
   const { request } = payload;
 
   assert.equal(request?.name, 'metadata-fields-for-app');
-  assert.equal(request?.pipeline?.[0]?.spawn?.length, 2);
 
-  const visitorSource = request?.pipeline?.[0]?.spawn?.[0]?.[0]?.source;
-  const accountSource = request?.pipeline?.[0]?.spawn?.[1]?.[0]?.source;
+  const { timeSeries, singleEvents, metadata } = request?.pipeline?.[0]?.source || {};
 
-  assert.equal(visitorSource?.singleEvents?.appId, 'app-1');
-  assert.equal(visitorSource?.timeSeries?.count, -30);
-  assert.equal(accountSource?.singleEvents?.appId, 'app-1');
-  assert.equal(accountSource?.timeSeries?.count, -30);
+  assert.equal(singleEvents?.appId, 'app-1');
+  assert.deepEqual(metadata, { account: true, visitor: true });
+  assert.equal(timeSeries?.count, -30);
+  assert.equal(timeSeries?.first, 'startOfPeriod("dayRange", now())');
+  assert.equal(timeSeries?.period, 'dayRange');
+});
+
+test('buildMetadataFieldsTimeSeriesSlice uses day-aligned windows per offset', () => {
+  const offsets = [0, 30, 60, 90, 120, 150];
+  const sliceFirsts = offsets.map(
+    (offset) => buildMetadataFieldsTimeSeriesSlice('app-1', offset, 30)?.timeSeries?.first,
+  );
+  const sliceMetadata = buildMetadataFieldsTimeSeriesSlice('app-1', 0, 30)?.metadata;
+
+  assert.deepEqual(sliceFirsts, [
+    'startOfPeriod("dayRange", now())',
+    'startOfPeriod("dayRange", dateAdd(now(), -30, "days"))',
+    'startOfPeriod("dayRange", dateAdd(now(), -60, "days"))',
+    'startOfPeriod("dayRange", dateAdd(now(), -90, "days"))',
+    'startOfPeriod("dayRange", dateAdd(now(), -120, "days"))',
+    'startOfPeriod("dayRange", dateAdd(now(), -150, "days"))',
+  ]);
+  assert.deepEqual(sliceMetadata, { account: true, visitor: true });
 });
 
 test('fetchAggregation proxies the request with extracted token', async () => {
