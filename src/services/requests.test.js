@@ -70,19 +70,40 @@ test('buildMetadataFieldsForAppPayload mirrors the workbook query', () => {
 });
 
 test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () => {
-  const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
+  const originalNow = Date.now;
+  const mockedNow = 1_700_000_000_000;
+  const msPerDay = 24 * 60 * 60 * 1000;
 
-  assert.equal(payloads.length, 6);
-  assert.ok(payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)));
+  try {
+    Date.now = () => mockedNow;
+    const payloads = buildChunkedMetadataFieldPayloads('app-1', 180);
 
-  const extractTimeSeries = (payload) =>
-    payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+    assert.equal(payloads.length, 6);
+    assert.ok(
+      payloads.every((payload, index) => payload.request?.requestId?.endsWith(`-chunk-${index + 1}`)),
+    );
 
-  const expectedOffsets = ['now()', 'now()-30d', 'now()-60d', 'now()-90d', 'now()-120d', 'now()-150d'];
-  payloads.forEach((payload, idx) => {
-    const series = extractTimeSeries(payload);
-    assert.ok(series.every((item) => item?.first === expectedOffsets[idx] && item?.count === -30));
-  });
+    const extractTimeSeries = (payload) =>
+      payload.request?.pipeline?.[0]?.spawn?.map((branch) => branch?.[0]?.source?.timeSeries) || [];
+
+    payloads.forEach((payload, idx) => {
+      const series = extractTimeSeries(payload);
+      const expectedFirst = mockedNow - idx * 30 * msPerDay;
+      const expectedCount = -(30 * msPerDay);
+
+      assert.ok(
+        series.every(
+          (item) =>
+            typeof item?.first === 'number' &&
+            item?.first === expectedFirst &&
+            item?.count === expectedCount &&
+            item?.period === 'millisecondRange',
+        ),
+      );
+    });
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test('fetchAggregation proxies the request with extracted token', async () => {
