@@ -224,12 +224,15 @@ const buildAppNameCell = (rowData, openModal) => {
   return { cell, appNameButton };
 };
 
-const buildFormatSelect = (appId, subId, appName) => {
+const buildFormatSelect = (appId, subId, appName, fieldName) => {
   const select = document.createElement('select');
   select.className = 'format-select';
   const labelParts = [`Sub ID ${subId || 'unknown'}`, `App ID ${appId}`];
   if (appName) {
     labelParts.push(`(${appName})`);
+  }
+  if (fieldName) {
+    labelParts.push(`Field ${fieldName}`);
   }
   select.setAttribute('aria-label', `Expected format for ${labelParts.join(' ')}`);
 
@@ -257,40 +260,51 @@ const renderTable = (tableBody, rows, type, openModal) => {
   const renderedRows = [];
 
   rows.forEach((rowData) => {
-    const row = document.createElement('tr');
-    const subIdCell = document.createElement('td');
-    subIdCell.dataset.label = 'Sub ID';
-    subIdCell.textContent = rowData.subId || 'Unknown';
-
-    const appIdCell = document.createElement('td');
-    appIdCell.dataset.label = 'App ID';
-    appIdCell.textContent = rowData.appId;
-    if (rowData.appName) {
-      appIdCell.title = `App name: ${rowData.appName}`;
-    }
-
-    const { cell: appNameCell, appNameButton } = buildAppNameCell(rowData, openModal);
-
-    row.appendChild(subIdCell);
-    row.appendChild(appNameCell);
-    row.appendChild(appIdCell);
-
-    const fieldsCell = document.createElement('td');
-    fieldsCell.dataset.label = 'Metadata fields (180 days)';
     const fields = type === 'visitor' ? rowData.visitorFields : rowData.accountFields;
-    fieldsCell.textContent = fields?.length
-      ? fields.join(', ')
-      : 'No metadata fields captured for 180 days';
-    row.appendChild(fieldsCell);
+    const hasFields = Array.isArray(fields) && fields.length;
+    const fieldsToRender = hasFields ? fields : ['No metadata fields captured for 180 days'];
 
-    const formatCell = document.createElement('td');
-    formatCell.dataset.label = 'Expected format';
-    formatCell.appendChild(buildFormatSelect(rowData.appId, rowData.subId, rowData.appName));
-    row.appendChild(formatCell);
+    fieldsToRender.forEach((fieldName, index) => {
+      const row = document.createElement('tr');
+      const subIdCell = document.createElement('td');
+      subIdCell.dataset.label = 'Sub ID';
+      subIdCell.textContent = rowData.subId || 'Unknown';
 
-    tableBody.appendChild(row);
+      const appIdCell = document.createElement('td');
+      appIdCell.dataset.label = 'App ID';
+      appIdCell.textContent = rowData.appId;
+      if (rowData.appName) {
+        appIdCell.title = `App name: ${rowData.appName}`;
+      }
 
-    renderedRows.push({ rowData, appNameButton, appIdCell });
+      const { cell: appNameCell, appNameButton } = buildAppNameCell(rowData, openModal);
+
+      row.appendChild(subIdCell);
+      row.appendChild(appNameCell);
+      row.appendChild(appIdCell);
+
+      const fieldsCell = document.createElement('td');
+      fieldsCell.dataset.label = 'Metadata field (180 days)';
+      fieldsCell.textContent = fieldName;
+      row.appendChild(fieldsCell);
+
+      const formatCell = document.createElement('td');
+      formatCell.dataset.label = 'Expected format';
+
+      if (hasFields) {
+        formatCell.appendChild(
+          buildFormatSelect(rowData.appId, rowData.subId, rowData.appName, fieldName),
+        );
+      } else {
+        formatCell.textContent = index === 0 ? 'N/A' : '';
+      }
+
+      row.appendChild(formatCell);
+
+      tableBody.appendChild(row);
+
+      renderedRows.push({ rowData, appNameButton, appIdCell });
+    });
   });
 
   return renderedRows;
