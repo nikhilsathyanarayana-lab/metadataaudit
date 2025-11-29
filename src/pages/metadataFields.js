@@ -4,15 +4,18 @@ import {
   postAggregationWithIntegrationKey,
 } from '../services/requests.js';
 import { loadTemplate } from '../controllers/modalLoader.js';
+import {
+  applyManualAppNames,
+  loadManualAppNames,
+  setManualAppName,
+} from '../services/appNames.js';
 
 const LOOKBACK_WINDOWS = [180, 30, 7];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
-const manualAppNameStorageKey = 'manualAppNames';
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
-let manualAppNameCache = null;
 let metadataFieldsReadyPromise = Promise.resolve();
 let metadataSnapshot = new Map();
 
@@ -187,33 +190,6 @@ const parseStoredSelection = () => {
   }
 };
 
-const loadManualAppNames = () => {
-  if (manualAppNameCache instanceof Map) {
-    return manualAppNameCache;
-  }
-
-  try {
-    const raw = localStorage.getItem(manualAppNameStorageKey);
-    const parsed = raw ? JSON.parse(raw) : {};
-    const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
-    manualAppNameCache = new Map(entries);
-  } catch (error) {
-    console.error('Unable to parse manual app names:', error);
-    manualAppNameCache = new Map();
-  }
-
-  return manualAppNameCache;
-};
-
-const persistManualAppNames = (appNameMap) => {
-  if (!(appNameMap instanceof Map)) {
-    return;
-  }
-
-  const serialized = Object.fromEntries(appNameMap.entries());
-  localStorage.setItem(manualAppNameStorageKey, JSON.stringify(serialized));
-};
-
 const extractAppNames = (apiResponse) => {
   if (!apiResponse) {
     return new Map();
@@ -280,19 +256,17 @@ const buildAppEntries = (manualAppNames) => {
     const appNames = extractAppNames(record.response);
     const appIds = extractAppIds(record.response);
     appIds.forEach((appId) => {
-      const manualAppName = manualAppNames?.get(appId);
-      const resolvedAppName = manualAppName || appNames.get(appId);
       entries.push({
         subId: record.subId,
         appId,
-        appName: resolvedAppName,
+        appName: appNames.get(appId),
         domain: record.domain,
         integrationKey: record.integrationKey,
       });
     });
   });
 
-  return entries;
+  return applyManualAppNames(entries, manualAppNames);
 };
 
 const buildLoadingCell = (label) => {
@@ -434,8 +408,7 @@ const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncApp
       return;
     }
 
-    manualAppNames.set(activeEntry.appId, appName);
-    persistManualAppNames(manualAppNames);
+    setManualAppName(manualAppNames, activeEntry.appId, appName);
     syncAppName?.(activeEntry.appId, appName);
 
     entries
