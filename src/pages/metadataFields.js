@@ -6,6 +6,7 @@ import {
 
 const LOOKBACK_WINDOWS = [180, 30, 7];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
+const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
 let metadataFieldsReadyPromise = Promise.resolve();
 
@@ -316,6 +317,9 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
 
         updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
         updateCellContent(accountCells[windowDays], accountFields, 'account');
+
+        visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+        accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
       } catch (error) {
         const errorMessage = error?.message || 'Unable to fetch metadata fields.';
         const tooMuchData = RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
@@ -334,6 +338,8 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
         updateCellContent(accountCells[windowDays], [], 'account');
         visitorCells[windowDays].textContent = cellMessage;
         accountCells[windowDays].textContent = cellMessage;
+        visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+        accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
       }
 
       completedCalls += 1;
