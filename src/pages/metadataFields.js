@@ -326,7 +326,13 @@ const fetchAndPopulate = async (
       continue;
     }
 
+    let abortRemainingWindows = false;
+
     for (const windowDays of LOOKBACK_WINDOWS) {
+      if (abortRemainingWindows) {
+        break;
+      }
+
       let baseRequestAttempted = false;
 
       try {
@@ -343,7 +349,10 @@ const fetchAndPopulate = async (
       } catch (error) {
         baseRequestAttempted = true;
         const errorMessage = error?.message || 'Unable to fetch metadata fields.';
-        const tooMuchData = RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
+        const statusMatch = errorMessage.match(/\((\d{3})\)/);
+        const statusCode = Number(statusMatch?.[1]) || null;
+        const tooMuchData = statusCode === 413 || RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
+        const clientErrorWithoutRecovery = !tooMuchData && statusCode >= 400 && statusCode < 500;
         const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
         let handledByChunks = false;
 
@@ -407,6 +416,10 @@ const fetchAndPopulate = async (
           accountCells[windowDays].textContent = cellMessage;
           visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
           accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+        }
+
+        if (clientErrorWithoutRecovery) {
+          abortRemainingWindows = true;
         }
       }
 
