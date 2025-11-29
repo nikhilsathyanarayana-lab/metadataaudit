@@ -1,7 +1,12 @@
+import { loadTemplate } from '../controllers/modalLoader.js';
+
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
+const manualAppNameStorageKey = 'manualAppNames';
 const appSelectionStorageKey = 'appSelectionResponses';
 const TARGET_LOOKBACK = 180;
+
+let manualAppNameCache = null;
 
 const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
@@ -31,6 +36,33 @@ const extractAppIds = (apiResponse) => {
     .filter(Boolean);
 
   return Array.from(new Set(appIds));
+};
+
+const loadManualAppNames = () => {
+  if (manualAppNameCache instanceof Map) {
+    return manualAppNameCache;
+  }
+
+  try {
+    const raw = localStorage.getItem(manualAppNameStorageKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
+    manualAppNameCache = new Map(entries);
+  } catch (error) {
+    console.error('Unable to parse manual app names:', error);
+    manualAppNameCache = new Map();
+  }
+
+  return manualAppNameCache;
+};
+
+const persistManualAppNames = (appNameMap) => {
+  if (!(appNameMap instanceof Map)) {
+    return;
+  }
+
+  const serialized = Object.fromEntries(appNameMap.entries());
+  localStorage.setItem(manualAppNameStorageKey, JSON.stringify(serialized));
 };
 
 const loadAppSelections = () => {
@@ -82,6 +114,48 @@ const loadMetadataRecords = () => {
   }
 };
 
+const syncMetadataRecordsAppName = (appId, appName) => {
+  if (!appId) {
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(metadataFieldStorageKey);
+    if (!raw) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (parsed?.version !== metadataFieldStorageVersion || !Array.isArray(parsed?.records)) {
+      return;
+    }
+
+    let updated = false;
+    const updatedRecords = parsed.records.map((record) => {
+      if (record?.appId !== appId) {
+        return record;
+      }
+
+      updated = true;
+      return {
+        ...record,
+        appName,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    if (updated) {
+      localStorage.setItem(
+        metadataFieldStorageKey,
+        JSON.stringify({ ...parsed, records: updatedRecords }),
+      );
+    }
+  } catch (error) {
+    console.error('Unable to sync app name to metadata records:', error);
+  }
+};
+
 const groupMetadataByApp = (records) => {
   const grouped = new Map();
 
@@ -116,13 +190,38 @@ const groupMetadataByApp = (records) => {
   return Array.from(grouped.values());
 };
 
+const applyManualAppNames = (rows, manualAppNames) =>
+  rows.map((row) => ({
+    ...row,
+    appName: manualAppNames.get(row.appId) || row.appName || '',
+  }));
+
 const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
   const emptyCell = document.createElement('td');
-  emptyCell.colSpan = 4;
+  emptyCell.colSpan = 5;
   emptyCell.textContent = message;
   row.appendChild(emptyCell);
   tableBody.appendChild(row);
+};
+
+const buildAppNameCell = (rowData, openModal) => {
+  const cell = document.createElement('td');
+  cell.dataset.label = 'App Name';
+
+  const appNameButton = document.createElement('button');
+  appNameButton.type = 'button';
+  appNameButton.className = 'app-name-button';
+  appNameButton.dataset.appId = rowData.appId;
+  appNameButton.textContent = rowData.appName || 'Not set';
+  appNameButton.setAttribute('aria-label', `Set app name for ${rowData.appId}`);
+
+  if (typeof openModal === 'function') {
+    appNameButton.addEventListener('click', () => openModal(rowData));
+  }
+
+  cell.appendChild(appNameButton);
+  return { cell, appNameButton };
 };
 
 const buildFormatSelect = (appId, subId, appName) => {
@@ -147,13 +246,15 @@ const buildFormatSelect = (appId, subId, appName) => {
   return select;
 };
 
-const renderTable = (tableBody, rows, type) => {
+const renderTable = (tableBody, rows, type, openModal) => {
   tableBody.innerHTML = '';
 
   if (!rows.length) {
     createEmptyRow(tableBody, 'No deep-dive data available. Run metadata requests first.');
-    return;
+    return [];
   }
+
+  const renderedRows = [];
 
   rows.forEach((rowData) => {
     const row = document.createElement('tr');
@@ -168,7 +269,10 @@ const renderTable = (tableBody, rows, type) => {
       appIdCell.title = `App name: ${rowData.appName}`;
     }
 
+    const { cell: appNameCell, appNameButton } = buildAppNameCell(rowData, openModal);
+
     row.appendChild(subIdCell);
+    row.appendChild(appNameCell);
     row.appendChild(appIdCell);
 
     const fieldsCell = document.createElement('td');
@@ -185,10 +289,125 @@ const renderTable = (tableBody, rows, type) => {
     row.appendChild(formatCell);
 
     tableBody.appendChild(row);
+
+    renderedRows.push({ rowData, appNameButton, appIdCell });
   });
+
+  return renderedRows;
 };
 
-export const initDeepDive = () => {
+const updateManualAppNameFeedback = (tone, message) => {
+  const feedback = document.getElementById('app-name-modal-feedback');
+
+  if (!feedback) {
+    return;
+  }
+
+  feedback.textContent = message;
+  feedback.className = tone === 'error' ? 'alert' : 'status-banner';
+  feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+};
+
+const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) => {
+  if (!document.getElementById('app-name-modal')) {
+    await loadTemplate('Modals/app-name-modal.html');
+  }
+
+  const modal = document.getElementById('app-name-modal');
+  const backdrop = document.getElementById('app-name-backdrop');
+  const form = document.getElementById('app-name-modal-form');
+  const appIdTarget = document.getElementById('app-name-modal-app-id');
+  const appNameInput = document.getElementById('app-name-modal-input');
+  const closeButtons = modal?.querySelectorAll('[data-close-app-name-modal]') || [];
+
+  if (!modal || !backdrop || !form || !appIdTarget || !appNameInput) {
+    return () => {};
+  }
+
+  let activeRow = null;
+
+  const closeModal = () => {
+    modal.classList.remove('is-visible');
+    backdrop.classList.remove('is-visible');
+    modal.hidden = true;
+    backdrop.hidden = true;
+    form.reset();
+    activeRow = null;
+    updateManualAppNameFeedback('info', '');
+  };
+
+  const openModal = (rowData) => {
+    activeRow = rowData;
+    appIdTarget.textContent = rowData?.appId || '';
+    const existingName = rowData?.appName || manualAppNames.get(rowData?.appId) || '';
+    appNameInput.value = existingName;
+    updateManualAppNameFeedback('info', existingName ? 'Update the app name if needed.' : 'Enter an app name.');
+
+    modal.hidden = false;
+    backdrop.hidden = false;
+    modal.classList.add('is-visible');
+    backdrop.classList.add('is-visible');
+    appNameInput.focus();
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    if (!activeRow) {
+      updateManualAppNameFeedback('error', 'Select a row to set an app name.');
+      return;
+    }
+
+    const appName = appNameInput.value.trim();
+
+    if (!appName) {
+      updateManualAppNameFeedback('error', 'Provide an App Name.');
+      return;
+    }
+
+    manualAppNames.set(activeRow.appId, appName);
+    persistManualAppNames(manualAppNames);
+    syncMetadataRecordsAppName(activeRow.appId, appName);
+
+    rows
+      .filter((row) => row.appId === activeRow.appId)
+      .forEach((row) => {
+        row.appName = appName;
+      });
+
+    const renderedRows = typeof getRenderedRows === 'function' ? getRenderedRows() : [];
+    renderedRows
+      .filter(({ rowData }) => rowData.appId === activeRow.appId)
+      .forEach(({ rowData, appNameButton, appIdCell }) => {
+        rowData.appName = appName;
+
+        if (appNameButton) {
+          appNameButton.textContent = appName || 'Not set';
+        }
+
+        if (appIdCell) {
+          appIdCell.title = appName ? `App name: ${appName}` : '';
+        }
+      });
+
+    updateManualAppNameFeedback('info', `Saved app name for ${activeRow.appId}.`);
+    closeModal();
+  };
+
+  form.addEventListener('submit', handleSubmit);
+  backdrop.addEventListener('click', closeModal);
+  closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal.classList.contains('is-visible')) {
+      closeModal();
+    }
+  });
+
+  return openModal;
+};
+
+export const initDeepDive = async () => {
   const visitorTableBody = document.getElementById('visitor-deep-dive-table-body');
   const accountTableBody = document.getElementById('account-deep-dive-table-body');
 
@@ -196,6 +415,7 @@ export const initDeepDive = () => {
     return;
   }
 
+  const manualAppNames = loadManualAppNames();
   const metadataRecords = loadMetadataRecords();
   const groupedRecords = groupMetadataByApp(metadataRecords);
 
@@ -213,6 +433,12 @@ export const initDeepDive = () => {
     rows = selectionRows;
   }
 
-  renderTable(visitorTableBody, rows, 'visitor');
-  renderTable(accountTableBody, rows, 'account');
+  rows = applyManualAppNames(rows, manualAppNames);
+
+  const renderedRows = [];
+  const getRenderedRows = () => renderedRows;
+  const openAppNameModal = await setupManualAppNameModal(manualAppNames, rows, getRenderedRows);
+
+  renderedRows.push(...renderTable(visitorTableBody, rows, 'visitor', openAppNameModal));
+  renderedRows.push(...renderTable(accountTableBody, rows, 'account', openAppNameModal));
 };
