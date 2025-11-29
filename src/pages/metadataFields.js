@@ -3,6 +3,7 @@ import {
   buildMetadataFieldsForAppPayload,
   postAggregationWithIntegrationKey,
 } from '../services/requests.js';
+import { loadTemplate } from '../controllers/modalLoader.js';
 
 const LOOKBACK_WINDOWS = [180, 30, 7];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
@@ -226,7 +227,13 @@ const renderTableRows = (tableBody, entries) => {
 
     const appNameCell = document.createElement('td');
     appNameCell.dataset.label = 'App Name';
-    appNameCell.textContent = entry.appName || 'Not set';
+
+    const appNameButton = document.createElement('button');
+    appNameButton.type = 'button';
+    appNameButton.className = 'app-name-button';
+    appNameButton.textContent = entry.appName || 'Not set';
+
+    appNameCell.appendChild(appNameButton);
 
     const appIdCell = document.createElement('td');
     appIdCell.dataset.label = 'App ID';
@@ -246,23 +253,23 @@ const renderTableRows = (tableBody, entries) => {
     );
     tableBody.appendChild(row);
 
-    return { entry, cells: windowCells, appNameCell };
+    return { entry, cells: windowCells, appNameButton };
   });
 };
 
 const populateAppNameCells = (rows, entry, appName) => {
-  const label = appName || '';
+  const label = appName || 'Not set';
   rows
     .filter((row) => row.entry === entry)
-    .forEach(({ appNameCell }) => {
-      if (appNameCell) {
-        appNameCell.textContent = label;
+    .forEach(({ appNameButton }) => {
+      if (appNameButton) {
+        appNameButton.textContent = label;
       }
     });
 };
 
 const updateManualAppNameFeedback = (tone, message) => {
-  const feedback = document.getElementById('app-name-feedback');
+  const feedback = document.getElementById('app-name-modal-feedback');
 
   if (!feedback) {
     return;
@@ -273,40 +280,88 @@ const updateManualAppNameFeedback = (tone, message) => {
   feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
 };
 
-const registerManualAppNameForm = (manualAppNames, entries, allRows) => {
-  const form = document.getElementById('app-name-form');
-  const appIdInput = document.getElementById('app-id-input');
-  const appNameInput = document.getElementById('app-name-input');
-
-  if (!form || !appIdInput || !appNameInput) {
-    return;
+const setupManualAppNameModal = async (manualAppNames, entries, allRows) => {
+  if (!document.getElementById('app-name-modal')) {
+    await loadTemplate('Modals/app-name-modal.html');
   }
 
-  form.addEventListener('submit', (event) => {
+  const modal = document.getElementById('app-name-modal');
+  const backdrop = document.getElementById('app-name-backdrop');
+  const form = document.getElementById('app-name-modal-form');
+  const appIdTarget = document.getElementById('app-name-modal-app-id');
+  const appNameInput = document.getElementById('app-name-modal-input');
+  const closeButtons = modal?.querySelectorAll('[data-close-app-name-modal]') || [];
+
+  if (!modal || !backdrop || !form || !appIdTarget || !appNameInput) {
+    return () => {};
+  }
+
+  let activeEntry = null;
+
+  const closeModal = () => {
+    modal.classList.remove('is-visible');
+    backdrop.classList.remove('is-visible');
+    modal.hidden = true;
+    backdrop.hidden = true;
+    form.reset();
+    activeEntry = null;
+    updateManualAppNameFeedback('info', '');
+  };
+
+  const openModal = (entry) => {
+    activeEntry = entry;
+    appIdTarget.textContent = entry?.appId || '';
+    const existingName = entry?.appName || manualAppNames.get(entry?.appId) || '';
+    appNameInput.value = existingName;
+    updateManualAppNameFeedback('info', existingName ? 'Update the app name if needed.' : 'Enter an app name.');
+
+    modal.hidden = false;
+    backdrop.hidden = false;
+    modal.classList.add('is-visible');
+    backdrop.classList.add('is-visible');
+    appNameInput.focus();
+  };
+
+  const handleSubmit = (event) => {
     event.preventDefault();
 
-    const appId = appIdInput.value.trim();
-    const appName = appNameInput.value.trim();
-
-    if (!appId || !appName) {
-      updateManualAppNameFeedback('error', 'Provide both an App ID and an App Name.');
+    if (!activeEntry) {
+      updateManualAppNameFeedback('error', 'Select a row to set an app name.');
       return;
     }
 
-    manualAppNames.set(appId, appName);
+    const appName = appNameInput.value.trim();
+
+    if (!appName) {
+      updateManualAppNameFeedback('error', 'Provide an App Name.');
+      return;
+    }
+
+    manualAppNames.set(activeEntry.appId, appName);
     persistManualAppNames(manualAppNames);
 
     entries
-      .filter((entry) => entry.appId === appId)
+      .filter((entry) => entry.appId === activeEntry.appId)
       .forEach((entry) => {
         entry.appName = appName;
         populateAppNameCells(allRows, entry, appName);
       });
 
-    updateManualAppNameFeedback('info', `Saved app name for ${appId}.`);
-    form.reset();
-    appIdInput.focus();
+    updateManualAppNameFeedback('info', `Saved app name for ${activeEntry.appId}.`);
+    closeModal();
+  };
+
+  form.addEventListener('submit', handleSubmit);
+  backdrop.addEventListener('click', closeModal);
+  closeButtons.forEach((button) => button.addEventListener('click', closeModal));
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal.classList.contains('is-visible')) {
+      closeModal();
+    }
   });
+
+  return openModal;
 };
 
 const parseMetadataFields = (apiResponse) => {
@@ -507,7 +562,16 @@ export const initMetadataFields = () => {
       }
     });
 
-    registerManualAppNameForm(manualAppNames, entries, allRows);
+    const openAppNameModal = await setupManualAppNameModal(manualAppNames, entries, allRows);
+
+    if (typeof openAppNameModal === 'function') {
+      allRows.forEach(({ entry, appNameButton }) => {
+        if (appNameButton) {
+          appNameButton.addEventListener('click', () => openAppNameModal(entry));
+          appNameButton.setAttribute('aria-label', `Set app name for ${entry.appId}`);
+        }
+      });
+    }
 
     await fetchAndPopulate(
       entries,
