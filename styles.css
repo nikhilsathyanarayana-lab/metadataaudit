@@ -443,6 +443,13 @@ textarea:focus {
   border: 1px solid rgba(61, 61, 61, 0.08);
   border-radius: 12px;
   background: #fff;
+  width: 100%;
+  max-width: min(1400px, calc(100vw - 3rem));
+  margin-inline: auto;
+}
+
+#visitor-metadata-table-wrapper {
+  max-width: min(1600px, calc(100vw - 2.5rem));
 }
 
 .data-table {
