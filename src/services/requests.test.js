@@ -88,23 +88,19 @@ test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () =
 
     payloads.forEach((payload, idx) => {
       const series = extractTimeSeries(payload);
-      const expectedFirst = mockedNow - idx * 30 * msPerDay;
-      const expectedCount = -(30 * msPerDay);
+      const expectedFirst = new Date(mockedNow - idx * 30 * msPerDay).toISOString();
+      const expectedCount = -30;
 
       assert.ok(
         series.every(
           (item) =>
-            typeof item?.first === 'number' &&
+            typeof item?.first === 'string' &&
             item?.first === expectedFirst &&
             item?.count === expectedCount &&
-            item?.period === 'millisecondRange',
+            item?.period === 'dayRange',
         ),
       );
     });
-
-    const firstValues = payloads.map((payload) => extractTimeSeries(payload).map((item) => item?.first));
-
-    assert.ok(firstValues.every((series) => series.every((first) => typeof first === 'number')));
 
     for (let i = 0; i < payloads.length - 1; i += 1) {
       const currentSeries = extractTimeSeries(payloads[i]);
@@ -112,7 +108,10 @@ test('buildChunkedMetadataFieldPayloads creates 30-day slices for retries', () =
 
       currentSeries.forEach((currentItem, branchIdx) => {
         const nextItem = nextSeries[branchIdx];
-        assert.equal(currentItem.first - nextItem.first, 30 * msPerDay);
+        const currentDate = Date.parse(currentItem.first);
+        const nextDate = Date.parse(nextItem.first);
+
+        assert.equal(currentDate - nextDate, 30 * msPerDay);
       });
     }
   } finally {
