@@ -71,7 +71,7 @@ The UI uses Pendo's core palette defined in CSS variables:
 
 ## Languages and packages
 - **Languages**: HTML, CSS, and vanilla JavaScript.
-- **Packages/Dependencies**: No external packages are required; the app relies on browser-native Fetch APIs.
+- **Packages/Dependencies**: No external packages are required; the app relies on browser-native Fetch APIs, plus CDN-loaded `xlsx` and `file-saver` libraries fetched at runtime for `src/pages/workbookUi.js` rather than installed via npm.
 
 ## How data moves between pages
 The static pages share data via `localStorage` so that user inputs entered on the landing page can be reused after navigation:
