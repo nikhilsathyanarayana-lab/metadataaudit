@@ -310,40 +310,66 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
     }
 
     for (const windowDays of LOOKBACK_WINDOWS) {
-      try {
-        const payload = buildMetadataFieldsForAppPayload(entry.appId, windowDays);
-        const response = await postAggregationWithIntegrationKey(entry, payload);
-        const { visitorFields, accountFields } = parseMetadataFields(response);
+      const sliceOffsets = windowDays === 180 ? [0, 30, 60, 90, 120, 150] : [0];
+      const sliceWindow = windowDays === 180 ? 30 : windowDays;
+      const aggregatedVisitorFields = new Set();
+      const aggregatedAccountFields = new Set();
+      let tooMuchData = false;
+      let encounteredError = false;
 
-        updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
-        updateCellContent(accountCells[windowDays], accountFields, 'account');
+      for (const offset of sliceOffsets) {
+        try {
+          const payload = buildMetadataFieldsForAppPayload(entry.appId, sliceWindow, offset);
+          const response = await postAggregationWithIntegrationKey(entry, payload);
+          const { visitorFields, accountFields } = parseMetadataFields(response);
 
-        visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-        accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-      } catch (error) {
-        const errorMessage = error?.message || 'Unable to fetch metadata fields.';
-        const tooMuchData = RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
-        const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
+          visitorFields.forEach((field) => aggregatedVisitorFields.add(field));
+          accountFields.forEach((field) => aggregatedAccountFields.add(field));
 
-        if (!tooMuchData) {
-          console.error('Metadata field request failed:', error);
-          showMessage(
-            messageRegion,
-            `Metadata request failed for app ${entry.appId} (${windowDays}d): ${errorMessage}`,
-            'error',
-          );
+          visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+          accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+        } catch (error) {
+          const errorMessage = error?.message || 'Unable to fetch metadata fields.';
+          const sliceTooMuchData = RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
+
+          tooMuchData = tooMuchData || sliceTooMuchData;
+          encounteredError = true;
+
+          if (!sliceTooMuchData) {
+            console.error('Metadata field request failed:', error);
+            showMessage(
+              messageRegion,
+              `Metadata request failed for app ${entry.appId} (${windowDays}d): ${errorMessage}`,
+              'error',
+            );
+          }
         }
 
+        completedCalls += 1;
+        updateProgress(completedCalls);
+      }
+
+      if (encounteredError) {
+        const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
         updateCellContent(visitorCells[windowDays], [], 'visitor');
         updateCellContent(accountCells[windowDays], [], 'account');
         visitorCells[windowDays].textContent = cellMessage;
         accountCells[windowDays].textContent = cellMessage;
         visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
         accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+        continue;
       }
 
-      completedCalls += 1;
-      updateProgress(completedCalls);
+      updateCellContent(
+        visitorCells[windowDays],
+        Array.from(aggregatedVisitorFields),
+        'visitor',
+      );
+      updateCellContent(
+        accountCells[windowDays],
+        Array.from(aggregatedAccountFields),
+        'account',
+      );
     }
   }
 };
@@ -360,7 +386,11 @@ export const initMetadataFields = () => {
     const messageRegion = createMessageRegion();
     const entries = buildAppEntries();
 
-    const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
+    const callsPerEntry = LOOKBACK_WINDOWS.reduce(
+      (total, windowDays) => total + (windowDays === 180 ? 6 : 1),
+      0,
+    );
+    const totalCalls = entries.length * callsPerEntry;
     const updateProgress = setupProgressTracker(totalCalls);
 
     if (!entries.length) {
