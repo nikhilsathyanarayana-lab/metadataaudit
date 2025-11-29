@@ -80,7 +80,18 @@ export const buildAppDiscoveryPayload = () => ({
   },
 });
 
-export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
+export const buildMetadataFieldsTimeSeriesSlice = (appId, startOffsetDays = 0, windowDays = 30) => ({
+  singleEvents: { appId },
+  timeSeries: {
+    first: startOffsetDays
+      ? `dateAdd(now(), -${startOffsetDays}, 'days')`
+      : 'now()',
+    count: -Number(windowDays),
+    period: 'dayRange',
+  },
+});
+
+export const buildMetadataFieldsForAppPayload = (appId, windowDays, startOffsetDays = 0) => ({
   response: { mimeType: 'application/json' },
   request: {
     name: 'metadata-fields-for-app',
@@ -90,8 +101,7 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
           [
             {
               source: {
-                singleEvents: { appId },
-                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+                ...buildMetadataFieldsTimeSeriesSlice(appId, startOffsetDays, windowDays),
               },
             },
             { filter: 'contains(type,`meta`)' },
@@ -105,8 +115,7 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
           [
             {
               source: {
-                singleEvents: { appId },
-                timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+                ...buildMetadataFieldsTimeSeriesSlice(appId, startOffsetDays, windowDays),
               },
             },
             { filter: 'contains(type,`meta`)' },
@@ -366,6 +375,7 @@ export default {
   buildCookieHeaderValue,
   buildExamplesPayload,
   buildHeaders,
+  buildMetadataFieldsTimeSeriesSlice,
   buildMetadataFieldsPayload,
   buildRequestHeaders,
   fetchAppNameById,
