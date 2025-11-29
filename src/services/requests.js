@@ -144,13 +144,12 @@ export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize =
 
   const totalChunks = Math.ceil(normalizedWindow / chunkSize);
   const payloads = [];
-  const now = Date.now();
-
   for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
     const startOffset = (chunkIndex - 1) * chunkSize;
     const remaining = normalizedWindow - startOffset;
     const chunkDays = Math.min(chunkSize, remaining);
     const count = -(chunkDays * msPerDay);
+    const first = Date.now() - startOffset * msPerDay;
 
     const payload = buildMetadataFieldsForAppPayload(appId, windowDays);
     const spawn = payload?.request?.pipeline?.[0]?.spawn;
@@ -162,7 +161,7 @@ export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize =
         if (source?.timeSeries) {
           source.timeSeries = {
             ...source.timeSeries,
-            first: now - startOffset * msPerDay,
+            first,
             count,
             period: 'millisecondRange',
           };
