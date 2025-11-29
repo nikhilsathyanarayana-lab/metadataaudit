@@ -178,9 +178,11 @@ const renderPdf = async (filename) => {
   printable.style.position = 'fixed';
   printable.style.top = '0';
   printable.style.left = '-9999px';
-  printable.style.width = '900px';
+  printable.style.width = '1200px';
+  printable.style.maxWidth = 'none';
   printable.style.background = '#ffffff';
   printable.style.padding = '32px';
+  printable.style.overflowX = 'auto';
 
   document.body.appendChild(printable);
 
@@ -196,7 +198,7 @@ const renderPdf = async (filename) => {
   const pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 32;
+  const margin = 16;
 
   const imgWidth = pageWidth - margin * 2;
   const imgHeight = (canvas.height * imgWidth) / canvas.width;

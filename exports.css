@@ -26,7 +26,9 @@
 }
 
 .pdf-export-root {
-  width: 900px;
+  width: 1200px;
+  max-width: none;
+  overflow-x: auto;
   color: #1f1f1f;
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   display: flex;
@@ -103,6 +105,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
+  table-layout: auto;
 }
 
 .pdf-table th {
@@ -111,12 +114,14 @@
   color: #3d3d3d;
   padding: 0.65rem 0.75rem;
   border-bottom: 2px solid #f04e98;
+  white-space: nowrap;
 }
 
 .pdf-table td {
   padding: 0.55rem 0.75rem;
   border-bottom: 1px solid #f3d6e3;
   vertical-align: top;
+  word-break: break-word;
 }
 
 .pdf-table tr:nth-child(even) td {
