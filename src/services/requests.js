@@ -105,8 +105,8 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays, startOffsetD
       { unmarshal: { metadata: 'title' } },
       {
         eval: {
-          visitorMetadata: 'isNil(metadata.visitor) ? [] : keys(metadata.visitor)',
-          accountMetadata: 'isNil(metadata.account) ? [] : keys(metadata.account)',
+          visitorMetadata: 'if(isNil(metadata.visitor), [], keys(metadata.visitor))',
+          accountMetadata: 'if(isNil(metadata.account), [], keys(metadata.account))',
         },
       },
       { unwind: { field: 'visitorMetadata', optional: true } },
