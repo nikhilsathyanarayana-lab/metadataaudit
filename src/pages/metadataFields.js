@@ -2,13 +2,14 @@ import {
   buildChunkedMetadataFieldPayloads,
   buildMetadataFieldsForAppPayload,
   postAggregationWithIntegrationKey,
-  fetchAppNameById,
 } from '../services/requests.js';
 
 const LOOKBACK_WINDOWS = [180, 30, 7];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
+const manualAppNameStorageKey = 'manualAppNames';
+let manualAppNameCache = null;
 let metadataFieldsReadyPromise = Promise.resolve();
 
 const setupProgressTracker = (initialTotalCalls) => {
@@ -88,6 +89,33 @@ const parseStoredSelection = () => {
   }
 };
 
+const loadManualAppNames = () => {
+  if (manualAppNameCache instanceof Map) {
+    return manualAppNameCache;
+  }
+
+  try {
+    const raw = localStorage.getItem(manualAppNameStorageKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+    const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
+    manualAppNameCache = new Map(entries);
+  } catch (error) {
+    console.error('Unable to parse manual app names:', error);
+    manualAppNameCache = new Map();
+  }
+
+  return manualAppNameCache;
+};
+
+const persistManualAppNames = (appNameMap) => {
+  if (!(appNameMap instanceof Map)) {
+    return;
+  }
+
+  const serialized = Object.fromEntries(appNameMap.entries());
+  localStorage.setItem(manualAppNameStorageKey, JSON.stringify(serialized));
+};
+
 const extractAppNames = (apiResponse) => {
   if (!apiResponse) {
     return new Map();
@@ -146,7 +174,7 @@ const extractAppIds = (apiResponse) => {
   return Array.from(new Set(appIds));
 };
 
-const buildAppEntries = () => {
+const buildAppEntries = (manualAppNames) => {
   const storedResponses = parseStoredSelection();
   const entries = [];
 
@@ -154,10 +182,12 @@ const buildAppEntries = () => {
     const appNames = extractAppNames(record.response);
     const appIds = extractAppIds(record.response);
     appIds.forEach((appId) => {
+      const manualAppName = manualAppNames?.get(appId);
+      const resolvedAppName = manualAppName || appNames.get(appId);
       entries.push({
         subId: record.subId,
         appId,
-        appName: appNames.get(appId),
+        appName: resolvedAppName,
         domain: record.domain,
         integrationKey: record.integrationKey,
       });
@@ -196,7 +226,7 @@ const renderTableRows = (tableBody, entries) => {
 
     const appNameCell = document.createElement('td');
     appNameCell.dataset.label = 'App Name';
-    appNameCell.textContent = entry.appName || 'Loading app name…';
+    appNameCell.textContent = entry.appName || 'Not set';
 
     const appIdCell = document.createElement('td');
     appIdCell.dataset.label = 'App ID';
@@ -231,40 +261,52 @@ const populateAppNameCells = (rows, entry, appName) => {
     });
 };
 
-const populateAppNames = async (entries, visitorRows, accountRows, messageRegion) => {
-  const appNamePromises = new Map();
-  const allRows = [...visitorRows, ...accountRows];
+const updateManualAppNameFeedback = (tone, message) => {
+  const feedback = document.getElementById('app-name-feedback');
 
-  entries.forEach((entry) => {
-    if (entry.appName) {
-      populateAppNameCells(allRows, entry, entry.appName);
-    }
-  });
-
-  const pendingLookups = entries
-    .filter((entry) => !entry.appName)
-    .map((entry) => {
-      if (!appNamePromises.has(entry.appId)) {
-        appNamePromises.set(entry.appId, fetchAppNameById(entry, entry.appId));
-      }
-
-      return appNamePromises.get(entry.appId).then((resolvedName) => {
-        if (!resolvedName) {
-          return populateAppNameCells(allRows, entry, entry.appName || '');
-        }
-
-        entry.appName = resolvedName;
-        populateAppNameCells(allRows, entry, resolvedName);
-        return resolvedName;
-      });
-    });
-
-  try {
-    await Promise.all(pendingLookups);
-  } catch (error) {
-    console.error('Unable to populate app names:', error);
-    showMessage(messageRegion, 'Unable to fetch app names for some entries.', 'error');
+  if (!feedback) {
+    return;
   }
+
+  feedback.textContent = message;
+  feedback.className = tone === 'error' ? 'alert' : 'status-banner';
+  feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+};
+
+const registerManualAppNameForm = (manualAppNames, entries, allRows) => {
+  const form = document.getElementById('app-name-form');
+  const appIdInput = document.getElementById('app-id-input');
+  const appNameInput = document.getElementById('app-name-input');
+
+  if (!form || !appIdInput || !appNameInput) {
+    return;
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const appId = appIdInput.value.trim();
+    const appName = appNameInput.value.trim();
+
+    if (!appId || !appName) {
+      updateManualAppNameFeedback('error', 'Provide both an App ID and an App Name.');
+      return;
+    }
+
+    manualAppNames.set(appId, appName);
+    persistManualAppNames(manualAppNames);
+
+    entries
+      .filter((entry) => entry.appId === appId)
+      .forEach((entry) => {
+        entry.appName = appName;
+        populateAppNameCells(allRows, entry, appName);
+      });
+
+    updateManualAppNameFeedback('info', `Saved app name for ${appId}.`);
+    form.reset();
+    appIdInput.focus();
+  });
 };
 
 const parseMetadataFields = (apiResponse) => {
@@ -441,7 +483,8 @@ export const initMetadataFields = () => {
     }
 
     const messageRegion = createMessageRegion();
-    const entries = buildAppEntries();
+    const manualAppNames = loadManualAppNames();
+    const entries = buildAppEntries(manualAppNames);
 
     const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
     const { updateText: updateProgress, addCalls: addTotalCalls } = setupProgressTracker(totalCalls);
@@ -456,8 +499,15 @@ export const initMetadataFields = () => {
 
     const visitorRows = renderTableRows(visitorTableBody, entries);
     const accountRows = renderTableRows(accountTableBody, entries);
+    const allRows = [...visitorRows, ...accountRows];
 
-    const appNamePromise = populateAppNames(entries, visitorRows, accountRows, messageRegion);
+    entries.forEach((entry) => {
+      if (entry.appName) {
+        populateAppNameCells(allRows, entry, entry.appName);
+      }
+    });
+
+    registerManualAppNameForm(manualAppNames, entries, allRows);
 
     await fetchAndPopulate(
       entries,
@@ -467,7 +517,6 @@ export const initMetadataFields = () => {
       updateProgress,
       addTotalCalls,
     );
-    await appNamePromise;
   })();
 
   return metadataFieldsReadyPromise;
