@@ -84,8 +84,8 @@ export const buildMetadataFieldsTimeSeriesSlice = (appId, startOffsetDays = 0, w
   singleEvents: { appId },
   timeSeries: {
     first: startOffsetDays
-      ? `dateAdd(now(), -${startOffsetDays}, 'days')`
-      : 'now()',
+      ? `startOfPeriod("dayRange", dateAdd(now(), -${startOffsetDays}, "days"))`
+      : 'startOfPeriod("dayRange", now())',
     count: -Number(windowDays),
     period: 'dayRange',
   },
