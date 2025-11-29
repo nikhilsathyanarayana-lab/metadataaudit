@@ -1,4 +1,5 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
+import { buildMetaEventsPayload, postAggregationWithIntegrationKey } from '../services/requests.js';
 import {
   applyManualAppNames,
   loadManualAppNames,
@@ -8,7 +9,10 @@ import {
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
 const appSelectionStorageKey = 'appSelectionResponses';
+const deepDiveStorageKey = 'deepDiveMetaEvents';
+const deepDiveStorageVersion = 1;
 const TARGET_LOOKBACK = 180;
+const DEEP_DIVE_LOOKBACK = 7;
 
 const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
@@ -90,6 +94,94 @@ const loadMetadataRecords = () => {
   }
 };
 
+let deepDiveRecords = [];
+
+const persistDeepDiveRecords = (records) => {
+  const serialized = {
+    version: deepDiveStorageVersion,
+    windowDays: DEEP_DIVE_LOOKBACK,
+    updatedAt: new Date().toISOString(),
+    records,
+  };
+
+  localStorage.setItem(deepDiveStorageKey, JSON.stringify(serialized));
+};
+
+const loadDeepDiveRecords = () => {
+  deepDiveRecords = [];
+
+  try {
+    const raw = localStorage.getItem(deepDiveStorageKey);
+
+    if (!raw) {
+      return deepDiveRecords;
+    }
+
+    const parsed = JSON.parse(raw);
+    const records = parsed?.records;
+
+    if (parsed?.version !== deepDiveStorageVersion || !Array.isArray(records)) {
+      return deepDiveRecords;
+    }
+
+    deepDiveRecords = records.filter((record) => record?.appId);
+  } catch (error) {
+    console.error('Unable to parse stored deep dive records:', error);
+  }
+
+  return deepDiveRecords;
+};
+
+const upsertDeepDiveRecord = (entry, response, errorMessage = '') => {
+  if (!entry?.appId) {
+    return;
+  }
+
+  const record = {
+    version: deepDiveStorageVersion,
+    windowDays: DEEP_DIVE_LOOKBACK,
+    updatedAt: new Date().toISOString(),
+    appId: entry.appId,
+    appName: entry.appName || '',
+    subId: entry.subId || '',
+    domain: entry.domain || '',
+    integrationKey: entry.integrationKey || '',
+    response: response || null,
+    error: errorMessage,
+  };
+
+  deepDiveRecords = deepDiveRecords.filter(
+    (existing) => existing.appId !== record.appId || existing.windowDays !== record.windowDays,
+  );
+  deepDiveRecords.push(record);
+  persistDeepDiveRecords(deepDiveRecords);
+};
+
+const syncDeepDiveRecordsAppName = (appId, appName) => {
+  if (!appId) {
+    return;
+  }
+
+  let updated = false;
+
+  deepDiveRecords = deepDiveRecords.map((record) => {
+    if (record.appId !== appId) {
+      return record;
+    }
+
+    updated = true;
+    return {
+      ...record,
+      appName,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  if (updated) {
+    persistDeepDiveRecords(deepDiveRecords);
+  }
+};
+
 const syncMetadataRecordsAppName = (appId, appName) => {
   if (!appId) {
     return;
@@ -166,6 +258,96 @@ const groupMetadataByApp = (records) => {
   return Array.from(grouped.values());
 };
 
+const ensureMessageRegion = () => {
+  const existing = document.getElementById('deep-dive-messages');
+  if (existing) {
+    return existing;
+  }
+
+  const region = document.createElement('div');
+  region.id = 'deep-dive-messages';
+  region.className = 'page-messages';
+
+  const mainContent = document.querySelector('main.content');
+  mainContent?.parentNode?.insertBefore(region, mainContent);
+  return region;
+};
+
+const showMessage = (region, message, tone = 'info') => {
+  if (!region) {
+    return;
+  }
+
+  region.innerHTML = '';
+
+  if (!message) {
+    return;
+  }
+
+  const alert = document.createElement('p');
+  alert.className = tone === 'error' ? 'alert' : 'status-banner';
+  alert.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  alert.textContent = message;
+
+  region.appendChild(alert);
+};
+
+const setExportAvailability = (enabled) => {
+  const exportButton = document.getElementById('export-button');
+
+  if (!exportButton) {
+    return;
+  }
+
+  exportButton.disabled = !enabled;
+  exportButton.setAttribute('aria-disabled', String(!enabled));
+};
+
+const buildScanEntries = (records, manualAppNames) => {
+  const mapped = new Map();
+
+  records
+    .filter((record) => record.windowDays === TARGET_LOOKBACK)
+    .forEach((record) => {
+      if (!record?.appId || !record?.domain || !record?.integrationKey) {
+        return;
+      }
+
+      const appName = manualAppNames?.get(record.appId) || record.appName || '';
+
+      mapped.set(record.appId, {
+        appId: record.appId,
+        appName,
+        subId: record.subId || '',
+        domain: record.domain,
+        integrationKey: record.integrationKey,
+      });
+    });
+
+  return Array.from(mapped.values());
+};
+
+const setupProgressTracker = () => {
+  const progressText = document.getElementById('deep-dive-progress-text');
+
+  const updateText = (completed, total) => {
+    if (!progressText) {
+      return;
+    }
+
+    if (!total) {
+      progressText.textContent = 'No API calls queued.';
+      return;
+    }
+
+    const boundedCompleted = Math.min(completed, total);
+    const remaining = Math.max(total - boundedCompleted, 0);
+    progressText.textContent = `API calls: ${boundedCompleted}/${total} (${remaining} left)`;
+  };
+
+  return { updateText };
+};
+
 const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
   const emptyCell = document.createElement('td');
@@ -217,6 +399,50 @@ const buildFormatSelect = (appId, subId, appName, fieldName) => {
   });
 
   return select;
+};
+
+const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => {
+  if (!entries.length) {
+    updateProgress?.(0, 0);
+    showMessage(
+      messageRegion,
+      'No metadata selections found. Run the Metadata Fields page first to store app details.',
+      'error',
+    );
+    return;
+  }
+
+  let completedCalls = 0;
+  let successCount = 0;
+  updateProgress?.(completedCalls, entries.length);
+
+  for (const entry of entries) {
+    try {
+      const payload = buildMetaEventsPayload(entry.appId, DEEP_DIVE_LOOKBACK);
+      const response = await postAggregationWithIntegrationKey(entry, payload);
+
+      upsertDeepDiveRecord(entry, response, '');
+      successCount += 1;
+    } catch (error) {
+      const detail = error?.message || 'Unable to fetch metadata events.';
+      upsertDeepDiveRecord(entry, null, detail);
+
+      showMessage(
+        messageRegion,
+        `Deep dive request failed for app ${entry.appId}: ${detail}`,
+        'error',
+      );
+    } finally {
+      completedCalls += 1;
+      updateProgress?.(completedCalls, entries.length);
+    }
+  }
+
+  if (successCount) {
+    showMessage(messageRegion, `Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`, 'info');
+  }
+
+  setExportAvailability(Boolean(rows?.length) || deepDiveRecords.length > 0);
 };
 
 const renderTable = (tableBody, rows, type, openModal) => {
@@ -351,6 +577,7 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) =>
 
     setManualAppName(manualAppNames, activeRow.appId, appName);
     syncMetadataRecordsAppName(activeRow.appId, appName);
+    syncDeepDiveRecordsAppName(activeRow.appId, appName);
 
     rows
       .filter((row) => row.appId === activeRow.appId)
@@ -398,8 +625,13 @@ export const initDeepDive = async () => {
     return;
   }
 
+  const messageRegion = ensureMessageRegion();
+  const { updateText: updateProgress } = setupProgressTracker();
+  const startButton = document.getElementById('deep-dive-start');
+
   const manualAppNames = loadManualAppNames();
   const metadataRecords = loadMetadataRecords();
+  deepDiveRecords = loadDeepDiveRecords();
   const groupedRecords = groupMetadataByApp(metadataRecords);
 
   let rows = groupedRecords;
@@ -424,4 +656,25 @@ export const initDeepDive = async () => {
 
   renderedRows.push(...renderTable(visitorTableBody, rows, 'visitor', openAppNameModal));
   renderedRows.push(...renderTable(accountTableBody, rows, 'account', openAppNameModal));
+
+  setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
+  updateProgress(0, buildScanEntries(metadataRecords, manualAppNames).length);
+
+  if (startButton) {
+    startButton.addEventListener('click', async () => {
+      startButton.disabled = true;
+      startButton.textContent = 'Scanning…';
+      showMessage(messageRegion, 'Starting deep dive scan…', 'info');
+
+      await runDeepDiveScan(
+        buildScanEntries(metadataRecords, manualAppNames),
+        updateProgress,
+        messageRegion,
+        rows,
+      );
+
+      startButton.disabled = false;
+      startButton.textContent = 'Start scan';
+    });
+  }
 };

@@ -18,6 +18,23 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
   return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
 };
 
+export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
+  response: { location: 'request', mimeType: 'application/json' },
+  requests: [
+    {
+      pipeline: [
+        {
+          source: {
+            singleEvents: { appId },
+            timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+          },
+        },
+        { filter: 'contains(type,`meta`)' },
+      ],
+    },
+  ],
+});
+
 export const buildCookieHeaderValue = (rawCookie) => {
   const trimmed = rawCookie.trim();
 
@@ -383,6 +400,7 @@ export default {
   buildMetadataFieldsForAppPayload,
   buildAppAggregationRequest,
   buildAppDiscoveryPayload,
+  buildMetaEventsPayload,
   buildChunkedMetadataFieldPayloads,
   buildCookieHeaderValue,
   buildExamplesPayload,
