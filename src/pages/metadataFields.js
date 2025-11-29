@@ -1,4 +1,5 @@
 import {
+  buildChunkedMetadataFieldPayloads,
   buildMetadataFieldsForAppPayload,
   postAggregationWithIntegrationKey,
   fetchAppNameById,
@@ -325,7 +326,37 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
         const tooMuchData = RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
         const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
 
-        if (!tooMuchData) {
+        if (tooMuchData) {
+          const chunkedPayloads = buildChunkedMetadataFieldPayloads(entry.appId, windowDays);
+          const aggregatedResults = [];
+
+          try {
+            for (const chunkedPayload of chunkedPayloads) {
+              const chunkResponse = await postAggregationWithIntegrationKey(entry, chunkedPayload);
+
+              if (Array.isArray(chunkResponse?.results)) {
+                aggregatedResults.push(...chunkResponse.results);
+              } else if (Array.isArray(chunkResponse?.data)) {
+                aggregatedResults.push(...chunkResponse.data);
+              } else if (Array.isArray(chunkResponse)) {
+                aggregatedResults.push(...chunkResponse);
+              }
+            }
+
+            const { visitorFields, accountFields } = parseMetadataFields(aggregatedResults);
+
+            updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
+            updateCellContent(accountCells[windowDays], accountFields, 'account');
+
+            visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+            accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+            completedCalls += 1;
+            updateProgress(completedCalls);
+            continue;
+          } catch (chunkError) {
+            console.error('Chunked metadata field request failed:', chunkError);
+          }
+        } else {
           console.error('Metadata field request failed:', error);
           showMessage(
             messageRegion,
