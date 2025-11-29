@@ -135,6 +135,31 @@ const extractCellValue = (cell) => {
   return cell.textContent.trim();
 };
 
+const combineAppIdentifiers = (headers, rows) => {
+  const appNameIndex = headers.findIndex((header) => header.toLowerCase() === 'app name');
+  const appIdIndex = headers.findIndex((header) => header.toLowerCase() === 'app id');
+
+  if (appNameIndex === -1 || appIdIndex === -1) {
+    return { headers, rows };
+  }
+
+  const primaryIndex = Math.min(appNameIndex, appIdIndex);
+  const removalIndex = appNameIndex === primaryIndex ? appIdIndex : appNameIndex;
+
+  const updatedHeaders = [...headers];
+  updatedHeaders.splice(removalIndex, 1);
+
+  const updatedRows = rows.map((row) => {
+    const combinedValue = [row[appNameIndex], row[appIdIndex]].filter(Boolean).join('\n');
+    const updatedRow = [...row];
+    updatedRow[primaryIndex] = combinedValue;
+    updatedRow.splice(removalIndex, 1);
+    return updatedRow;
+  });
+
+  return { headers: updatedHeaders, rows: updatedRows };
+};
+
 const stripIntegrationKeyColumns = (headers) => {
   const indicesToKeep = [];
   const cleanedHeaders = [];
@@ -154,15 +179,18 @@ const stripIntegrationKeyColumns = (headers) => {
 
 const collectTableData = (table) => {
   const headerCells = Array.from(table.querySelectorAll('thead th'));
-  const headers = headerCells.map((th) => th.textContent.trim());
-  const { indicesToKeep, cleanedHeaders } = stripIntegrationKeyColumns(headers);
+  let headers = headerCells.map((th) => th.textContent.trim());
 
-  const rows = Array.from(table.querySelectorAll('tbody tr')).map((row) => {
+  let rows = Array.from(table.querySelectorAll('tbody tr')).map((row) => {
     const cells = Array.from(row.querySelectorAll('td'));
-    return indicesToKeep.map((index) => extractCellValue(cells[index]));
+    return cells.map((cell) => extractCellValue(cell));
   });
 
-  return { headers: cleanedHeaders, rows };
+  ({ headers, rows } = combineAppIdentifiers(headers, rows));
+  const { indicesToKeep, cleanedHeaders } = stripIntegrationKeyColumns(headers);
+  const cleanedRows = rows.map((row) => indicesToKeep.map((index) => row[index]));
+
+  return { headers: cleanedHeaders, rows: cleanedRows };
 };
 
 const buildTableRows = (table, label) => {
