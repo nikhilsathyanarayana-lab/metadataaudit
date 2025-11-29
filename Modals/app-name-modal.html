@@ -1,0 +1,51 @@
+<div id="app-name-backdrop" class="modal-backdrop" hidden></div>
+<section
+  id="app-name-modal"
+  class="modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="app-name-modal-title"
+  hidden
+>
+  <div class="modal-content" id="app-name-modal-content">
+    <div class="modal-header" id="app-name-modal-header">
+      <div>
+        <p class="eyebrow">App name</p>
+        <h2 class="modal-title" id="app-name-modal-title">Save app name</h2>
+        <p class="section-hint" id="app-name-modal-subtitle">
+          Update the app name for this App ID. Saved names overwrite any existing value.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="close-btn"
+        aria-label="Close app name modal"
+        data-close-app-name-modal
+      >&times;</button>
+    </div>
+
+    <form class="modal-body" id="app-name-modal-form" aria-describedby="app-name-modal-hint">
+      <div class="pill" id="app-name-modal-app-id-row">
+        <p class="status-title">App ID</p>
+        <p class="status-detail" id="app-name-modal-app-id"></p>
+      </div>
+
+      <label for="app-name-modal-input" class="section-title">App Name</label>
+      <input
+        type="text"
+        id="app-name-modal-input"
+        name="app-name"
+        class="text-input"
+        autocomplete="off"
+        required
+      />
+      <p class="section-hint" id="app-name-modal-hint">Saved names overwrite any existing value for the same App ID.</p>
+      <div id="app-name-modal-feedback" class="status-banner" role="status" aria-live="polite"></div>
+    </form>
+
+    <div class="modal-actions" id="app-name-modal-actions">
+      <button type="button" class="secondary-btn" data-close-app-name-modal>Cancel</button>
+      <button type="submit" form="app-name-modal-form" class="primary-btn">Save app name</button>
+    </div>
+  </div>
+</section>

@@ -160,6 +160,21 @@ h1 {
   font-size: 0.98rem;
 }
 
+.text-input {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 61, 61, 0.18);
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.text-input:focus-visible {
+  outline: 2px solid var(--pendo-pink);
+  outline-offset: 2px;
+  border-color: var(--pendo-pink);
+}
+
 .subid-form {
   display: flex;
   flex-direction: column;
@@ -476,6 +491,28 @@ textarea:focus {
 
 .data-table tbody tr:hover {
   background: #fff7fb;
+}
+
+.app-name-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--pendo-pink);
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  font-size: inherit;
+}
+
+.app-name-button:hover,
+.app-name-button:focus-visible {
+  text-decoration: underline;
+}
+
+.app-name-button:focus-visible {
+  outline: 2px solid var(--pendo-pink);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 .checkbox-cell {
