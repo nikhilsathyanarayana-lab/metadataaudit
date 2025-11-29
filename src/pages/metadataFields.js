@@ -6,6 +6,7 @@ import {
 const LOOKBACK_WINDOWS = [180, 30, 7];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const storageKey = 'appSelectionResponses';
+let metadataFieldsReadyPromise = Promise.resolve();
 
 const setupProgressTracker = (totalCalls) => {
   const progressText = document.getElementById('metadata-fields-progress-text');
@@ -255,29 +256,35 @@ const fetchAndPopulate = async (entries, visitorRows, accountRows, messageRegion
 };
 
 export const initMetadataFields = () => {
-  const visitorTableBody = document.getElementById('visitor-metadata-table-body');
-  const accountTableBody = document.getElementById('account-metadata-table-body');
+  metadataFieldsReadyPromise = (async () => {
+    const visitorTableBody = document.getElementById('visitor-metadata-table-body');
+    const accountTableBody = document.getElementById('account-metadata-table-body');
 
-  if (!visitorTableBody || !accountTableBody) {
-    return;
-  }
+    if (!visitorTableBody || !accountTableBody) {
+      return;
+    }
 
-  const messageRegion = createMessageRegion();
-  const entries = buildAppEntries();
+    const messageRegion = createMessageRegion();
+    const entries = buildAppEntries();
 
-  const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
-  const updateProgress = setupProgressTracker(totalCalls);
+    const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
+    const updateProgress = setupProgressTracker(totalCalls);
 
-  if (!entries.length) {
-    showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
-    renderTableRows(visitorTableBody, []);
-    renderTableRows(accountTableBody, []);
-    updateProgress(0);
-    return;
-  }
+    if (!entries.length) {
+      showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
+      renderTableRows(visitorTableBody, []);
+      renderTableRows(accountTableBody, []);
+      updateProgress(0);
+      return;
+    }
 
-  const visitorRows = renderTableRows(visitorTableBody, entries);
-  const accountRows = renderTableRows(accountTableBody, entries);
+    const visitorRows = renderTableRows(visitorTableBody, entries);
+    const accountRows = renderTableRows(accountTableBody, entries);
 
-  fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress);
+    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress);
+  })();
+
+  return metadataFieldsReadyPromise;
 };
+
+export const waitForMetadataFields = () => metadataFieldsReadyPromise;

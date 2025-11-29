@@ -1,5 +1,6 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { exportMetadataPdf } from '../controllers/pdfExport.js';
+import { exportMetadataXlsx } from '../controllers/xlsxExport.js';
 
 const initExportModal = () => {
   const exportButton = document.getElementById('export-button');
@@ -34,12 +35,15 @@ const initExportModal = () => {
   formatButtons.forEach((button) => {
     button.addEventListener('click', async () => {
       const format = button.getAttribute('data-format');
+      closeModal();
+
       if (format === 'pdf') {
         await exportMetadataPdf();
+      } else if (format === 'xlsx') {
+        await exportMetadataXlsx();
       } else {
         console.info(`Export selected: ${format?.toUpperCase()}`);
       }
-      closeModal();
     });
   });
 
@@ -59,6 +63,10 @@ export const bootstrapShared = async () => {
 
   if (!document.getElementById('export-modal')) {
     await loadTemplate('Modals/export-modal.html');
+  }
+
+  if (!document.getElementById('xlsx-naming-modal')) {
+    await loadTemplate('Modals/xlsx-naming-modal.html');
   }
 
   initExportModal();
