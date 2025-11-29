@@ -1,0 +1,32 @@
+<div id="xlsx-naming-backdrop" class="modal-backdrop" hidden></div>
+<section id="xlsx-naming-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="xlsx-naming-modal-title" hidden>
+  <div class="modal-content" id="xlsx-naming-modal-content">
+    <div class="modal-header" id="xlsx-naming-modal-header">
+      <div>
+        <p class="eyebrow">Export</p>
+        <h2 class="modal-title" id="xlsx-naming-modal-title">Name your workbook</h2>
+        <p class="section-hint">Enter a name for the XLSX export. Each page will be saved to its own sheet.</p>
+      </div>
+      <button type="button" class="close-btn" aria-label="Close workbook naming modal" data-dismiss-xlsx-modal>&times;</button>
+    </div>
+
+    <form class="modal-body" id="xlsx-naming-form">
+      <label for="xlsx-file-name" class="field-label">Workbook name</label>
+      <input
+        type="text"
+        id="xlsx-file-name"
+        name="xlsx-file-name"
+        class="text-input"
+        autocomplete="off"
+        required
+        aria-describedby="xlsx-file-help"
+      />
+      <p class="section-hint" id="xlsx-file-help">The file extension will be added automatically.</p>
+    </form>
+
+    <div class="modal-actions" id="xlsx-naming-modal-actions">
+      <button type="button" class="secondary-btn" data-dismiss-xlsx-modal>Cancel</button>
+      <button type="submit" form="xlsx-naming-form" class="primary-btn" id="confirm-xlsx-export">Download XLSX</button>
+    </div>
+  </div>
+</section>
