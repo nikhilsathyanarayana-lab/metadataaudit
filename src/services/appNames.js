@@ -6,14 +6,20 @@ export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => 
     return manualAppNameCache;
   }
 
+  manualAppNameCache = new Map();
+
   try {
     const raw = localStorage.getItem(storageKey);
-    const parsed = raw ? JSON.parse(raw) : {};
+
+    if (!raw) {
+      return manualAppNameCache;
+    }
+
+    const parsed = JSON.parse(raw);
     const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
     manualAppNameCache = new Map(entries);
   } catch (error) {
-    console.error('Unable to parse manual app names:', error);
-    manualAppNameCache = new Map();
+    console.warn('Unable to access manual app names from storage:', error);
   }
 
   return manualAppNameCache;
@@ -25,7 +31,13 @@ export const persistManualAppNames = (appNameMap, storageKey = MANUAL_APP_NAME_S
   }
 
   const serialized = Object.fromEntries(appNameMap.entries());
-  localStorage.setItem(storageKey, JSON.stringify(serialized));
+
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(serialized));
+  } catch (error) {
+    console.warn('Unable to persist manual app names to storage:', error);
+  }
+
   manualAppNameCache = appNameMap;
 };
 
