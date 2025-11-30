@@ -12,6 +12,16 @@ const appSelectionGlobalKey = 'appSelectionResponses';
 const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
 const MAX_DEEP_DIVE_CALLS = 1;
+const DEBUG_DEEP_DIVE =
+  (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
+const logDeepDive = (level, ...messages) => {
+  if (!DEBUG_DEEP_DIVE) {
+    return;
+  }
+
+  const logger = typeof console?.[level] === 'function' ? console[level] : console.debug;
+  logger('[DeepDive]', ...messages);
+};
 
 const dedupeAndSortFields = (fields) => {
   if (fields instanceof Set) {
@@ -832,8 +842,15 @@ const runDeepDiveScan = async (
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
 
+  logDeepDive('info', 'Starting deep dive scan', {
+    requestedEntries: entries.length,
+    limitedEntries: limitedEntries.length,
+    targetLookback,
+  });
+
   if (!limitedEntries.length) {
     updateProgress?.(0, 0);
+    logDeepDive('debug', 'Deep dive progress update', { completedCalls: 0, totalCalls: 0 });
     showMessage(
       messageRegion,
       'No metadata selections found. Run the Metadata Fields page first to capture app details.',
@@ -846,6 +863,10 @@ const runDeepDiveScan = async (
   let successCount = 0;
   const deepDiveAccumulator = new Map();
   updateProgress?.(completedCalls, limitedEntries.length);
+  logDeepDive('debug', 'Deep dive progress update', {
+    completedCalls,
+    totalCalls: limitedEntries.length,
+  });
 
   if (entries.length > limitedEntries.length) {
     showMessage(
@@ -856,9 +877,25 @@ const runDeepDiveScan = async (
   }
 
   for (const entry of limitedEntries) {
+    logDeepDive('debug', 'Processing deep dive entry', {
+      appId: entry.appId,
+      subId: entry.subId,
+      targetLookback,
+    });
     let payload;
     try {
       payload = buildMetaEventsPayload(entry.appId, targetLookback);
+      logDeepDive('debug', 'Built metadata events payload', {
+        appId: entry.appId,
+        subId: entry.subId,
+        targetLookback,
+        payload,
+      });
+      logDeepDive('info', 'Dispatching deep dive request', {
+        appId: entry.appId,
+        subId: entry.subId,
+        integrationKey: entry.integrationKey,
+      });
       const response = await postAggregationWithIntegrationKey(entry, payload);
 
       const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
@@ -890,6 +927,10 @@ const runDeepDiveScan = async (
     } finally {
       completedCalls += 1;
       updateProgress?.(completedCalls, limitedEntries.length);
+      logDeepDive('debug', 'Deep dive progress update', {
+        completedCalls,
+        totalCalls: limitedEntries.length,
+      });
     }
   }
 
