@@ -135,6 +135,8 @@ const loadMetadataRecords = () =>
     loadMetadataRecordsFromStorage(),
   );
 
+let metadata_full = [];
+
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
   if (!entry?.appId) {
     return null;
@@ -163,6 +165,58 @@ const appendFieldsFromMetadataObject = (metadataObject, targetSet) => {
   }
 
   Object.keys(metadataObject).forEach((field) => targetSet.add(field));
+};
+
+const updateMetadataFull = (response, entry) => {
+  if (!entry?.appId) {
+    return;
+  }
+
+  let target = metadata_full.find((item) => item.appId === entry.appId);
+
+  if (!target) {
+    target = { appId: entry.appId, visitor: {}, account: {} };
+    metadata_full.push(target);
+  }
+
+  const candidateArrays = [];
+
+  if (Array.isArray(response?.results)) {
+    candidateArrays.push(response.results);
+  }
+
+  if (Array.isArray(response?.data)) {
+    candidateArrays.push(response.data);
+  }
+
+  if (Array.isArray(response)) {
+    candidateArrays.push(response);
+  }
+
+  candidateArrays
+    .filter(Array.isArray)
+    .flat()
+    .forEach((item) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+
+      const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+
+      if (metadata.visitor && typeof metadata.visitor === 'object' && !Array.isArray(metadata.visitor)) {
+        Object.entries(metadata.visitor).forEach(([field, value]) => {
+          target.visitor[field] = value;
+        });
+      }
+
+      if (metadata.account && typeof metadata.account === 'object' && !Array.isArray(metadata.account)) {
+        Object.entries(metadata.account).forEach(([field, value]) => {
+          target.account[field] = value;
+        });
+      }
+    });
+
+  console.log('metadata_full', metadata_full);
 };
 
 const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
@@ -560,13 +614,7 @@ const runDeepDiveScan = async (
       const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '');
-      console.info('Deep dive response captured', {
-        appId: entry.appId,
-        subId: entry.subId,
-        integrationKey: entry.integrationKey,
-        normalizedFields,
-        response,
-      });
+      updateMetadataFull(response, entry);
       successCount += 1;
       onSuccessfulCall?.();
     } catch (error) {
