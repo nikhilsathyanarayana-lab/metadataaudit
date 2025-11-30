@@ -14,6 +14,18 @@ const deepDiveStorageVersion = 1;
 const TARGET_LOOKBACK = 180;
 const DEEP_DIVE_LOOKBACK = 7;
 
+const dedupeAndSortFields = (fields) => {
+  if (fields instanceof Set) {
+    return Array.from(fields).sort();
+  }
+
+  if (Array.isArray(fields)) {
+    return Array.from(new Set(fields)).sort();
+  }
+
+  return [];
+};
+
 const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
     return [];
@@ -94,6 +106,82 @@ const loadMetadataRecords = () => {
   }
 };
 
+const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
+  if (!entry?.appId) {
+    return null;
+  }
+
+  const existing = accumulator.get(entry.appId) || {
+    appId: entry.appId,
+    appName: entry.appName || '',
+    subId: entry.subId || '',
+    domain: entry.domain || '',
+    integrationKey: entry.integrationKey || '',
+    visitorFields: new Set(),
+    accountFields: new Set(),
+  };
+
+  if (!accumulator.has(entry.appId)) {
+    accumulator.set(entry.appId, existing);
+  }
+
+  return existing;
+};
+
+const appendFieldsFromMetadataObject = (metadataObject, targetSet) => {
+  if (!metadataObject || typeof metadataObject !== 'object' || Array.isArray(metadataObject)) {
+    return;
+  }
+
+  Object.keys(metadataObject).forEach((field) => targetSet.add(field));
+};
+
+const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
+  const target = ensureDeepDiveAccumulatorEntry(accumulator, entry);
+
+  if (!target) {
+    return null;
+  }
+
+  const candidateArrays = [];
+
+  if (Array.isArray(response?.results)) {
+    candidateArrays.push(response.results);
+  }
+
+  if (Array.isArray(response?.data)) {
+    candidateArrays.push(response.data);
+  }
+
+  if (Array.isArray(response)) {
+    candidateArrays.push(response);
+  }
+
+  candidateArrays
+    .filter(Array.isArray)
+    .flat()
+    .forEach((item) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+
+      const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+
+      appendFieldsFromMetadataObject(metadata.visitor, target.visitorFields);
+      appendFieldsFromMetadataObject(metadata.account, target.accountFields);
+
+      if (Array.isArray(item.visitorMetadata)) {
+        item.visitorMetadata.forEach((field) => target.visitorFields.add(field));
+      }
+
+      if (Array.isArray(item.accountMetadata)) {
+        item.accountMetadata.forEach((field) => target.accountFields.add(field));
+      }
+    });
+
+  return target;
+};
+
 let deepDiveRecords = [];
 
 const persistDeepDiveRecords = (records) => {
@@ -124,7 +212,13 @@ const loadDeepDiveRecords = () => {
       return deepDiveRecords;
     }
 
-    deepDiveRecords = records.filter((record) => record?.appId);
+    deepDiveRecords = records
+      .filter((record) => record?.appId)
+      .map((record) => ({
+        ...record,
+        visitorFields: Array.isArray(record.visitorFields) ? record.visitorFields : [],
+        accountFields: Array.isArray(record.accountFields) ? record.accountFields : [],
+      }));
   } catch (error) {
     console.error('Unable to parse stored deep dive records:', error);
   }
@@ -132,10 +226,13 @@ const loadDeepDiveRecords = () => {
   return deepDiveRecords;
 };
 
-const upsertDeepDiveRecord = (entry, response, errorMessage = '') => {
+const upsertDeepDiveRecord = (entry, response, normalizedFields, errorMessage = '') => {
   if (!entry?.appId) {
     return;
   }
+
+  const visitorFields = dedupeAndSortFields(normalizedFields?.visitorFields);
+  const accountFields = dedupeAndSortFields(normalizedFields?.accountFields);
 
   const record = {
     version: deepDiveStorageVersion,
@@ -146,6 +243,8 @@ const upsertDeepDiveRecord = (entry, response, errorMessage = '') => {
     subId: entry.subId || '',
     domain: entry.domain || '',
     integrationKey: entry.integrationKey || '',
+    visitorFields,
+    accountFields,
     response: response || null,
     error: errorMessage,
   };
@@ -444,6 +543,7 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
 
   let completedCalls = 0;
   let successCount = 0;
+  const deepDiveAccumulator = new Map();
   updateProgress?.(completedCalls, entries.length);
 
   for (const entry of entries) {
@@ -451,11 +551,15 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
       const payload = buildMetaEventsPayload(entry.appId, DEEP_DIVE_LOOKBACK);
       const response = await postAggregationWithIntegrationKey(entry, payload);
 
-      upsertDeepDiveRecord(entry, response, '');
+      const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
+
+      upsertDeepDiveRecord(entry, response, normalizedFields, '');
       successCount += 1;
     } catch (error) {
       const detail = error?.message || 'Unable to fetch metadata events.';
-      upsertDeepDiveRecord(entry, null, detail);
+      const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
+
+      upsertDeepDiveRecord(entry, null, normalizedFields, detail);
 
       showMessage(
         messageRegion,
