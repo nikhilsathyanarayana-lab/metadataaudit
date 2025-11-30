@@ -1,0 +1,62 @@
+<div id="regex-format-backdrop" class="modal-backdrop" hidden></div>
+<section
+  id="regex-format-modal"
+  class="modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="regex-format-modal-title"
+  hidden
+>
+  <div class="modal-content" id="regex-format-modal-content">
+    <div class="modal-header" id="regex-format-modal-header">
+      <div>
+        <p class="eyebrow">Expected format</p>
+        <h2 class="modal-title" id="regex-format-modal-title">Use regex pattern</h2>
+        <p class="section-hint" id="regex-format-modal-subtitle">
+          Provide a JavaScript regular expression to validate this metadata field.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="close-btn"
+        aria-label="Close regex format modal"
+        data-close-regex-format-modal
+      >&times;</button>
+    </div>
+
+    <form class="modal-body" id="regex-format-modal-form" aria-describedby="regex-format-modal-hint">
+      <div class="pill" id="regex-format-context">
+        <div class="status-row">
+          <p class="status-title">Sub ID</p>
+          <p class="status-detail" id="regex-format-sub-id"></p>
+        </div>
+        <div class="status-row">
+          <p class="status-title">App ID</p>
+          <p class="status-detail" id="regex-format-app-id"></p>
+        </div>
+        <div class="status-row">
+          <p class="status-title">Field</p>
+          <p class="status-detail" id="regex-format-field"></p>
+        </div>
+      </div>
+
+      <label for="regex-format-input" class="section-title">Regular expression</label>
+      <input
+        type="text"
+        id="regex-format-input"
+        name="regex-format"
+        class="text-input"
+        autocomplete="off"
+        placeholder="Example: ^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+        required
+      />
+      <p class="section-hint" id="regex-format-modal-hint">Enter a valid JavaScript regex without leading and trailing slashes.</p>
+      <div id="regex-format-modal-feedback" class="status-banner" role="status" aria-live="polite"></div>
+    </form>
+
+    <div class="modal-actions" id="regex-format-modal-actions">
+      <button type="button" class="secondary-btn" data-close-regex-format-modal>Cancel</button>
+      <button type="submit" form="regex-format-modal-form" class="primary-btn">Save regex</button>
+    </div>
+  </div>
+</section>

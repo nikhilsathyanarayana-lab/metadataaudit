@@ -376,7 +376,11 @@ const buildAppNameCell = (rowData, openModal) => {
   return { cell, appNameButton };
 };
 
-const buildFormatSelect = (appId, subId, appName, fieldName) => {
+const REGEX_FORMAT_OPTION = 'regex';
+const DEFAULT_FORMAT_OPTION = 'unknown';
+const FORMAT_OPTIONS = ['email', 'name', 'full name', 'phone number', REGEX_FORMAT_OPTION, DEFAULT_FORMAT_OPTION];
+
+const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelected) => {
   const select = document.createElement('select');
   select.className = 'format-select';
   const labelParts = [`Sub ID ${subId || 'unknown'}`, `App ID ${appId}`];
@@ -388,14 +392,40 @@ const buildFormatSelect = (appId, subId, appName, fieldName) => {
   }
   select.setAttribute('aria-label', `Expected format for ${labelParts.join(' ')}`);
 
-  ['email', 'name', 'full name', 'phone number', 'unknown'].forEach((value) => {
+  FORMAT_OPTIONS.forEach((value) => {
     const option = document.createElement('option');
     option.value = value;
     option.textContent = value.charAt(0).toUpperCase() + value.slice(1);
-    if (value === 'unknown') {
-      option.selected = true;
-    }
     select.appendChild(option);
+  });
+
+  select.value = DEFAULT_FORMAT_OPTION;
+  select.dataset.previousValue = DEFAULT_FORMAT_OPTION;
+
+  select.addEventListener('change', () => {
+    const selectedValue = select.value;
+
+    if (selectedValue === REGEX_FORMAT_OPTION) {
+      const previousValue = select.dataset.previousValue || DEFAULT_FORMAT_OPTION;
+      select.value = previousValue;
+
+      if (typeof onRegexSelected === 'function') {
+        onRegexSelected({
+          appId,
+          appName,
+          fieldName,
+          select,
+          subId,
+          previousValue,
+        });
+      }
+
+      return;
+    }
+
+    select.dataset.regexPattern = '';
+    select.dataset.previousValue = selectedValue;
+    select.title = '';
   });
 
   return select;
@@ -445,7 +475,7 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
   setExportAvailability(Boolean(rows?.length) || deepDiveRecords.length > 0);
 };
 
-const renderTable = (tableBody, rows, type, openModal) => {
+const renderTable = (tableBody, rows, type, openModal, openRegexModal) => {
   tableBody.innerHTML = '';
 
   if (!rows.length) {
@@ -489,7 +519,13 @@ const renderTable = (tableBody, rows, type, openModal) => {
 
       if (hasFields) {
         formatCell.appendChild(
-          buildFormatSelect(rowData.appId, rowData.subId, rowData.appName, fieldName),
+          buildFormatSelect(
+            rowData.appId,
+            rowData.subId,
+            rowData.appName,
+            fieldName,
+            openRegexModal,
+          ),
         );
       } else {
         formatCell.textContent = index === 0 ? 'N/A' : '';
@@ -504,6 +540,124 @@ const renderTable = (tableBody, rows, type, openModal) => {
   });
 
   return renderedRows;
+};
+
+const updateRegexFeedback = (tone, message) => {
+  const feedback = document.getElementById('regex-format-modal-feedback');
+
+  if (!feedback) {
+    return;
+  }
+
+  feedback.textContent = message;
+  feedback.className = tone === 'error' ? 'alert' : 'status-banner';
+  feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+};
+
+const setupRegexFormatModal = async () => {
+  if (!document.getElementById('regex-format-modal')) {
+    await loadTemplate('Modals/regex-format-modal.html');
+  }
+
+  const modal = document.getElementById('regex-format-modal');
+  const backdrop = document.getElementById('regex-format-backdrop');
+  const form = document.getElementById('regex-format-modal-form');
+  const fieldTarget = document.getElementById('regex-format-field');
+  const appIdTarget = document.getElementById('regex-format-app-id');
+  const subIdTarget = document.getElementById('regex-format-sub-id');
+  const regexInput = document.getElementById('regex-format-input');
+  const closeButtons = modal?.querySelectorAll('[data-close-regex-format-modal]') || [];
+
+  if (!modal || !backdrop || !form || !regexInput) {
+    return () => {};
+  }
+
+  let activeContext = null;
+
+  const closeModal = (shouldRevertSelection = true) => {
+    if (shouldRevertSelection && activeContext?.select) {
+      activeContext.select.value = activeContext.previousValue || DEFAULT_FORMAT_OPTION;
+    }
+
+    modal.classList.remove('is-visible');
+    backdrop.classList.remove('is-visible');
+    modal.hidden = true;
+    backdrop.hidden = true;
+    form.reset();
+    activeContext = null;
+    updateRegexFeedback('info', '');
+  };
+
+  const openRegexModal = (context) => {
+    activeContext = context;
+
+    if (fieldTarget) {
+      fieldTarget.textContent = context?.fieldName || 'metadata field';
+    }
+
+    if (appIdTarget) {
+      appIdTarget.textContent = context?.appId || 'Unknown App ID';
+    }
+
+    if (subIdTarget) {
+      subIdTarget.textContent = context?.subId || 'Unknown Sub ID';
+    }
+
+    regexInput.value = context?.select?.dataset?.regexPattern || '';
+
+    updateRegexFeedback('info', 'Enter a JavaScript regular expression for this field.');
+    modal.hidden = false;
+    backdrop.hidden = false;
+    modal.classList.add('is-visible');
+    backdrop.classList.add('is-visible');
+    regexInput.focus();
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    if (!activeContext) {
+      updateRegexFeedback('error', 'Select an expected format to configure regex.');
+      return;
+    }
+
+    const pattern = regexInput.value.trim();
+
+    if (!pattern) {
+      updateRegexFeedback('error', 'Provide a regex pattern.');
+      return;
+    }
+
+    try {
+      // Validate the regex pattern without executing it.
+      // eslint-disable-next-line no-new
+      new RegExp(pattern);
+    } catch (error) {
+      updateRegexFeedback('error', 'Enter a valid regular expression.');
+      return;
+    }
+
+    activeContext.select.dataset.regexPattern = pattern;
+    activeContext.select.value = REGEX_FORMAT_OPTION;
+    activeContext.select.dataset.previousValue = REGEX_FORMAT_OPTION;
+    activeContext.select.title = `Regex pattern: ${pattern}`;
+
+    closeModal(false);
+  };
+
+  const handleCancel = () => closeModal(true);
+
+  form.addEventListener('submit', handleSubmit);
+  backdrop.addEventListener('click', handleCancel);
+  closeButtons.forEach((button) => button.addEventListener('click', handleCancel));
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal.classList.contains('is-visible')) {
+      closeModal();
+    }
+  });
+
+  return openRegexModal;
 };
 
 const updateManualAppNameFeedback = (tone, message) => {
@@ -653,9 +807,14 @@ export const initDeepDive = async () => {
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
   const openAppNameModal = await setupManualAppNameModal(manualAppNames, rows, getRenderedRows);
+  const openRegexModal = await setupRegexFormatModal();
 
-  renderedRows.push(...renderTable(visitorTableBody, rows, 'visitor', openAppNameModal));
-  renderedRows.push(...renderTable(accountTableBody, rows, 'account', openAppNameModal));
+  renderedRows.push(
+    ...renderTable(visitorTableBody, rows, 'visitor', openAppNameModal, openRegexModal),
+  );
+  renderedRows.push(
+    ...renderTable(accountTableBody, rows, 'account', openAppNameModal, openRegexModal),
+  );
 
   setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
   updateProgress(0, buildScanEntries(metadataRecords, manualAppNames).length);
