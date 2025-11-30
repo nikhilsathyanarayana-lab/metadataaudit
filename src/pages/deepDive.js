@@ -143,24 +143,22 @@ if (typeof window !== 'undefined') {
   window.metadata_api_calls = metadata_api_calls;
 }
 
-export const exportDeepDiveJson = () => {
-  const data = {
-    metadata_full,
-    metadata_api_calls,
-  };
-
-  const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: 'application/json',
-  });
+const downloadDeepDiveJson = (data, filename) => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const downloadUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
 
   anchor.href = downloadUrl;
-  anchor.download = 'metadata-deep-dive.json';
+  anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(downloadUrl);
+};
+
+export const exportDeepDiveJson = () => {
+  downloadDeepDiveJson(metadata_full, 'metadata-deep-dive-full.json');
+  downloadDeepDiveJson(metadata_api_calls, 'metadata-deep-dive-api-calls.json');
 };
 
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
