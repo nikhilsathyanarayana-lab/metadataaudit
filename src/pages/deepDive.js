@@ -9,6 +9,7 @@ import {
 const deepDiveGlobalKey = 'deepDiveMetaEvents';
 const metadataFieldGlobalKey = 'metadataFieldRecords';
 const appSelectionGlobalKey = 'appSelectionResponses';
+const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 180;
 const DEEP_DIVE_LOOKBACK = 7;
 
@@ -288,11 +289,11 @@ const syncMetadataRecordsAppName = (appId, appName, metadataRecords) => {
   });
 };
 
-const groupMetadataByApp = (records) => {
+const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) => {
   const grouped = new Map();
 
   records.forEach((record) => {
-    if (record.windowDays !== TARGET_LOOKBACK) {
+    if (record.windowDays !== targetLookback) {
       return;
     }
 
@@ -320,6 +321,31 @@ const groupMetadataByApp = (records) => {
   });
 
   return Array.from(grouped.values());
+};
+
+const replaceRows = (target, nextRows = []) => {
+  if (!Array.isArray(target) || !Array.isArray(nextRows)) {
+    return;
+  }
+
+  target.splice(0, target.length, ...nextRows);
+};
+
+const buildRowsForLookback = (metadataRecords, lookback) => {
+  const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
+
+  if (groupedRecords.length) {
+    return groupedRecords;
+  }
+
+  const selections = loadAppSelections();
+  return selections.map((entry) => ({
+    appId: entry.appId,
+    subId: entry.subId,
+    visitorFields: [],
+    accountFields: [],
+    appName: entry.appName || '',
+  }));
 };
 
 const ensureMessageRegion = () => {
@@ -367,11 +393,11 @@ const setExportAvailability = (enabled) => {
   exportButton.setAttribute('aria-disabled', String(!enabled));
 };
 
-const buildScanEntries = (records, manualAppNames) => {
+const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
   const mapped = new Map();
 
   records
-    .filter((record) => record.windowDays === TARGET_LOOKBACK)
+    .filter((record) => record.windowDays === targetLookback)
     .forEach((record) => {
       if (!record?.appId || !record?.domain || !record?.integrationKey) {
         return;
@@ -419,6 +445,14 @@ const createEmptyRow = (tableBody, message) => {
   emptyCell.textContent = message;
   row.appendChild(emptyCell);
   tableBody.appendChild(row);
+};
+
+const updateMetadataFieldHeaders = (lookback) => {
+  const label = `Metadata field (${lookback} days)`;
+
+  document.querySelectorAll('.metadata-field-header').forEach((header) => {
+    header.textContent = label;
+  });
 };
 
 const buildAppNameCell = (rowData, openModal) => {
@@ -544,7 +578,7 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
   setExportAvailability(Boolean(rows?.length) || deepDiveRecords.length > 0);
 };
 
-const renderTable = (tableBody, rows, type, openModal, openRegexModal) => {
+const renderTable = (tableBody, rows, type, openModal, openRegexModal, lookback) => {
   tableBody.innerHTML = '';
 
   if (!rows.length) {
@@ -557,7 +591,9 @@ const renderTable = (tableBody, rows, type, openModal, openRegexModal) => {
   rows.forEach((rowData) => {
     const fields = type === 'visitor' ? rowData.visitorFields : rowData.accountFields;
     const hasFields = Array.isArray(fields) && fields.length;
-    const fieldsToRender = hasFields ? fields : ['No metadata fields captured for 180 days'];
+    const fieldsToRender = hasFields
+      ? fields
+      : [`No metadata fields captured for ${lookback} days`];
 
     fieldsToRender.forEach((fieldName, index) => {
       const row = document.createElement('tr');
@@ -579,7 +615,7 @@ const renderTable = (tableBody, rows, type, openModal, openRegexModal) => {
       row.appendChild(appIdCell);
 
       const fieldsCell = document.createElement('td');
-      fieldsCell.dataset.label = 'Metadata field (180 days)';
+      fieldsCell.dataset.label = `Metadata field (${lookback} days)`;
       fieldsCell.textContent = fieldName;
       row.appendChild(fieldsCell);
 
@@ -609,6 +645,43 @@ const renderTable = (tableBody, rows, type, openModal, openRegexModal) => {
   });
 
   return renderedRows;
+};
+
+const setupLookbackControls = (onChange, initialLookback = TARGET_LOOKBACK) => {
+  const controls = document.getElementById('deep-dive-lookback-controls');
+  const buttons = controls?.querySelectorAll('[data-lookback-button]') || [];
+  let activeLookback = LOOKBACK_OPTIONS.includes(initialLookback)
+    ? initialLookback
+    : TARGET_LOOKBACK;
+
+  const applyState = (nextLookback) => {
+    buttons.forEach((button) => {
+      const buttonLookback = Number.parseInt(button.dataset.lookback, 10);
+      const isActive = buttonLookback === nextLookback;
+
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-pressed', String(isActive));
+      button.disabled = isActive;
+    });
+  };
+
+  applyState(activeLookback);
+
+  buttons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const nextLookback = Number.parseInt(button.dataset.lookback, 10);
+
+      if (!LOOKBACK_OPTIONS.includes(nextLookback) || nextLookback === activeLookback) {
+        return;
+      }
+
+      activeLookback = nextLookback;
+      applyState(activeLookback);
+      onChange?.(activeLookback);
+    });
+  });
+
+  return activeLookback;
 };
 
 const updateRegexFeedback = (tone, message) => {
@@ -855,38 +928,53 @@ export const initDeepDive = async () => {
   const manualAppNames = loadManualAppNames();
   let metadataRecords = loadMetadataRecords();
   deepDiveRecords = loadDeepDiveRecords();
-  const groupedRecords = groupMetadataByApp(metadataRecords);
-
-  let rows = groupedRecords;
-
-  if (!rows.length) {
-    const selections = loadAppSelections();
-    const selectionRows = selections.map((entry) => ({
-      appId: entry.appId,
-      subId: entry.subId,
-      visitorFields: [],
-      accountFields: [],
-    }));
-
-    rows = selectionRows;
-  }
-
-  rows = applyManualAppNames(rows, manualAppNames);
-
+  const rows = [];
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
   const openAppNameModal = await setupManualAppNameModal(manualAppNames, rows, getRenderedRows);
   const openRegexModal = await setupRegexFormatModal();
 
-  renderedRows.push(
-    ...renderTable(visitorTableBody, rows, 'visitor', openAppNameModal, openRegexModal),
-  );
-  renderedRows.push(
-    ...renderTable(accountTableBody, rows, 'account', openAppNameModal, openRegexModal),
-  );
+  let selectedLookback = TARGET_LOOKBACK;
 
-  setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
-  updateProgress(0, buildScanEntries(metadataRecords, manualAppNames).length);
+  const refreshTables = (lookback = selectedLookback) => {
+    selectedLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
+
+    const nextRows = applyManualAppNames(
+      buildRowsForLookback(metadataRecords, selectedLookback),
+      manualAppNames,
+    );
+
+    replaceRows(rows, nextRows);
+    updateMetadataFieldHeaders(selectedLookback);
+
+    renderedRows.length = 0;
+    renderedRows.push(
+      ...renderTable(
+        visitorTableBody,
+        rows,
+        'visitor',
+        openAppNameModal,
+        openRegexModal,
+        selectedLookback,
+      ),
+    );
+    renderedRows.push(
+      ...renderTable(
+        accountTableBody,
+        rows,
+        'account',
+        openAppNameModal,
+        openRegexModal,
+        selectedLookback,
+      ),
+    );
+
+    setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
+    updateProgress(0, buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length);
+  };
+
+  selectedLookback = setupLookbackControls(refreshTables, selectedLookback);
+  refreshTables(selectedLookback);
 
   if (startButton) {
     startButton.addEventListener('click', async () => {
@@ -895,7 +983,7 @@ export const initDeepDive = async () => {
       showMessage(messageRegion, 'Starting deep dive scan…', 'info');
 
       await runDeepDiveScan(
-        buildScanEntries(metadataRecords, manualAppNames),
+        buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
         updateProgress,
         messageRegion,
         rows,

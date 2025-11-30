@@ -38,6 +38,14 @@
           <h2 class="section-title" id="visitor-deep-dive-section-title">Visitor</h2>
           <p class="section-hint" id="visitor-deep-dive-section-hint"></p>
         </div>
+        <div class="lookback-controls" id="deep-dive-lookback-controls" role="group" aria-label="Select metadata window">
+          <span class="lookback-label">Window:</span>
+          <div class="lookback-buttons">
+            <button type="button" class="lookback-button tertiary-btn" data-lookback-button data-lookback="7">7 days</button>
+            <button type="button" class="lookback-button tertiary-btn" data-lookback-button data-lookback="30">30 days</button>
+            <button type="button" class="lookback-button tertiary-btn" data-lookback-button data-lookback="180">180 days</button>
+          </div>
+        </div>
       </div>
 
       <div class="table-wrapper" id="visitor-deep-dive-table-wrapper" role="region" aria-label="Visitor metadata deep dive table wrapper" tabindex="0">
@@ -47,7 +55,7 @@
               <th scope="col">Sub ID</th>
               <th scope="col">App Name</th>
               <th scope="col">App ID</th>
-              <th scope="col">Metadata field (180 days)</th>
+              <th scope="col" class="metadata-field-header">Metadata field (180 days)</th>
               <th scope="col">Expected format</th>
             </tr>
           </thead>
@@ -71,7 +79,7 @@
               <th scope="col">Sub ID</th>
               <th scope="col">App Name</th>
               <th scope="col">App ID</th>
-              <th scope="col">Metadata field (180 days)</th>
+              <th scope="col" class="metadata-field-header">Metadata field (180 days)</th>
               <th scope="col">Expected format</th>
             </tr>
           </thead>
