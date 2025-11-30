@@ -529,7 +529,14 @@ const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelected) =>
   return select;
 };
 
-const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => {
+const runDeepDiveScan = async (
+  entries,
+  updateProgress,
+  messageRegion,
+  rows,
+  onSuccessfulCall,
+  onComplete,
+) => {
   if (!entries.length) {
     updateProgress?.(0, 0);
     showMessage(
@@ -554,6 +561,7 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '');
       successCount += 1;
+      onSuccessfulCall?.();
     } catch (error) {
       const detail = error?.message || 'Unable to fetch metadata events.';
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
@@ -575,7 +583,7 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
     showMessage(messageRegion, `Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`, 'info');
   }
 
-  setExportAvailability(Boolean(rows?.length) || deepDiveRecords.length > 0);
+  onComplete?.();
 };
 
 const renderTable = (tableBody, rows, type, openModal, openRegexModal, lookback) => {
@@ -928,6 +936,7 @@ export const initDeepDive = async () => {
   const manualAppNames = loadManualAppNames();
   let metadataRecords = loadMetadataRecords();
   deepDiveRecords = loadDeepDiveRecords();
+  let hasSuccessfulScan = deepDiveRecords.some((record) => !record.error);
   const rows = [];
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
@@ -935,6 +944,10 @@ export const initDeepDive = async () => {
   const openRegexModal = await setupRegexFormatModal();
 
   let selectedLookback = TARGET_LOOKBACK;
+
+  const updateExportAvailability = () => {
+    setExportAvailability(hasSuccessfulScan && (rows.length > 0 || deepDiveRecords.length > 0));
+  };
 
   const refreshTables = (lookback = selectedLookback) => {
     selectedLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
@@ -969,7 +982,7 @@ export const initDeepDive = async () => {
       ),
     );
 
-    setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
+    updateExportAvailability();
     updateProgress(0, buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length);
   };
 
@@ -987,6 +1000,11 @@ export const initDeepDive = async () => {
         updateProgress,
         messageRegion,
         rows,
+        () => {
+          hasSuccessfulScan = true;
+          updateExportAvailability();
+        },
+        updateExportAvailability,
       );
 
       startButton.disabled = false;
