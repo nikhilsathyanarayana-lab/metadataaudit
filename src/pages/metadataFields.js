@@ -53,6 +53,40 @@ const loadMetadataSnapshot = () => {
   return metadataSnapshot;
 };
 
+const logMetadataRequestError = async (error, contextLabel) => {
+  console.error(contextLabel, error);
+
+  const { responseStatus, responseBody, details } = error || {};
+
+  if (responseStatus !== undefined || responseBody !== undefined) {
+    console.error(`${contextLabel} response details:`, {
+      status: responseStatus ?? 'unknown status',
+      body: responseBody ?? '',
+    });
+    return;
+  }
+
+  if (details?.status !== undefined || details?.body !== undefined) {
+    console.error(`${contextLabel} response details:`, {
+      status: details?.status ?? 'unknown status',
+      body: details?.body ?? '',
+    });
+    return;
+  }
+
+  if (typeof error?.response?.text === 'function') {
+    try {
+      const responseText = await error.response.text();
+
+      if (responseText) {
+        console.error(`${contextLabel} response body:`, responseText);
+      }
+    } catch (loggingError) {
+      console.error('Unable to read error response text:', loggingError);
+    }
+  }
+};
+
 const persistMetadataSnapshot = () => {
   const serialized = {
     version: metadataFieldStorageVersion,
@@ -518,6 +552,7 @@ const fetchAndPopulate = async (
         visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
         accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
       } catch (error) {
+        await logMetadataRequestError(error, 'Metadata field request failed');
         baseRequestAttempted = true;
         const errorMessage = error?.message || 'Unable to fetch metadata fields.';
         const statusMatch = errorMessage.match(/\((\d{3})\)/);
@@ -561,10 +596,8 @@ const fetchAndPopulate = async (
             accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             handledByChunks = true;
           } catch (chunkError) {
-            console.error('Chunked metadata field request failed:', chunkError);
+            await logMetadataRequestError(chunkError, 'Chunked metadata field request failed');
           }
-        } else {
-          console.error('Metadata field request failed:', error);
         }
 
         if (!handledByChunks) {
