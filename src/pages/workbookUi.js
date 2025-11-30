@@ -331,6 +331,16 @@ const summarizeError = (error) => {
     const summary = summarizeError(error);
     const detail = fallbackDetail ? `${fallbackDetail} ${summary}` : summary;
 
+    const errorDetails =
+      error && typeof error === 'object' && 'details' in error && error.details ? error.details : undefined;
+
+    console.error('Workbook step failure', {
+      stepId,
+      error,
+      errorDetails,
+      fallbackDetail,
+    });
+
     setStatus(stepId, 'fail', detail);
     showMessage(summary, 'error');
     setProgress(`Workbook failed during ${stepId}: ${summary}`);
