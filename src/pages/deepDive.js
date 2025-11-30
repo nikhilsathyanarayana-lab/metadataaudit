@@ -916,7 +916,7 @@ const buildAppNameCell = (rowData, openModal) => {
 
 const REGEX_FORMAT_OPTION = 'regex';
 const DEFAULT_FORMAT_OPTION = 'unknown';
-const FORMAT_OPTIONS = ['email', 'name', 'full name', 'phone number', REGEX_FORMAT_OPTION, DEFAULT_FORMAT_OPTION];
+const FORMAT_OPTIONS = ['email', 'text', REGEX_FORMAT_OPTION, 'number', DEFAULT_FORMAT_OPTION];
 
 const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelected) => {
   const select = document.createElement('select');
