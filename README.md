@@ -59,7 +59,7 @@ The Integration API workflow progresses through the HTML pages below. Each step 
 4. **deep_dive.html**
    - `bootstrapShared()` makes export modals available.
    - `initDeepDive()` gathers prior selections and metadata from `appSelectionResponses` and `metadataFieldRecords`, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and syncs results with manual app naming before enabling exports.
-  - JSON export downloads visitor, account, and request/response payload history files: `metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`, and `metadata-deep-dive-api-calls.json`. The account export groups results by Sub ID and App ID, summarizing each metadata field as an array of value/count pairs, and intentionally omits `appName` because names are persisted separately in `localStorage` under the `manualAppNames` key and reapplied wherever the UI needs to label an account record.
+  - JSON export downloads visitor, account, and request/response payload history files: `metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`, and `metadata-deep-dive-api-calls.json`. The visitor export nests Sub ID → App ID → Visitor ID and summarizes each metadata field as an array of value/count pairs; the account export groups Sub ID → App ID with the same value/count structure. Both exports intentionally omit `appName` because names are persisted separately in `localStorage` under the `manualAppNames` key and reapplied wherever the UI needs to label a record.
 
 Workbook and cookie-only flows (`workbook_ui.html` and `proxy.php`) run outside this Integration API sequence.
 

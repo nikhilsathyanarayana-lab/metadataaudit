@@ -138,6 +138,7 @@ const loadMetadataRecords = () =>
 let metadata_visitors = [];
 let metadata_accounts = [];
 let metadata_api_calls = [];
+const metadataVisitorAggregation = new Map();
 const metadataAccountAggregation = new Map();
 
 if (typeof window !== 'undefined') {
@@ -234,13 +235,8 @@ const updateMetadataCollections = (response, entry) => {
       const accountMetadata = metadata.account || item.account;
 
       if (visitorMetadata && typeof visitorMetadata === 'object' && !Array.isArray(visitorMetadata)) {
-        metadata_visitors.push({
-          appId: entry.appId,
-          appName: entry.appName || '',
-          subId: entry.subId || '',
-          visitorId: item.visitorId || metadata.visitorId || '',
-          metadata: visitorMetadata,
-        });
+        const visitorId = item.visitorId || metadata.visitorId || '';
+        updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
       }
 
       if (accountMetadata && typeof accountMetadata === 'object' && !Array.isArray(accountMetadata)) {
@@ -439,6 +435,36 @@ const replaceRows = (target, nextRows = []) => {
   target.splice(0, target.length, ...nextRows);
 };
 
+const ensureVisitorAggregationEntry = (aggregation, entry, visitorId) => {
+  if (!entry?.appId) {
+    return null;
+  }
+
+  const subId = entry.subId || '';
+  const subEntry = aggregation.get(subId) || { subId, apps: new Map() };
+
+  if (!aggregation.has(subId)) {
+    aggregation.set(subId, subEntry);
+  }
+
+  const appEntry = subEntry.apps.get(entry.appId) || { appId: entry.appId, visitors: new Map() };
+
+  if (!subEntry.apps.has(entry.appId)) {
+    subEntry.apps.set(entry.appId, appEntry);
+  }
+
+  const normalizedVisitorId = visitorId || '';
+  const visitorEntry =
+    appEntry.visitors.get(normalizedVisitorId) ||
+    ({ visitorId: normalizedVisitorId, fields: new Map() });
+
+  if (!appEntry.visitors.has(normalizedVisitorId)) {
+    appEntry.visitors.set(normalizedVisitorId, visitorEntry);
+  }
+
+  return visitorEntry;
+};
+
 const ensureAccountAggregationEntry = (aggregation, entry) => {
   if (!entry?.appId) {
     return null;
@@ -480,6 +506,31 @@ const normalizeMetadataValue = (value) => {
   return String(value);
 };
 
+const buildVisitorExportRows = (aggregation) =>
+  Array.from(aggregation.values())
+    .map((subEntry) => ({
+      subId: subEntry.subId,
+      apps: Array.from(subEntry.apps.values())
+        .map((appEntry) => ({
+          appId: appEntry.appId,
+          visitors: Array.from(appEntry.visitors.values())
+            .map((visitorEntry) => ({
+              visitorId: visitorEntry.visitorId,
+              metadataFields: Array.from(visitorEntry.fields.entries())
+                .map(([field, values]) => ({
+                  field,
+                  values: Array.from(values.entries())
+                    .map(([value, count]) => ({ value, count }))
+                    .sort((first, second) => first.value.localeCompare(second.value)),
+                }))
+                .sort((first, second) => first.field.localeCompare(second.field)),
+            }))
+            .sort((first, second) => first.visitorId.localeCompare(second.visitorId)),
+        }))
+        .sort((first, second) => first.appId.localeCompare(second.appId)),
+    }))
+    .sort((first, second) => first.subId.localeCompare(second.subId));
+
 const buildAccountExportRows = (aggregation) =>
   Array.from(aggregation.values())
     .map((subEntry) => ({
@@ -516,6 +567,23 @@ const updateAccountAggregation = (accountMetadata, entry, aggregation) => {
 
   replaceRows(metadata_accounts, buildAccountExportRows(aggregation));
 };
+
+function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation) {
+  const target = ensureVisitorAggregationEntry(aggregation, entry, visitorId);
+
+  if (!target) {
+    return;
+  }
+
+  Object.entries(visitorMetadata).forEach(([field, value]) => {
+    const existingValues = target.fields.get(field) || new Map();
+    const normalizedValue = normalizeMetadataValue(value);
+    existingValues.set(normalizedValue, (existingValues.get(normalizedValue) || 0) + 1);
+    target.fields.set(field, existingValues);
+  });
+
+  replaceRows(metadata_visitors, buildVisitorExportRows(aggregation));
+}
 
 const buildRowsForLookback = (metadataRecords, lookback) => {
   const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
