@@ -241,8 +241,6 @@ const updateMetadataFull = (response, entry) => {
         });
       }
     });
-
-  console.log('metadata_full', metadata_full);
 };
 
 const updateMetadataApiCalls = (entry, payload, response, error = '') => {
@@ -259,8 +257,6 @@ const updateMetadataApiCalls = (entry, payload, response, error = '') => {
   };
 
   metadata_api_calls.push(callRecord);
-
-  console.log('metadata_api_calls', metadata_api_calls);
 };
 
 const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
