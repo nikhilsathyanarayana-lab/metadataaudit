@@ -139,6 +139,8 @@ const loadMetadataRecords = () =>
 let metadata_visitors = [];
 let metadata_accounts = [];
 let metadata_api_calls = [];
+const metadataVisitorAggregation = new Map();
+const metadataAccountAggregation = new Map();
 
 if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
@@ -163,6 +165,14 @@ export const exportDeepDiveJson = () => {
   downloadDeepDiveJson(metadata_visitors, 'metadata-deep-dive-visitors.json');
   downloadDeepDiveJson(metadata_accounts, 'metadata-deep-dive-accounts.json');
   downloadDeepDiveJson(metadata_api_calls, 'metadata-deep-dive-api-calls.json');
+};
+
+const clearDeepDiveCollections = () => {
+  metadata_visitors.splice(0, metadata_visitors.length);
+  metadata_accounts.splice(0, metadata_accounts.length);
+  metadata_api_calls.splice(0, metadata_api_calls.length);
+  metadataVisitorAggregation.clear();
+  metadataAccountAggregation.clear();
 };
 
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
@@ -227,23 +237,12 @@ const updateMetadataCollections = (response, entry) => {
       const accountMetadata = metadata.account || item.account;
 
       if (visitorMetadata && typeof visitorMetadata === 'object' && !Array.isArray(visitorMetadata)) {
-        metadata_visitors.push({
-          appId: entry.appId,
-          appName: entry.appName || '',
-          subId: entry.subId || '',
-          visitorId: item.visitorId || metadata.visitorId || '',
-          metadata: visitorMetadata,
-        });
+        const visitorId = item.visitorId || metadata.visitorId || '';
+        updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
       }
 
       if (accountMetadata && typeof accountMetadata === 'object' && !Array.isArray(accountMetadata)) {
-        metadata_accounts.push({
-          appId: entry.appId,
-          appName: entry.appName || '',
-          subId: entry.subId || '',
-          accountId: item.accountId || metadata.accountId || '',
-          metadata: accountMetadata,
-        });
+        updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
       }
     });
 };
@@ -431,6 +430,156 @@ const replaceRows = (target, nextRows = []) => {
 
   target.splice(0, target.length, ...nextRows);
 };
+
+const ensureVisitorAggregationEntry = (aggregation, entry, visitorId) => {
+  if (!entry?.appId) {
+    return null;
+  }
+
+  const subId = entry.subId || '';
+  const subEntry = aggregation.get(subId) || { subId, apps: new Map() };
+
+  if (!aggregation.has(subId)) {
+    aggregation.set(subId, subEntry);
+  }
+
+  const appEntry = subEntry.apps.get(entry.appId) || { appId: entry.appId, visitors: new Map() };
+
+  if (!subEntry.apps.has(entry.appId)) {
+    subEntry.apps.set(entry.appId, appEntry);
+  }
+
+  const normalizedVisitorId = visitorId || '';
+  const visitorEntry =
+    appEntry.visitors.get(normalizedVisitorId) ||
+    ({ visitorId: normalizedVisitorId, fields: new Map() });
+
+  if (!appEntry.visitors.has(normalizedVisitorId)) {
+    appEntry.visitors.set(normalizedVisitorId, visitorEntry);
+  }
+
+  return visitorEntry;
+};
+
+const ensureAccountAggregationEntry = (aggregation, entry) => {
+  if (!entry?.appId) {
+    return null;
+  }
+
+  const subId = entry.subId || '';
+  const subEntry = aggregation.get(subId) || { subId, apps: new Map() };
+
+  if (!aggregation.has(subId)) {
+    aggregation.set(subId, subEntry);
+  }
+
+  const appEntry = subEntry.apps.get(entry.appId) || { appId: entry.appId, fields: new Map() };
+
+  if (!subEntry.apps.has(entry.appId)) {
+    subEntry.apps.set(entry.appId, appEntry);
+  }
+
+  return appEntry;
+};
+
+const normalizeMetadataValue = (value) => {
+  if (value === null) {
+    return 'null';
+  }
+
+  if (typeof value === 'undefined') {
+    return 'undefined';
+  }
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return '[object Object]';
+    }
+  }
+
+  return String(value);
+};
+
+const buildVisitorExportRows = (aggregation) =>
+  Array.from(aggregation.values())
+    .map((subEntry) => ({
+      subId: subEntry.subId,
+      apps: Array.from(subEntry.apps.values())
+        .map((appEntry) => ({
+          appId: appEntry.appId,
+          visitors: Array.from(appEntry.visitors.values())
+            .map((visitorEntry) => ({
+              visitorId: visitorEntry.visitorId,
+              metadataFields: Array.from(visitorEntry.fields.entries())
+                .map(([field, values]) => ({
+                  field,
+                  values: Array.from(values.entries())
+                    .map(([value, count]) => ({ value, count }))
+                    .sort((first, second) => first.value.localeCompare(second.value)),
+                }))
+                .sort((first, second) => first.field.localeCompare(second.field)),
+            }))
+            .sort((first, second) => first.visitorId.localeCompare(second.visitorId)),
+        }))
+        .sort((first, second) => first.appId.localeCompare(second.appId)),
+    }))
+    .sort((first, second) => first.subId.localeCompare(second.subId));
+
+const buildAccountExportRows = (aggregation) =>
+  Array.from(aggregation.values())
+    .map((subEntry) => ({
+      subId: subEntry.subId,
+      apps: Array.from(subEntry.apps.values())
+        .map((appEntry) => ({
+          appId: appEntry.appId,
+          metadataFields: Array.from(appEntry.fields.entries())
+            .map(([field, values]) => ({
+              field,
+              values: Array.from(values.entries())
+                .map(([value, count]) => ({ value, count }))
+                .sort((first, second) => first.value.localeCompare(second.value)),
+            }))
+            .sort((first, second) => first.field.localeCompare(second.field)),
+        }))
+        .sort((first, second) => first.appId.localeCompare(second.appId)),
+    }))
+    .sort((first, second) => first.subId.localeCompare(second.subId));
+
+const updateAccountAggregation = (accountMetadata, entry, aggregation) => {
+  const target = ensureAccountAggregationEntry(aggregation, entry);
+
+  if (!target) {
+    return;
+  }
+
+  Object.entries(accountMetadata).forEach(([field, value]) => {
+    const existingValues = target.fields.get(field) || new Map();
+    const normalizedValue = normalizeMetadataValue(value);
+    existingValues.set(normalizedValue, (existingValues.get(normalizedValue) || 0) + 1);
+    target.fields.set(field, existingValues);
+  });
+
+  replaceRows(metadata_accounts, buildAccountExportRows(aggregation));
+};
+
+function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation) {
+  const target = ensureVisitorAggregationEntry(aggregation, entry, visitorId);
+
+  if (!target) {
+    return;
+  }
+
+  Object.entries(visitorMetadata).forEach(([field, value]) => {
+    const existingValues = target.fields.get(field) || new Map();
+    const normalizedValue = normalizeMetadataValue(value);
+    existingValues.set(normalizedValue, (existingValues.get(normalizedValue) || 0) + 1);
+    target.fields.set(field, existingValues);
+  });
+
+  replaceRows(metadata_visitors, buildVisitorExportRows(aggregation));
+}
 
 const buildRowsForLookback = (metadataRecords, lookback) => {
   const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
@@ -638,6 +787,8 @@ const runDeepDiveScan = async (
   onSuccessfulCall,
   onComplete,
 ) => {
+  clearDeepDiveCollections();
+
   const limitedEntries = entries.slice(0, MAX_DEEP_DIVE_CALLS);
 
   if (!limitedEntries.length) {
