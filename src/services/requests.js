@@ -19,8 +19,9 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
 };
 
 export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
-  response: { location: 'request', mimeType: 'application/json' },
+  response: { mimeType: 'application/json' },
   request: {
+    name: 'account-visitor-only',
     pipeline: [
       {
         source: {
@@ -29,6 +30,16 @@ export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
         },
       },
       { filter: 'contains(type,`meta`)' },
+      { unmarshal: { metadata: 'title' } },
+      {
+        select: {
+          visitor: 'metadata.visitor',
+          account: 'metadata.account',
+          visitorId: 'visitorId',
+          accountId: 'accountId',
+          appId: 'appId',
+        },
+      },
     ],
   },
 });
