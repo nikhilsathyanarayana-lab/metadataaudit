@@ -136,11 +136,13 @@ const loadMetadataRecords = () =>
     loadMetadataRecordsFromStorage(),
   );
 
-let metadata_full = [];
+let metadata_visitors = [];
+let metadata_accounts = [];
 let metadata_api_calls = [];
 
 if (typeof window !== 'undefined') {
-  window.metadata_full = metadata_full;
+  window.metadata_visitors = metadata_visitors;
+  window.metadata_accounts = metadata_accounts;
   window.metadata_api_calls = metadata_api_calls;
 }
 
@@ -158,7 +160,8 @@ const downloadDeepDiveJson = (data, filename) => {
 };
 
 export const exportDeepDiveJson = () => {
-  downloadDeepDiveJson(metadata_full, 'metadata-deep-dive-full.json');
+  downloadDeepDiveJson(metadata_visitors, 'metadata-deep-dive-visitors.json');
+  downloadDeepDiveJson(metadata_accounts, 'metadata-deep-dive-accounts.json');
   downloadDeepDiveJson(metadata_api_calls, 'metadata-deep-dive-api-calls.json');
 };
 
@@ -192,16 +195,9 @@ const appendFieldsFromMetadataObject = (metadataObject, targetSet) => {
   Object.keys(metadataObject).forEach((field) => targetSet.add(field));
 };
 
-const updateMetadataFull = (response, entry) => {
+const updateMetadataCollections = (response, entry) => {
   if (!entry?.appId) {
     return;
-  }
-
-  let target = metadata_full.find((item) => item.appId === entry.appId);
-
-  if (!target) {
-    target = { appId: entry.appId, visitor: {}, account: {} };
-    metadata_full.push(target);
   }
 
   const candidateArrays = [];
@@ -227,16 +223,26 @@ const updateMetadataFull = (response, entry) => {
       }
 
       const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+      const visitorMetadata = metadata.visitor || item.visitor;
+      const accountMetadata = metadata.account || item.account;
 
-      if (metadata.visitor && typeof metadata.visitor === 'object' && !Array.isArray(metadata.visitor)) {
-        Object.entries(metadata.visitor).forEach(([field, value]) => {
-          target.visitor[field] = value;
+      if (visitorMetadata && typeof visitorMetadata === 'object' && !Array.isArray(visitorMetadata)) {
+        metadata_visitors.push({
+          appId: entry.appId,
+          appName: entry.appName || '',
+          subId: entry.subId || '',
+          visitorId: item.visitorId || metadata.visitorId || '',
+          metadata: visitorMetadata,
         });
       }
 
-      if (metadata.account && typeof metadata.account === 'object' && !Array.isArray(metadata.account)) {
-        Object.entries(metadata.account).forEach(([field, value]) => {
-          target.account[field] = value;
+      if (accountMetadata && typeof accountMetadata === 'object' && !Array.isArray(accountMetadata)) {
+        metadata_accounts.push({
+          appId: entry.appId,
+          appName: entry.appName || '',
+          subId: entry.subId || '',
+          accountId: item.accountId || metadata.accountId || '',
+          metadata: accountMetadata,
         });
       }
     });
@@ -288,9 +294,11 @@ const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
       }
 
       const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+      const visitorMetadata = metadata.visitor || item.visitor;
+      const accountMetadata = metadata.account || item.account;
 
-      appendFieldsFromMetadataObject(metadata.visitor, target.visitorFields);
-      appendFieldsFromMetadataObject(metadata.account, target.accountFields);
+      appendFieldsFromMetadataObject(visitorMetadata, target.visitorFields);
+      appendFieldsFromMetadataObject(accountMetadata, target.accountFields);
 
       if (Array.isArray(item.visitorMetadata)) {
         item.visitorMetadata.forEach((field) => target.visitorFields.add(field));
@@ -665,7 +673,7 @@ const runDeepDiveScan = async (
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '');
       updateMetadataApiCalls(entry, payload, response, '');
-      updateMetadataFull(response, entry);
+      updateMetadataCollections(response, entry);
       successCount += 1;
       onSuccessfulCall?.();
     } catch (error) {
