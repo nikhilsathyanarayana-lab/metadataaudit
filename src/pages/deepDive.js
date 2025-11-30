@@ -158,144 +158,6 @@ if (typeof window !== 'undefined') {
   window.metadata_api_calls = metadata_api_calls;
 }
 
-const buildValueList = (values = []) => {
-  const list = document.createElement('ul');
-  list.className = 'metadata-tree__values';
-
-  if (!Array.isArray(values) || !values.length) {
-    const empty = document.createElement('li');
-    empty.className = 'metadata-tree__empty';
-    empty.textContent = 'No values captured for this field yet.';
-    list.appendChild(empty);
-    return list;
-  }
-
-  values.forEach(({ value, count }) => {
-    const valueItem = document.createElement('li');
-    valueItem.className = 'metadata-tree__value';
-    valueItem.textContent = `${value ?? 'Unknown value'} — ${count ?? 0} occurrence${count === 1 ? '' : 's'}`;
-    list.appendChild(valueItem);
-  });
-
-  return list;
-};
-
-const buildFieldList = (fields = []) => {
-  const list = document.createElement('ul');
-  list.className = 'metadata-tree__list';
-
-  if (!Array.isArray(fields) || !fields.length) {
-    const empty = document.createElement('li');
-    empty.className = 'metadata-tree__empty';
-    empty.textContent = 'No metadata fields captured for this visitor yet.';
-    list.appendChild(empty);
-    return list;
-  }
-
-  fields.forEach(({ field, values }) => {
-    const fieldItem = document.createElement('li');
-    fieldItem.className = 'metadata-tree__item';
-
-    const label = document.createElement('span');
-    label.className = 'metadata-tree__label';
-    label.textContent = `Field: ${field || 'Unknown field'}`;
-
-    fieldItem.append(label, buildValueList(values));
-    list.appendChild(fieldItem);
-  });
-
-  return list;
-};
-
-const buildVisitorList = (visitors = []) => {
-  const list = document.createElement('ul');
-  list.className = 'metadata-tree__list';
-
-  if (!Array.isArray(visitors) || !visitors.length) {
-    const empty = document.createElement('li');
-    empty.className = 'metadata-tree__empty';
-    empty.textContent = 'No visitor metadata captured for this app yet.';
-    list.appendChild(empty);
-    return list;
-  }
-
-  visitors.forEach(({ visitorId, metadataFields }) => {
-    const visitorItem = document.createElement('li');
-    visitorItem.className = 'metadata-tree__item';
-
-    const label = document.createElement('span');
-    label.className = 'metadata-tree__label';
-    label.textContent = `Visitor ID: ${visitorId || 'Unknown visitor'}`;
-
-    visitorItem.append(label, buildFieldList(metadataFields));
-    list.appendChild(visitorItem);
-  });
-
-  return list;
-};
-
-const buildAppList = (apps = []) => {
-  const list = document.createElement('ul');
-  list.className = 'metadata-tree__list';
-
-  if (!Array.isArray(apps) || !apps.length) {
-    const empty = document.createElement('li');
-    empty.className = 'metadata-tree__empty';
-    empty.textContent = 'No apps captured for this Sub ID yet.';
-    list.appendChild(empty);
-    return list;
-  }
-
-  apps.forEach(({ appId, visitors }) => {
-    const appItem = document.createElement('li');
-    appItem.className = 'metadata-tree__item';
-
-    const label = document.createElement('span');
-    label.className = 'metadata-tree__label';
-    label.textContent = `App ID: ${appId || 'Unknown app'}`;
-
-    appItem.append(label, buildVisitorList(visitors));
-    list.appendChild(appItem);
-  });
-
-  return list;
-};
-
-const renderVisitorMetadataTree = (data = metadata_visitors) => {
-  const container = document.getElementById('visitor-metadata-tree');
-
-  if (!container) {
-    return;
-  }
-
-  container.innerHTML = '';
-
-  if (!Array.isArray(data) || !data.length) {
-    const empty = document.createElement('p');
-    empty.className = 'metadata-tree__empty';
-    empty.textContent = 'Run a deep dive scan to see visitor metadata value counts.';
-    container.appendChild(empty);
-    return;
-  }
-
-  const list = document.createElement('ul');
-  list.className = 'metadata-tree__list';
-
-  data.forEach(({ subId, apps }) => {
-    const subItem = document.createElement('li');
-    subItem.className = 'metadata-tree__item';
-
-    const label = document.createElement('span');
-    label.className = 'metadata-tree__label';
-    label.textContent = `Sub ID: ${subId || 'Unknown Sub ID'}`;
-
-    subItem.append(label, buildAppList(apps));
-    list.appendChild(subItem);
-  });
-
-  container.appendChild(list);
-};
-
 const downloadDeepDiveJson = (data, filename) => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const downloadUrl = URL.createObjectURL(blob);
@@ -316,13 +178,11 @@ export const exportDeepDiveJson = () => {
 };
 
 const clearDeepDiveCollections = () => {
-  metadata_visitors.length = 0;
-  metadata_accounts.length = 0;
-  metadata_api_calls.length = 0;
-
+  metadata_visitors.splice(0, metadata_visitors.length);
+  metadata_accounts.splice(0, metadata_accounts.length);
+  metadata_api_calls.splice(0, metadata_api_calls.length);
   metadataVisitorAggregation.clear();
   metadataAccountAggregation.clear();
-  renderVisitorMetadataTree([]);
 };
 
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
@@ -735,8 +595,7 @@ function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation
   });
 
   replaceRows(metadata_visitors, buildVisitorExportRows(aggregation));
-  renderVisitorMetadataTree(metadata_visitors);
-} 
+}
 
 const buildRowsForLookback = (metadataRecords, lookback) => {
   const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
@@ -1446,7 +1305,6 @@ export const initDeepDive = async () => {
     }
 
     const messageRegion = ensureMessageRegion();
-    renderVisitorMetadataTree(metadata_visitors);
     const { updateText: updateProgress } = setupProgressTracker();
     const startButton = document.getElementById('deep-dive-start');
 
