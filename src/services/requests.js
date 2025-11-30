@@ -19,7 +19,7 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
 };
 
 export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
-  response: { mimeType: 'application/json' },
+  response: { location: 'request', mimeType: 'application/json' },
   request: {
     name: 'account-visitor-only',
     pipeline: [
@@ -296,12 +296,6 @@ const extractJwtToken = (cookieHeaderValue) => {
   return match?.[1] || '';
 };
 
-export const buildHeaders = (cookieHeaderValue) => ({
-  'Content-Type': 'application/json',
-  Accept: 'application/json',
-  cookie: cookieHeaderValue,
-});
-
 /**
  * Post an aggregation payload using an integration key.
  * @param {AppAggregationEntry} entry
@@ -428,7 +422,6 @@ export default {
   buildChunkedMetadataFieldPayloads,
   buildCookieHeaderValue,
   buildExamplesPayload,
-  buildHeaders,
   buildMetadataFieldsPayload,
   buildRequestHeaders,
   postAggregationWithIntegrationKey,
