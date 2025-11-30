@@ -143,6 +143,26 @@ if (typeof window !== 'undefined') {
   window.metadata_api_calls = metadata_api_calls;
 }
 
+export const exportDeepDiveJson = () => {
+  const data = {
+    metadata_full,
+    metadata_api_calls,
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json',
+  });
+  const downloadUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+
+  anchor.href = downloadUrl;
+  anchor.download = 'metadata-deep-dive.json';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(downloadUrl);
+};
+
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
   if (!entry?.appId) {
     return null;

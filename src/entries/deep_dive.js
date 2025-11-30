@@ -1,7 +1,10 @@
 import { bootstrapShared } from './shared.js';
-import { initDeepDive } from '../pages/deepDive.js';
+import { exportDeepDiveJson, initDeepDive } from '../pages/deepDive.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await bootstrapShared();
+  await bootstrapShared({
+    enableJsonExport: true,
+    additionalFormats: { json: exportDeepDiveJson },
+  });
   initDeepDive();
 });
