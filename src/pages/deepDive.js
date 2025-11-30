@@ -11,7 +11,6 @@ const metadataFieldGlobalKey = 'metadataFieldRecords';
 const appSelectionGlobalKey = 'appSelectionResponses';
 const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
-const DEEP_DIVE_LOOKBACK = 7;
 const MAX_DEEP_DIVE_CALLS = 1;
 
 const dedupeAndSortFields = (fields) => {
@@ -326,7 +325,13 @@ const loadDeepDiveRecords = () => {
   return deepDiveRecords;
 };
 
-const upsertDeepDiveRecord = (entry, response, normalizedFields, errorMessage = '') => {
+const upsertDeepDiveRecord = (
+  entry,
+  response,
+  normalizedFields,
+  errorMessage = '',
+  lookback = TARGET_LOOKBACK,
+) => {
   if (!entry?.appId) {
     return;
   }
@@ -335,7 +340,7 @@ const upsertDeepDiveRecord = (entry, response, normalizedFields, errorMessage = 
   const accountFields = dedupeAndSortFields(normalizedFields?.accountFields);
 
   const record = {
-    windowDays: DEEP_DIVE_LOOKBACK,
+    windowDays: LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK,
     updatedAt: new Date().toISOString(),
     appId: entry.appId,
     appName: entry.appName || '',
@@ -632,6 +637,7 @@ const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelected) =>
 
 const runDeepDiveScan = async (
   entries,
+  lookback,
   updateProgress,
   messageRegion,
   rows,
@@ -639,6 +645,8 @@ const runDeepDiveScan = async (
   onComplete,
 ) => {
   const limitedEntries = entries.slice(0, MAX_DEEP_DIVE_CALLS);
+
+  const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
 
   if (!limitedEntries.length) {
     updateProgress?.(0, 0);
@@ -666,12 +674,12 @@ const runDeepDiveScan = async (
   for (const entry of limitedEntries) {
     let payload;
     try {
-      payload = buildMetaEventsPayload(entry.appId, DEEP_DIVE_LOOKBACK);
+      payload = buildMetaEventsPayload(entry.appId, targetLookback);
       const response = await postAggregationWithIntegrationKey(entry, payload);
 
       const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
 
-      upsertDeepDiveRecord(entry, response, normalizedFields, '');
+      upsertDeepDiveRecord(entry, response, normalizedFields, '', targetLookback);
       updateMetadataApiCalls(entry, payload, response, '');
       updateMetadataCollections(response, entry);
       successCount += 1;
@@ -680,7 +688,7 @@ const runDeepDiveScan = async (
       const detail = error?.message || 'Unable to fetch metadata events.';
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
 
-      upsertDeepDiveRecord(entry, null, normalizedFields, detail);
+      upsertDeepDiveRecord(entry, null, normalizedFields, detail, targetLookback);
       updateMetadataApiCalls(entry, payload, null, detail);
 
       console.error('Deep dive request failed', {
@@ -1129,6 +1137,7 @@ export const initDeepDive = async () => {
 
       await runDeepDiveScan(
         buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
+        selectedLookback,
         updateProgress,
         messageRegion,
         rows,
