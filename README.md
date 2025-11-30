@@ -9,7 +9,7 @@ is consistent and to identify any discrepancies in how data is reported.
 The tool supports two methods for pulling metadata: one using an integration key with the Engage API, and another using a cookie-based approach.
 
 ## Prerequisites
-- **Hosting**: GitHub Pages cannot run this project because it requires PHP support. Use a server or local environment capable of running PHP with cURL enabled.
+- **Hosting**: GitHub Pages can host the Integration API workflow, but the cookie workflow still requires a PHP proxy (`proxy.php`) to avoid CORS errors. Use a server or local environment with PHP and cURL enabled when exercising cookie-based requests.
 - **Authentication**: Provide either an integration key with read access or a superuser session cookie.
 - **Browser**: Any modern browser that supports the Fetch API and `localStorage` (e.g., Chrome, Firefox, or Edge).
 
@@ -29,38 +29,38 @@ Follow these steps to serve the project on your Mac:
 ## Project structure
 - `index.html`: Landing view where auditors enter SubIDs, choose a Pendo domain, and link integration keys before triggering aggregation requests.
 - `app_selection.html`: Selection step that lists discovered apps so users can choose the ones to audit further.
-- `metadata_fields.html`: Displays key metadata fields for the selected apps and provides an export action.
+- `metadata_fields.html`: Displays key metadata fields for the selected apps and provides export actions.
 - `deep_dive.html`: Additional drill-down view reached from the metadata fields screen.
-- `workbook_ui.html`: A front-end companion for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and simulate the workflow with a browser-only run.
+- `workbook_ui.html`: Companion UI for the cookie-only Aggregations → Metadata Excel script, helping users stage inputs and preview workbook runs.
 - `Aggregations/`: Standalone scripts and tests that exercise the Aggregation API and workbook generation paths.
 - `Modals/`: Shared dialog templates injected into pages, including `app-name-modal.html` for app discovery naming, `export-modal.html` for downloads, and `xlsx-naming-modal.html` for workbook filename guidance.
 - `src/entries/`: Page-level bootstraps that import only the controllers and services each HTML view needs, plus a shared startup that injects the export modal template when required.
 - `src/controllers/`: Controllers for discrete UI behaviors, such as SubID form wiring and modal template injection.
 - `src/pages/`: Page orchestration scripts that wire together controllers and services for each HTML view.
-- `src/services/`: API helpers and utility functions used by controllers and pages.
+- `src/services/`: API helpers and utility functions used by controllers and pages, including Aggregations payload builders.
 - `src/ui/`: UI-specific utilities and helpers shared across views.
-- `styles.css`: Global styling, layout, and Pendo-inspired theme tokens.
+- `styles.css` / `exports.css`: Global styling, layout, and export-specific tweaks.
+- `proxy.php`: PHP proxy used for cookie-based Aggregations calls and to avoid browser CORS errors.
+- `package.json`: Project metadata and npm scripts for dependency management.
 
-## HTML page overview
-- **index.html**: Hosts the SubID capture form with dynamic rows for domain selection, SubID entry, and per-row integration keys collected via a modal. The Launch action saves the entries to local storage and moves the workflow to app selection.
-- **app_selection.html**: Renders a selectable table of apps per SubID using stored launch data. A Continue button is enabled once any checkbox is checked, advancing users to the metadata fields view.
-- **metadata_fields.html**: Presents visitor and account metadata tables with retention counts for 180-, 30-, and 7-day windows. Header actions include Deep Dive navigation and opening the export modal for downloads.
-- **deep_dive.html**: Extends the metadata tables with an additional “Expected format” selector for each row, focusing on deeper inspection and export-only actions.
-- **workbook_ui.html**: Walks through the Python workbook script in a safe mock run. Users choose a Pendo environment (US/EU), enter a Sub ID, optional workbook filename, and paste a `pendo.sess.jwt2` cookie. The page surfaces a live endpoint preview, workbook naming pill, and cookie status, and then visualizes each script phase (environment resolution, app discovery, field capture, meta example analysis, workbook write-out). A request preview card repeats the resolved URL, filename, and tips for avoiding 401 errors.
-- **Modals/export-modal.html**: Provides the export dialog markup (with XLSX and PDF options) that is injected on demand into pages needing download actions.
+## Integration workflow overview
+The Integration API workflow progresses through the HTML pages below. Each step lists the functions that run (in order) and how data persists between screens:
 
-## JavaScript overview (entries + controllers)
-- **loadTemplate(path)**: Exported from `src/controllers/modalLoader.js`, fetches and injects the export modal HTML when needed, attaching the markup to the document body.
-- **exportMetadataPdf() / exportMetadataXlsx()**: Exported from `src/controllers/pdfExport.js` and `src/controllers/xlsxExport.js`, respectively. They lazy-load their CDN script dependencies, prompt for file names (with a modal fallback for XLSX), and serialize the visible metadata tables into downloadable files.
-- **initSubIdForm()**: Exported from `src/controllers/subidForm.js`, drives the landing form experience—building SubID rows with domain selectors, handling integration key modal interactions, persisting launch data to local storage, and dispatching aggregation requests before redirecting to app selection.
-  - Internal helpers now cover modal open/close handlers, integration key persistence per row, dynamic add-row controls, and launch button state management tied to completeness of inputs.
-- **initAppSelection()**: Exported from `src/pages/appSelection.js`, reads stored launch data, populates the app selection table, and gates the Continue button behind at least one checked app before redirecting to the metadata fields page.
-- **initWorkbookUi()**: Exported from `src/pages/workbookUi.js`, orchestrates the cookie-based workbook flow (endpoint resolution, Aggregations calls, XLSX assembly) when the workbook form is present.
-- **initDeepDiveNavigation()**: Exported from `src/pages/navigation.js`, navigates from the metadata fields page to the deep dive page when the Deep Dive button is clicked.
-- **bootstrapShared()**: Exported from `src/entries/shared.js`, injects the shared export modal template (and the XLSX naming modal) when needed, then binds export button listeners that delegate to the PDF/XLSX controllers.
-- **Requests helpers**: `src/services/requests.js` centralizes payload builders for aggregation and metadata endpoints and offers helpers for cookie header normalization and aggregation URL composition.
-- **UI utilities**: `src/ui/components.js` exposes DOM helpers for domain pickers, add/remove buttons, and modal visibility toggles used by the SubID form and modal controllers.
-- **Entry wiring**: Each entry file calls `bootstrapShared()` first to ensure export modals are loaded before page scripts run—`index.js` wires the landing SubID form, `app_selection.js` initializes the app chooser, `metadata_fields.js` combines Deep Dive navigation with metadata table binding, `deep_dive.js` loads shared modals for export-only flows, and `workbook_ui.js` bootstraps the workbook helper page.
+1. **index.html**
+   - `bootstrapShared()` loads the export modal templates before page logic runs.
+   - `initSubIdForm()` builds the SubID rows, captures domains and integration keys, and stores valid entries in `localStorage` under `subidLaunchData`. Launching dispatches aggregation discovery requests and redirects to app selection.
+2. **app_selection.html**
+   - `bootstrapShared()` prepares shared modals.
+   - `initAppSelection()` reads `subidLaunchData`, fetches app lists for each SubID + integration key pair, saves results as `appSelectionResponses` in `localStorage`, renders the selectable table, and enables Continue when at least one app is chosen.
+3. **metadata_fields.html**
+   - `bootstrapShared()` injects export and naming modals.
+   - `initDeepDiveNavigation()` binds the Deep Dive button so users can pivot to the drill-down view.
+   - `initMetadataFields()` loads `appSelectionResponses`, requests metadata for each selected app across 180/30/7-day windows, tracks API progress, and caches retrieved records in `localStorage` (`metadataFieldRecords`) alongside manual app name overrides.
+4. **deep_dive.html**
+   - `bootstrapShared()` makes export modals available.
+   - `initDeepDive()` gathers prior selections and metadata from `appSelectionResponses` and `metadataFieldRecords`, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and syncs results with manual app naming before enabling exports.
+
+Workbook and cookie-only flows (`workbook_ui.html` and `proxy.php`) run outside this Integration API sequence.
 
 ## What’s still missing
 - **API request/response examples**: Document sample Aggregations payloads (e.g., `buildAppAggregationRequest`, `buildMetadataFieldsForAppPayload`, chunked requests) and expected responses for common success and failure cases.
@@ -83,9 +83,3 @@ The UI uses Pendo's core palette defined in CSS variables:
 ## Languages and packages
 - **Languages**: HTML, CSS, and vanilla JavaScript.
 - **Packages/Dependencies**: No external packages are required; the app relies on browser-native Fetch APIs, plus CDN-loaded `xlsx` and `file-saver` libraries fetched at runtime for `src/pages/workbookUi.js` rather than installed via npm.
-
-## How data moves between pages
-The static pages share data via `localStorage` so that user inputs entered on the landing page can be reused after navigation:
-- When users click **Launch** on `index.html`, `initSubIdForm()` serializes each row into an object of `{ subId, domain, integrationKey }` and stores the array under the `subidLaunchData` key in `localStorage`. Empty rows or rows missing an integration key are excluded.
-- `app_selection.html` calls `initAppSelection()`, which reads `subidLaunchData`, masks integration keys for display, and builds the selectable table. If nothing is stored, the table remains empty and the Continue button stays disabled.
-- Continuing from app selection simply navigates to `metadata_fields.html` (and optionally `deep_dive.html`), but no additional payload is passed; the initial launch data remains available in `localStorage` for reuse or inspection if needed.
