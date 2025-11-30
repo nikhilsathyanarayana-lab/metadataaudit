@@ -177,6 +177,47 @@ const stripIntegrationKeyColumns = (headers) => {
   return { indicesToKeep, cleanedHeaders };
 };
 
+const sanitizePlaceholderValues = (headers, rows) => {
+  const normalizedHeaders = headers.map((header) => header.trim().toLowerCase());
+
+  return rows.map((row) =>
+    row.map((value, index) => {
+      if (normalizedHeaders[index] === 'app name' && typeof value === 'string') {
+        return value.trim().toLowerCase() === 'not set' ? '' : value;
+      }
+
+      return value;
+    }),
+  );
+};
+
+const HEADER_STYLE = {
+  font: {
+    bold: true,
+    sz: 14,
+    color: { rgb: 'E83E8C' },
+  },
+};
+
+const applyHeaderFormatting = (sheet) => {
+  if (!sheet || !sheet['!ref']) {
+    return;
+  }
+
+  const range = window.XLSX.utils.decode_range(sheet['!ref']);
+  for (let columnIndex = range.s.c; columnIndex <= range.e.c; columnIndex += 1) {
+    const cellAddress = window.XLSX.utils.encode_cell({ r: range.s.r, c: columnIndex });
+    const cell = sheet[cellAddress];
+
+    if (cell) {
+      cell.s = {
+        ...(cell.s || {}),
+        font: { ...(cell.s?.font || {}), ...HEADER_STYLE.font },
+      };
+    }
+  }
+};
+
 const collectTableData = (table) => {
   const headerCells = Array.from(table.querySelectorAll('thead th'));
   let headers = headerCells.map((th) => th.textContent.trim());
@@ -185,6 +226,8 @@ const collectTableData = (table) => {
     const cells = Array.from(row.querySelectorAll('td'));
     return cells.map((cell) => extractCellValue(cell));
   });
+
+  rows = sanitizePlaceholderValues(headers, rows);
 
   ({ headers, rows } = combineAppIdentifiers(headers, rows));
   const { indicesToKeep, cleanedHeaders } = stripIntegrationKeyColumns(headers);
@@ -201,7 +244,7 @@ const buildTableRows = (table, label) => {
   const { headers, rows } = collectTableData(table);
 
   return rows.map((rowCells) => {
-    const row = { Table: label };
+    const row = { Type: label };
     headers.forEach((header, idx) => {
       row[header || `Column ${idx + 1}`] = rowCells[idx];
     });
@@ -254,14 +297,18 @@ const ensurePageDocument = async (path) => {
 
 const buildSheet = (rows, fallbackMessage) => {
   if (!rows.length) {
-    return window.XLSX.utils.json_to_sheet([{ Note: fallbackMessage }]);
+    const fallbackSheet = window.XLSX.utils.json_to_sheet([{ Note: fallbackMessage }]);
+    applyHeaderFormatting(fallbackSheet);
+    return fallbackSheet;
   }
 
-  return window.XLSX.utils.json_to_sheet(rows);
+  const sheet = window.XLSX.utils.json_to_sheet(rows);
+  applyHeaderFormatting(sheet);
+  return sheet;
 };
 
 const downloadWorkbook = (workbook, filename) => {
-  const workbookArray = window.XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const workbookArray = window.XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   window.saveAs(
     new Blob([workbookArray], {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
