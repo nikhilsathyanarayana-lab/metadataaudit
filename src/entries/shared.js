@@ -2,7 +2,8 @@ import { loadTemplate } from '../controllers/modalLoader.js';
 import { exportMetadataPdf } from '../controllers/pdfExport.js';
 import { exportMetadataXlsx } from '../controllers/xlsxExport.js';
 
-const initExportModal = () => {
+const initExportModal = (options = {}) => {
+  const { enableJsonExport = false, additionalFormats = {} } = options;
   const exportButton = document.getElementById('export-button');
   const modal = document.getElementById('export-modal');
   const backdrop = document.getElementById('export-backdrop');
@@ -12,7 +13,23 @@ const initExportModal = () => {
   }
 
   const closeButtons = modal.querySelectorAll('[data-close-modal]');
+  const jsonButton = modal.querySelector('[data-format="json"]');
+
+  if (jsonButton) {
+    if (enableJsonExport) {
+      jsonButton.hidden = false;
+    } else {
+      jsonButton.remove();
+    }
+  }
+
   const formatButtons = modal.querySelectorAll('[data-format]');
+
+  const formatHandlers = {
+    pdf: exportMetadataPdf,
+    xlsx: exportMetadataXlsx,
+    ...additionalFormats,
+  };
 
   const openModal = () => {
     modal.hidden = false;
@@ -37,13 +54,14 @@ const initExportModal = () => {
       const format = button.getAttribute('data-format');
       closeModal();
 
-      if (format === 'pdf') {
-        await exportMetadataPdf();
-      } else if (format === 'xlsx') {
-        await exportMetadataXlsx();
-      } else {
-        console.info(`Export selected: ${format?.toUpperCase()}`);
+      const handler = formatHandlers[format];
+
+      if (handler) {
+        await handler();
+        return;
       }
+
+      console.info(`Export selected: ${format?.toUpperCase()}`);
     });
   });
 
@@ -54,7 +72,7 @@ const initExportModal = () => {
   });
 };
 
-export const bootstrapShared = async () => {
+export const bootstrapShared = async (options = {}) => {
   const exportButton = document.getElementById('export-button');
 
   if (!exportButton) {
@@ -69,5 +87,5 @@ export const bootstrapShared = async () => {
     await loadTemplate('Modals/xlsx-naming-modal.html');
   }
 
-  initExportModal();
+  initExportModal(options);
 };
