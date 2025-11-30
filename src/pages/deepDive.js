@@ -6,11 +6,9 @@ import {
   setManualAppName,
 } from '../services/appNames.js';
 
-const metadataFieldStorageKey = 'metadataFieldRecords';
-const metadataFieldStorageVersion = 1;
-const appSelectionStorageKey = 'appSelectionResponses';
-const deepDiveStorageKey = 'deepDiveMetaEvents';
-const deepDiveStorageVersion = 1;
+const deepDiveGlobalKey = 'deepDiveMetaEvents';
+const metadataFieldGlobalKey = 'metadataFieldRecords';
+const appSelectionGlobalKey = 'appSelectionResponses';
 const TARGET_LOOKBACK = 180;
 const DEEP_DIVE_LOOKBACK = 7;
 
@@ -57,54 +55,43 @@ const extractAppIds = (apiResponse) => {
 };
 
 
-const loadAppSelections = () => {
-  try {
-    const raw = localStorage.getItem(appSelectionStorageKey);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    const entries = Array.isArray(parsed) ? parsed : [];
-
-    return entries
-      .filter((entry) => entry?.subId)
-      .flatMap((entry) => {
-        const appIds = extractAppIds(entry.response);
-
-        if (!appIds.length) {
-          return [];
-        }
-
-        return appIds.map((appId) => ({ subId: entry.subId, appId }));
-      });
-  } catch (error) {
-    console.error('Unable to parse stored app selection data:', error);
+const getGlobalCollection = (key) => {
+  if (!key) {
     return [];
   }
-};
 
-const loadMetadataRecords = () => {
-  try {
-    const raw = localStorage.getItem(metadataFieldStorageKey);
+  const fromNamespace = window?.deepDiveData?.[key];
+  const direct = window?.[key];
+  const candidate = fromNamespace ?? direct;
 
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    const records = parsed?.records;
-
-    if (parsed?.version !== metadataFieldStorageVersion || !Array.isArray(records)) {
-      return [];
-    }
-
-    return records.filter((record) => record?.appId && Number.isFinite(record?.windowDays));
-  } catch (error) {
-    console.error('Unable to parse stored metadata records:', error);
-    return [];
+  if (Array.isArray(candidate)) {
+    return candidate;
   }
+
+  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.records)) {
+    return candidate.records;
+  }
+
+  return [];
 };
+
+const loadAppSelections = () =>
+  getGlobalCollection(appSelectionGlobalKey)
+    .filter((entry) => entry?.subId)
+    .flatMap((entry) => {
+      const appIds = extractAppIds(entry.response);
+
+      if (!appIds.length) {
+        return [];
+      }
+
+      return appIds.map((appId) => ({ subId: entry.subId, appId }));
+    });
+
+const loadMetadataRecords = () =>
+  getGlobalCollection(metadataFieldGlobalKey).filter(
+    (record) => record?.appId && Number.isFinite(record?.windowDays),
+  );
 
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
   if (!entry?.appId) {
@@ -184,44 +171,14 @@ const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
 
 let deepDiveRecords = [];
 
-const persistDeepDiveRecords = (records) => {
-  const serialized = {
-    version: deepDiveStorageVersion,
-    windowDays: DEEP_DIVE_LOOKBACK,
-    updatedAt: new Date().toISOString(),
-    records,
-  };
-
-  localStorage.setItem(deepDiveStorageKey, JSON.stringify(serialized));
-};
-
 const loadDeepDiveRecords = () => {
-  deepDiveRecords = [];
-
-  try {
-    const raw = localStorage.getItem(deepDiveStorageKey);
-
-    if (!raw) {
-      return deepDiveRecords;
-    }
-
-    const parsed = JSON.parse(raw);
-    const records = parsed?.records;
-
-    if (parsed?.version !== deepDiveStorageVersion || !Array.isArray(records)) {
-      return deepDiveRecords;
-    }
-
-    deepDiveRecords = records
-      .filter((record) => record?.appId)
-      .map((record) => ({
-        ...record,
-        visitorFields: Array.isArray(record.visitorFields) ? record.visitorFields : [],
-        accountFields: Array.isArray(record.accountFields) ? record.accountFields : [],
-      }));
-  } catch (error) {
-    console.error('Unable to parse stored deep dive records:', error);
-  }
+  deepDiveRecords = getGlobalCollection(deepDiveGlobalKey)
+    .filter((record) => record?.appId)
+    .map((record) => ({
+      ...record,
+      visitorFields: Array.isArray(record.visitorFields) ? record.visitorFields : [],
+      accountFields: Array.isArray(record.accountFields) ? record.accountFields : [],
+    }));
 
   return deepDiveRecords;
 };
@@ -235,7 +192,6 @@ const upsertDeepDiveRecord = (entry, response, normalizedFields, errorMessage = 
   const accountFields = dedupeAndSortFields(normalizedFields?.accountFields);
 
   const record = {
-    version: deepDiveStorageVersion,
     windowDays: DEEP_DIVE_LOOKBACK,
     updatedAt: new Date().toISOString(),
     appId: entry.appId,
@@ -253,7 +209,6 @@ const upsertDeepDiveRecord = (entry, response, normalizedFields, errorMessage = 
     (existing) => existing.appId !== record.appId || existing.windowDays !== record.windowDays,
   );
   deepDiveRecords.push(record);
-  persistDeepDiveRecords(deepDiveRecords);
 };
 
 const syncDeepDiveRecordsAppName = (appId, appName) => {
@@ -261,66 +216,35 @@ const syncDeepDiveRecordsAppName = (appId, appName) => {
     return;
   }
 
-  let updated = false;
-
   deepDiveRecords = deepDiveRecords.map((record) => {
     if (record.appId !== appId) {
       return record;
     }
 
-    updated = true;
     return {
       ...record,
       appName,
       updatedAt: new Date().toISOString(),
     };
   });
-
-  if (updated) {
-    persistDeepDiveRecords(deepDiveRecords);
-  }
 };
 
-const syncMetadataRecordsAppName = (appId, appName) => {
-  if (!appId) {
-    return;
+const syncMetadataRecordsAppName = (appId, appName, metadataRecords) => {
+  if (!appId || !Array.isArray(metadataRecords)) {
+    return metadataRecords;
   }
 
-  try {
-    const raw = localStorage.getItem(metadataFieldStorageKey);
-    if (!raw) {
-      return;
+  return metadataRecords.map((record) => {
+    if (record?.appId !== appId) {
+      return record;
     }
 
-    const parsed = JSON.parse(raw);
-
-    if (parsed?.version !== metadataFieldStorageVersion || !Array.isArray(parsed?.records)) {
-      return;
-    }
-
-    let updated = false;
-    const updatedRecords = parsed.records.map((record) => {
-      if (record?.appId !== appId) {
-        return record;
-      }
-
-      updated = true;
-      return {
-        ...record,
-        appName,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-
-    if (updated) {
-      localStorage.setItem(
-        metadataFieldStorageKey,
-        JSON.stringify({ ...parsed, records: updatedRecords }),
-      );
-    }
-  } catch (error) {
-    console.error('Unable to sync app name to metadata records:', error);
-  }
+    return {
+      ...record,
+      appName,
+      updatedAt: new Date().toISOString(),
+    };
+  });
 };
 
 const groupMetadataByApp = (records) => {
@@ -535,7 +459,7 @@ const runDeepDiveScan = async (entries, updateProgress, messageRegion, rows) => 
     updateProgress?.(0, 0);
     showMessage(
       messageRegion,
-      'No metadata selections found. Run the Metadata Fields page first to store app details.',
+      'No metadata selections found. Run the Metadata Fields page first to capture app details.',
       'error',
     );
     return;
@@ -834,7 +758,7 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) =>
     }
 
     setManualAppName(manualAppNames, activeRow.appId, appName);
-    syncMetadataRecordsAppName(activeRow.appId, appName);
+    metadataRecords = syncMetadataRecordsAppName(activeRow.appId, appName, metadataRecords);
     syncDeepDiveRecordsAppName(activeRow.appId, appName);
 
     rows
@@ -888,7 +812,7 @@ export const initDeepDive = async () => {
   const startButton = document.getElementById('deep-dive-start');
 
   const manualAppNames = loadManualAppNames();
-  const metadataRecords = loadMetadataRecords();
+  let metadataRecords = loadMetadataRecords();
   deepDiveRecords = loadDeepDiveRecords();
   const groupedRecords = groupMetadataByApp(metadataRecords);
 
