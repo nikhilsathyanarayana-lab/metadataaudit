@@ -136,6 +136,7 @@ const loadMetadataRecords = () =>
   );
 
 let metadata_full = [];
+let metadata_api_calls = [];
 
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
   if (!entry?.appId) {
@@ -217,6 +218,24 @@ const updateMetadataFull = (response, entry) => {
     });
 
   console.log('metadata_full', metadata_full);
+};
+
+const updateMetadataApiCalls = (entry, payload, response, error = '') => {
+  if (!entry?.appId) {
+    return;
+  }
+
+  const callRecord = {
+    appId: entry.appId,
+    subId: entry.subId || '',
+    payload,
+    response: response || null,
+    error: error || '',
+  };
+
+  metadata_api_calls.push(callRecord);
+
+  console.log('metadata_api_calls', metadata_api_calls);
 };
 
 const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
@@ -607,13 +626,15 @@ const runDeepDiveScan = async (
   updateProgress?.(completedCalls, entries.length);
 
   for (const entry of entries) {
+    let payload;
     try {
-      const payload = buildMetaEventsPayload(entry.appId, DEEP_DIVE_LOOKBACK);
+      payload = buildMetaEventsPayload(entry.appId, DEEP_DIVE_LOOKBACK);
       const response = await postAggregationWithIntegrationKey(entry, payload);
 
       const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '');
+      updateMetadataApiCalls(entry, payload, response, '');
       updateMetadataFull(response, entry);
       successCount += 1;
       onSuccessfulCall?.();
@@ -622,6 +643,7 @@ const runDeepDiveScan = async (
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, null, normalizedFields, detail);
+      updateMetadataApiCalls(entry, payload, null, detail);
 
       console.error('Deep dive request failed', {
         appId: entry.appId,
