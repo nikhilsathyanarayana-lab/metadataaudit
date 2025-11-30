@@ -279,12 +279,6 @@ const extractJwtToken = (cookieHeaderValue) => {
   return match?.[1] || '';
 };
 
-export const buildHeaders = (cookieHeaderValue) => ({
-  'Content-Type': 'application/json',
-  Accept: 'application/json',
-  cookie: cookieHeaderValue,
-});
-
 /**
  * Post an aggregation payload using an integration key.
  * @param {AppAggregationEntry} entry
@@ -410,7 +404,6 @@ export default {
   buildChunkedMetadataFieldPayloads,
   buildCookieHeaderValue,
   buildExamplesPayload,
-  buildHeaders,
   buildMetadataFieldsPayload,
   buildRequestHeaders,
   postAggregationWithIntegrationKey,
