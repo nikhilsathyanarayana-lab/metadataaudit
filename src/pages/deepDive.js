@@ -12,6 +12,7 @@ const appSelectionGlobalKey = 'appSelectionResponses';
 const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
 const DEEP_DIVE_LOOKBACK = 7;
+const MAX_DEEP_DIVE_CALLS = 1;
 
 const dedupeAndSortFields = (fields) => {
   if (fields instanceof Set) {
@@ -629,7 +630,9 @@ const runDeepDiveScan = async (
   onSuccessfulCall,
   onComplete,
 ) => {
-  if (!entries.length) {
+  const limitedEntries = entries.slice(0, MAX_DEEP_DIVE_CALLS);
+
+  if (!limitedEntries.length) {
     updateProgress?.(0, 0);
     showMessage(
       messageRegion,
@@ -642,9 +645,17 @@ const runDeepDiveScan = async (
   let completedCalls = 0;
   let successCount = 0;
   const deepDiveAccumulator = new Map();
-  updateProgress?.(completedCalls, entries.length);
+  updateProgress?.(completedCalls, limitedEntries.length);
 
-  for (const entry of entries) {
+  if (entries.length > limitedEntries.length) {
+    showMessage(
+      messageRegion,
+      'Limiting deep dive scan to 1 request to keep exports manageable.',
+      'info',
+    );
+  }
+
+  for (const entry of limitedEntries) {
     let payload;
     try {
       payload = buildMetaEventsPayload(entry.appId, DEEP_DIVE_LOOKBACK);
@@ -678,7 +689,7 @@ const runDeepDiveScan = async (
       );
     } finally {
       completedCalls += 1;
-      updateProgress?.(completedCalls, entries.length);
+      updateProgress?.(completedCalls, limitedEntries.length);
     }
   }
 
