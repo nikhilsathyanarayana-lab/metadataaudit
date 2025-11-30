@@ -15,11 +15,12 @@ const MAX_DEEP_DIVE_CALLS = 1;
 const DEBUG_DEEP_DIVE =
   (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
 const logDeepDive = (level, ...messages) => {
-  if (!DEBUG_DEEP_DIVE) {
+  const logger = typeof console?.[level] === 'function' ? console[level] : console.log;
+
+  if (!DEBUG_DEEP_DIVE && level === 'debug') {
     return;
   }
 
-  const logger = typeof console?.[level] === 'function' ? console[level] : console.debug;
   logger('[DeepDive]', ...messages);
 };
 
@@ -854,7 +855,15 @@ const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKB
       });
     });
 
-  return Array.from(mapped.values());
+  const entries = Array.from(mapped.values());
+
+  logDeepDive('info', 'Built deep dive scan entries', {
+    targetLookback,
+    sourceRecords: records?.length || 0,
+    entryCount: entries.length,
+  });
+
+  return entries;
 };
 
 const setupProgressTracker = () => {
@@ -992,7 +1001,7 @@ const runDeepDiveScan = async (
 
   if (!limitedEntries.length) {
     updateProgress?.(0, 0);
-    logDeepDive('debug', 'Deep dive progress update', { completedCalls: 0, totalCalls: 0 });
+    logDeepDive('info', 'Deep dive progress update', { completedCalls: 0, totalCalls: 0 });
     showMessage(
       messageRegion,
       'No metadata selections found. Run the Metadata Fields page first to capture app details.',
@@ -1005,7 +1014,7 @@ const runDeepDiveScan = async (
   let successCount = 0;
   const deepDiveAccumulator = new Map();
   updateProgress?.(completedCalls, limitedEntries.length);
-  logDeepDive('debug', 'Deep dive progress update', {
+  logDeepDive('info', 'Deep dive progress update', {
     completedCalls,
     totalCalls: limitedEntries.length,
   });
@@ -1019,7 +1028,7 @@ const runDeepDiveScan = async (
   }
 
   for (const entry of limitedEntries) {
-    logDeepDive('debug', 'Processing deep dive entry', {
+    logDeepDive('info', 'Processing deep dive entry', {
       appId: entry.appId,
       subId: entry.subId,
       targetLookback,
@@ -1027,7 +1036,7 @@ const runDeepDiveScan = async (
     let payload;
     try {
       payload = buildMetaEventsPayload(entry.appId, targetLookback);
-      logDeepDive('debug', 'Built metadata events payload', {
+      logDeepDive('info', 'Built metadata events payload', {
         appId: entry.appId,
         subId: entry.subId,
         targetLookback,
@@ -1069,7 +1078,7 @@ const runDeepDiveScan = async (
     } finally {
       completedCalls += 1;
       updateProgress?.(completedCalls, limitedEntries.length);
-      logDeepDive('debug', 'Deep dive progress update', {
+      logDeepDive('info', 'Deep dive progress update', {
         completedCalls,
         totalCalls: limitedEntries.length,
       });
@@ -1079,6 +1088,12 @@ const runDeepDiveScan = async (
   if (successCount) {
     showMessage(messageRegion, `Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`, 'info');
   }
+
+  logDeepDive('info', 'Deep dive scan completed', {
+    completedCalls,
+    successCount,
+    totalCalls: limitedEntries.length,
+  });
 
   onComplete?.();
 };
@@ -1422,6 +1437,7 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows, sy
 
 export const initDeepDive = async () => {
   try {
+    logDeepDive('info', 'Initializing deep dive experience');
     const visitorTableBody = document.getElementById('visitor-deep-dive-table-body');
     const accountTableBody = document.getElementById('account-deep-dive-table-body');
 
@@ -1461,6 +1477,11 @@ export const initDeepDive = async () => {
     const refreshTables = (lookback = selectedLookback) => {
       selectedLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
 
+      logDeepDive('info', 'Refreshing deep dive tables', {
+        requestedLookback: lookback,
+        selectedLookback,
+      });
+
       const nextRows = applyManualAppNames(
         buildRowsForLookback(metadataRecords, selectedLookback),
         manualAppNames,
@@ -1490,6 +1511,12 @@ export const initDeepDive = async () => {
           selectedLookback,
         ),
       );
+
+      logDeepDive('info', 'Updated deep dive tables', {
+        selectedLookback,
+        totalRows: rows.length,
+        renderedRowCount: renderedRows.length,
+      });
 
       updateExportAvailability();
       updateProgress(0, buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length);
