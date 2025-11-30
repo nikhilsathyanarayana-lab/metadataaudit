@@ -1,6 +1,6 @@
 import {
   buildAggregationUrl,
-  buildAppDiscoveryPayload,
+  buildAppListingPayload,
   buildCookieHeaderValue,
   buildExamplesPayload,
   buildMetadataFieldsPayload,
@@ -397,7 +397,7 @@ const summarizeError = (error) => {
       let appsResponse;
 
       try {
-        appsResponse = await fetchAggregation(aggregationUrl, buildAppDiscoveryPayload(), cookieHeaderValue, {
+        appsResponse = await fetchAggregation(aggregationUrl, buildAppListingPayload(), cookieHeaderValue, {
           region: envValue,
           subId: subIdValue,
         });

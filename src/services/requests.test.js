@@ -2,9 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildAggregationUrl,
-  buildAppAggregationRequest,
+  buildAppListingPayload,
   buildCookieHeaderValue,
-  buildAppDiscoveryPayload,
   buildMetaEventsPayload,
   buildMetadataFieldsForAppPayload,
   buildChunkedMetadataFieldPayloads,
@@ -61,11 +60,11 @@ test('fetchAppsForEntry posts to the aggregation endpoint with headers', async (
 
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.request?.requestId, 'apps-list');
-  assert.ok(Array.isArray(buildAppAggregationRequest().request?.pipeline));
+  assert.ok(Array.isArray(buildAppListingPayload('apps-list').request?.pipeline));
 });
 
-test('buildAppDiscoveryPayload maintains the expected shape', () => {
-  const payload = buildAppDiscoveryPayload();
+test('buildAppListingPayload maintains the expected shape', () => {
+  const payload = buildAppListingPayload();
   assert.equal(payload.request?.requestId, 'app-discovery');
   assert.ok(Array.isArray(payload.request?.pipeline));
 });

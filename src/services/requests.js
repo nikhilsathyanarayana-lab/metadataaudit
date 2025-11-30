@@ -19,7 +19,7 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
 };
 
 export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
-  response: { mimeType: 'application/json' },
+  response: { location: 'request', mimeType: 'application/json' },
   request: {
     name: 'account-visitor-only',
     pipeline: [
@@ -68,31 +68,10 @@ export const buildCookieHeaderValue = (rawCookie) => {
   return `pendo.sess.jwt2=${withoutLabel}`;
 };
 
-/**
- * Build the aggregation payload used to discover available apps.
- * @returns {object}
- */
-export const buildAppAggregationRequest = () => ({
+export const buildAppListingPayload = (requestId = 'app-discovery') => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
-    requestId: 'apps-list',
-    pipeline: [
-      {
-        source: {
-          singleEvents: { appId: 'expandAppIds("*")' },
-          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
-        },
-      },
-      { group: { group: ['appId'] } },
-      { select: { appId: 'appId' } },
-    ],
-  },
-});
-
-export const buildAppDiscoveryPayload = () => ({
-  response: { location: 'request', mimeType: 'application/json' },
-  request: {
-    requestId: 'app-discovery',
+    requestId,
     pipeline: [
       {
         source: {
@@ -270,7 +249,11 @@ export const buildRequestHeaders = (integrationKey) => ({
  */
 export const fetchAppsForEntry = async (entry, fetchImpl = fetch) => {
   try {
-    return await postAggregationWithIntegrationKey(entry, buildAppAggregationRequest(), fetchImpl);
+    return await postAggregationWithIntegrationKey(
+      entry,
+      buildAppListingPayload('apps-list'),
+      fetchImpl,
+    );
   } catch (error) {
     console.error('Aggregation request encountered an error:', error);
 
@@ -422,8 +405,7 @@ export const fetchAggregation = async (
 export default {
   buildAggregationUrl,
   buildMetadataFieldsForAppPayload,
-  buildAppAggregationRequest,
-  buildAppDiscoveryPayload,
+  buildAppListingPayload,
   buildMetaEventsPayload,
   buildChunkedMetadataFieldPayloads,
   buildCookieHeaderValue,

@@ -64,7 +64,7 @@ The Integration API workflow progresses through the HTML pages below. Each step 
 Workbook and cookie-only flows (`workbook_ui.html` and `proxy.php`) run outside this Integration API sequence.
 
 ## What’s still missing
-- **API request/response examples**: Document sample Aggregations payloads (e.g., `buildAppAggregationRequest`, `buildMetadataFieldsForAppPayload`, chunked requests) and expected responses for common success and failure cases.
+- **API request/response examples**: Document sample Aggregations payloads (e.g., `buildAppListingPayload`, `buildMetadataFieldsForAppPayload`, chunked requests) and expected responses for common success and failure cases.
   - *Next step*: Add example JSON bodies and response snippets to a dedicated section that mirrors the payload builders in `src/services/requests.js`, including how errors propagate through the proxy.
 - **Authentication handling guidance**: Clarify when to use integration keys versus `pendo.sess.jwt2` cookies, how to format the cookie header, and what to expect from authentication failures.
   - *Next step*: Write a short auth guide that covers secret handling, masking/validation behavior in the UI, and troubleshooting for 401/403 responses from both direct and proxied requests.
