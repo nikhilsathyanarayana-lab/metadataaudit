@@ -1,3 +1,4 @@
+import { extractAppIds } from '../services/appUtils.js';
 import { fetchAppsForEntry } from '../services/requests.js';
 
 export const initAppSelection = () => {
@@ -62,36 +63,6 @@ export const initAppSelection = () => {
       console.error('Unable to load stored SubID data:', error);
       return [];
     }
-  };
-
-  const extractAppIds = (apiResponse) => {
-    if (!apiResponse) {
-      return [];
-    }
-
-    const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
-
-    if (Array.isArray(apiResponse)) {
-      candidateLists.push(apiResponse);
-    }
-
-    const flattened = candidateLists.filter(Array.isArray).flat();
-
-    const appIds = flattened
-      .map((entry) => {
-        if (typeof entry === 'string') {
-          return entry;
-        }
-
-        if (entry?.appId) {
-          return entry.appId;
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-
-    return Array.from(new Set(appIds));
   };
 
   const buildCheckbox = (subId, index) => {
