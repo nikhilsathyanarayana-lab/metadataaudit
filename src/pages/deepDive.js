@@ -88,9 +88,50 @@ const loadAppSelections = () =>
       return appIds.map((appId) => ({ subId: entry.subId, appId }));
     });
 
-const loadMetadataRecords = () =>
-  getGlobalCollection(metadataFieldGlobalKey).filter(
+const normalizeMetadataRecords = (records) =>
+  (Array.isArray(records) ? records : []).filter(
     (record) => record?.appId && Number.isFinite(record?.windowDays),
+  );
+
+const loadMetadataRecordsFromStorage = () => {
+  try {
+    const raw = localStorage.getItem(metadataFieldGlobalKey);
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (Array.isArray(parsed)) {
+      return normalizeMetadataRecords(parsed);
+    }
+
+    return normalizeMetadataRecords(parsed?.records);
+  } catch (error) {
+    console.error('Unable to parse stored metadata fields:', error);
+    return [];
+  }
+};
+
+const dedupeMetadataRecords = (...recordSets) => {
+  const deduped = new Map();
+
+  recordSets
+    .flat()
+    .filter(Boolean)
+    .forEach((record) => {
+      const key = `${record.appId}::${record.windowDays}`;
+      deduped.set(key, record);
+    });
+
+  return Array.from(deduped.values());
+};
+
+const loadMetadataRecords = () =>
+  dedupeMetadataRecords(
+    normalizeMetadataRecords(getGlobalCollection(metadataFieldGlobalKey)),
+    loadMetadataRecordsFromStorage(),
   );
 
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
