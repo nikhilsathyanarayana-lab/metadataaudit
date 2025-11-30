@@ -1,6 +1,6 @@
 export {
   buildAggregationUrl,
-  buildAppDiscoveryPayload,
+  buildAppListingPayload,
   buildExamplesPayload,
   buildHeaders,
   buildMetadataFieldsPayload,

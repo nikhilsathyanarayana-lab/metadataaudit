@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildAggregationUrl,
-  buildAppDiscoveryPayload,
+  buildAppListingPayload,
   buildExamplesPayload,
   buildMetadataFieldsPayload,
 } from './aggregationRequests.js';
@@ -62,7 +62,7 @@ test('buildAggregationUrl interpolates the subscription id', () => {
 });
 
 test('payload builders keep the expected request shape', () => {
-  const discoveryPayload = buildAppDiscoveryPayload();
+  const discoveryPayload = buildAppListingPayload();
   const metadataPayload = buildMetadataFieldsPayload(30);
   const examplesPayload = buildExamplesPayload();
 
@@ -86,7 +86,7 @@ test(
       response = await fetch(integrationEndpoint(TEST_DOMAIN), {
         method: 'POST',
         headers: buildIntegrationHeaders(TEST_INTEGRATION_KEY),
-        body: JSON.stringify(buildAppDiscoveryPayload()),
+        body: JSON.stringify(buildAppListingPayload()),
       });
     } catch (error) {
       const networkErrorCode = error?.cause?.code || error?.code;
