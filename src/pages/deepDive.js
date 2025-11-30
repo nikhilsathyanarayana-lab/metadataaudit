@@ -560,6 +560,13 @@ const runDeepDiveScan = async (
       const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '');
+      console.info('Deep dive response captured', {
+        appId: entry.appId,
+        subId: entry.subId,
+        integrationKey: entry.integrationKey,
+        normalizedFields,
+        response,
+      });
       successCount += 1;
       onSuccessfulCall?.();
     } catch (error) {
@@ -567,6 +574,13 @@ const runDeepDiveScan = async (
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, null, normalizedFields, detail);
+
+      console.error('Deep dive request failed', {
+        appId: entry.appId,
+        subId: entry.subId,
+        integrationKey: entry.integrationKey,
+        error: detail,
+      });
 
       showMessage(
         messageRegion,
