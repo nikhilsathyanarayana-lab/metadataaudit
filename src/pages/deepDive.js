@@ -10,7 +10,7 @@ const deepDiveGlobalKey = 'deepDiveMetaEvents';
 const metadataFieldGlobalKey = 'metadataFieldRecords';
 const appSelectionGlobalKey = 'appSelectionResponses';
 const LOOKBACK_OPTIONS = [7, 30, 180];
-const TARGET_LOOKBACK = 180;
+const TARGET_LOOKBACK = 7;
 const DEEP_DIVE_LOOKBACK = 7;
 
 const dedupeAndSortFields = (fields) => {
