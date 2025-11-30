@@ -55,22 +55,14 @@ const loadMetadataSnapshot = () => {
 };
 
 const logMetadataRequestError = async (error, contextLabel) => {
-  console.error(contextLabel, error);
-
   const { responseStatus, responseBody, details } = error || {};
+  const status = responseStatus ?? details?.status;
+  const body = responseBody ?? details?.body;
 
-  if (responseStatus !== undefined || responseBody !== undefined) {
+  if (status !== undefined || body !== undefined) {
     console.error(`${contextLabel} response details:`, {
-      status: responseStatus ?? 'unknown status',
-      body: responseBody ?? '',
-    });
-    return;
-  }
-
-  if (details?.status !== undefined || details?.body !== undefined) {
-    console.error(`${contextLabel} response details:`, {
-      status: details?.status ?? 'unknown status',
-      body: details?.body ?? '',
+      status: status ?? 'unknown status',
+      body: body ?? '',
     });
     return;
   }
@@ -81,11 +73,15 @@ const logMetadataRequestError = async (error, contextLabel) => {
 
       if (responseText) {
         console.error(`${contextLabel} response body:`, responseText);
+        return;
       }
     } catch (loggingError) {
       console.error('Unable to read error response text:', loggingError);
+      return;
     }
   }
+
+  console.error(contextLabel, error);
 };
 
 const persistMetadataSnapshot = () => {
