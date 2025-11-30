@@ -138,6 +138,11 @@ const loadMetadataRecords = () =>
 let metadata_full = [];
 let metadata_api_calls = [];
 
+if (typeof window !== 'undefined') {
+  window.metadata_full = metadata_full;
+  window.metadata_api_calls = metadata_api_calls;
+}
+
 const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
   if (!entry?.appId) {
     return null;
