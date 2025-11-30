@@ -825,7 +825,7 @@ const setupRegexFormatModal = async () => {
     regexInput.focus();
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!activeContext) {
@@ -884,7 +884,7 @@ const updateManualAppNameFeedback = (tone, message) => {
   feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
 };
 
-const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) => {
+const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows, syncAppName) => {
   if (!document.getElementById('app-name-modal')) {
     await loadTemplate('Modals/app-name-modal.html');
   }
@@ -926,7 +926,7 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) =>
     appNameInput.focus();
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (!activeRow) {
@@ -942,8 +942,10 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows) =>
     }
 
     setManualAppName(manualAppNames, activeRow.appId, appName);
-    metadataRecords = syncMetadataRecordsAppName(activeRow.appId, appName, metadataRecords);
-    syncDeepDiveRecordsAppName(activeRow.appId, appName);
+
+    if (typeof syncAppName === 'function') {
+      await syncAppName(activeRow.appId, appName);
+    }
 
     rows
       .filter((row) => row.appId === activeRow.appId)
@@ -1002,7 +1004,15 @@ export const initDeepDive = async () => {
   const rows = [];
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
-  const openAppNameModal = await setupManualAppNameModal(manualAppNames, rows, getRenderedRows);
+  const openAppNameModal = await setupManualAppNameModal(
+    manualAppNames,
+    rows,
+    getRenderedRows,
+    (appId, appName) => {
+      metadataRecords = syncMetadataRecordsAppName(appId, appName, metadataRecords);
+      syncDeepDiveRecordsAppName(appId, appName);
+    },
+  );
   const openRegexModal = await setupRegexFormatModal();
 
   let selectedLookback = TARGET_LOOKBACK;
