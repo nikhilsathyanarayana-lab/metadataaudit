@@ -262,6 +262,16 @@ export const fetchAppsForEntry = async (entry, fetchImpl = fetch) => {
     return await postAggregationWithIntegrationKey(entry, buildAppAggregationRequest(), fetchImpl);
   } catch (error) {
     console.error('Aggregation request encountered an error:', error);
+
+    const { responseStatus, responseBody } = error || {};
+
+    if (responseStatus !== undefined || responseBody !== undefined) {
+      console.error('Aggregation response details:', {
+        status: responseStatus ?? 'unknown status',
+        body: responseBody ?? '',
+      });
+    }
+
     return null;
   }
 };
@@ -304,9 +314,14 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
 
   if (!response?.ok) {
     const rawBody = await response.text().catch(() => '');
+    const statusLabel = response?.status ?? 'unknown status';
     const detail = rawBody?.trim() ? `: ${rawBody.trim()}` : '';
-    const statusLabel = response?.status || 'unknown status';
-    throw new Error(`Aggregation request failed (${statusLabel})${detail}`);
+
+    const error = new Error(`Aggregation request failed (${statusLabel})${detail}`);
+    error.responseStatus = response?.status;
+    error.responseBody = rawBody;
+
+    throw error;
   }
 
   return response.json();
