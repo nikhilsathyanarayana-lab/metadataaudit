@@ -144,6 +144,41 @@ h1 {
   margin-bottom: 1.5rem;
 }
 
+.lookback-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.lookback-label {
+  color: #5d5d5d;
+  font-weight: 700;
+}
+
+.lookback-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lookback-button {
+  padding: 0.55rem 0.95rem;
+  font-size: 0.95rem;
+}
+
+.lookback-button.is-active {
+  background: var(--pendo-pink);
+  color: #fff;
+  border-color: var(--pendo-pink);
+  box-shadow: 0 10px 25px rgba(224, 0, 108, 0.15);
+}
+
+.lookback-button.is-active:hover {
+  color: #fff;
+}
+
 .form-intro {
   display: grid;
   gap: 0.35rem;
