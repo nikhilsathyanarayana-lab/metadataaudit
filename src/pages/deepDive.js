@@ -613,7 +613,11 @@ const ensureMessageRegion = () => {
   region.className = 'page-messages';
 
   const mainContent = document.querySelector('main.content');
-  mainContent?.parentNode?.insertBefore(region, mainContent);
+  if (mainContent?.parentNode) {
+    mainContent.parentNode.insertBefore(region, mainContent);
+  } else if (document.body) {
+    document.body.insertBefore(region, document.body.firstChild);
+  }
   return region;
 };
 
@@ -634,6 +638,36 @@ const showMessage = (region, message, tone = 'info') => {
   alert.textContent = message;
 
   region.appendChild(alert);
+};
+
+export const reportDeepDiveError = (message, error) => {
+  console.error(message, error);
+  const region = ensureMessageRegion();
+  showMessage(region, message, 'error');
+};
+
+let deepDiveGlobalErrorHandlersInstalled = false;
+export const installDeepDiveGlobalErrorHandlers = () => {
+  if (deepDiveGlobalErrorHandlersInstalled || typeof window === 'undefined') {
+    return;
+  }
+
+  const handleError = (error) => {
+    reportDeepDiveError(
+      'An unexpected error occurred while loading the deep dive page. Please refresh and try again.',
+      error,
+    );
+  };
+
+  window.addEventListener('error', (event) => {
+    handleError(event?.error ?? event?.message ?? event);
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    handleError(event?.reason ?? event);
+  });
+
+  deepDiveGlobalErrorHandlersInstalled = true;
 };
 
 const setExportAvailability = (enabled) => {
@@ -1204,102 +1238,109 @@ const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows, sy
 };
 
 export const initDeepDive = async () => {
-  const visitorTableBody = document.getElementById('visitor-deep-dive-table-body');
-  const accountTableBody = document.getElementById('account-deep-dive-table-body');
+  try {
+    const visitorTableBody = document.getElementById('visitor-deep-dive-table-body');
+    const accountTableBody = document.getElementById('account-deep-dive-table-body');
 
-  if (!visitorTableBody || !accountTableBody) {
-    return;
-  }
+    if (!visitorTableBody || !accountTableBody) {
+      return;
+    }
 
-  const messageRegion = ensureMessageRegion();
-  const { updateText: updateProgress } = setupProgressTracker();
-  const startButton = document.getElementById('deep-dive-start');
+    const messageRegion = ensureMessageRegion();
+    const { updateText: updateProgress } = setupProgressTracker();
+    const startButton = document.getElementById('deep-dive-start');
 
-  const manualAppNames = loadManualAppNames();
-  let metadataRecords = loadMetadataRecords();
-  deepDiveRecords = loadDeepDiveRecords();
-  let hasSuccessfulScan = deepDiveRecords.some((record) => !record.error);
-  const rows = [];
-  const renderedRows = [];
-  const getRenderedRows = () => renderedRows;
-  const openAppNameModal = await setupManualAppNameModal(
-    manualAppNames,
-    rows,
-    getRenderedRows,
-    (appId, appName) => {
-      metadataRecords = syncMetadataRecordsAppName(appId, appName, metadataRecords);
-      syncDeepDiveRecordsAppName(appId, appName);
-    },
-  );
-  const openRegexModal = await setupRegexFormatModal();
-
-  let selectedLookback = TARGET_LOOKBACK;
-
-  const updateExportAvailability = () => {
-    setExportAvailability(hasSuccessfulScan && (rows.length > 0 || deepDiveRecords.length > 0));
-  };
-
-  const refreshTables = (lookback = selectedLookback) => {
-    selectedLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
-
-    const nextRows = applyManualAppNames(
-      buildRowsForLookback(metadataRecords, selectedLookback),
+    const manualAppNames = loadManualAppNames();
+    let metadataRecords = loadMetadataRecords();
+    deepDiveRecords = loadDeepDiveRecords();
+    let hasSuccessfulScan = deepDiveRecords.some((record) => !record.error);
+    const rows = [];
+    const renderedRows = [];
+    const getRenderedRows = () => renderedRows;
+    const openAppNameModal = await setupManualAppNameModal(
       manualAppNames,
+      rows,
+      getRenderedRows,
+      (appId, appName) => {
+        metadataRecords = syncMetadataRecordsAppName(appId, appName, metadataRecords);
+        syncDeepDiveRecordsAppName(appId, appName);
+      },
     );
+    const openRegexModal = await setupRegexFormatModal();
 
-    replaceRows(rows, nextRows);
-    updateMetadataFieldHeaders(selectedLookback);
+    let selectedLookback = TARGET_LOOKBACK;
 
-    renderedRows.length = 0;
-    renderedRows.push(
-      ...renderTable(
-        visitorTableBody,
-        rows,
-        'visitor',
-        openAppNameModal,
-        openRegexModal,
-        selectedLookback,
-      ),
-    );
-    renderedRows.push(
-      ...renderTable(
-        accountTableBody,
-        rows,
-        'account',
-        openAppNameModal,
-        openRegexModal,
-        selectedLookback,
-      ),
-    );
+    const updateExportAvailability = () => {
+      setExportAvailability(hasSuccessfulScan && (rows.length > 0 || deepDiveRecords.length > 0));
+    };
 
-    updateExportAvailability();
-    updateProgress(0, buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length);
-  };
+    const refreshTables = (lookback = selectedLookback) => {
+      selectedLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
 
-  selectedLookback = setupLookbackControls(refreshTables, selectedLookback);
-  refreshTables(selectedLookback);
-
-  if (startButton) {
-    startButton.addEventListener('click', async () => {
-      startButton.disabled = true;
-      startButton.textContent = 'Scanning…';
-      showMessage(messageRegion, 'Starting deep dive scan…', 'info');
-
-      await runDeepDiveScan(
-        buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
-        selectedLookback,
-        updateProgress,
-        messageRegion,
-        rows,
-        () => {
-          hasSuccessfulScan = true;
-          updateExportAvailability();
-        },
-        updateExportAvailability,
+      const nextRows = applyManualAppNames(
+        buildRowsForLookback(metadataRecords, selectedLookback),
+        manualAppNames,
       );
 
-      startButton.disabled = false;
-      startButton.textContent = 'Start scan';
-    });
+      replaceRows(rows, nextRows);
+      updateMetadataFieldHeaders(selectedLookback);
+
+      renderedRows.length = 0;
+      renderedRows.push(
+        ...renderTable(
+          visitorTableBody,
+          rows,
+          'visitor',
+          openAppNameModal,
+          openRegexModal,
+          selectedLookback,
+        ),
+      );
+      renderedRows.push(
+        ...renderTable(
+          accountTableBody,
+          rows,
+          'account',
+          openAppNameModal,
+          openRegexModal,
+          selectedLookback,
+        ),
+      );
+
+      updateExportAvailability();
+      updateProgress(0, buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length);
+    };
+
+    selectedLookback = setupLookbackControls(refreshTables, selectedLookback);
+    refreshTables(selectedLookback);
+
+    if (startButton) {
+      startButton.addEventListener('click', async () => {
+        startButton.disabled = true;
+        startButton.textContent = 'Scanning…';
+        showMessage(messageRegion, 'Starting deep dive scan…', 'info');
+
+        await runDeepDiveScan(
+          buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
+          selectedLookback,
+          updateProgress,
+          messageRegion,
+          rows,
+          () => {
+            hasSuccessfulScan = true;
+            updateExportAvailability();
+          },
+          updateExportAvailability,
+        );
+
+        startButton.disabled = false;
+        startButton.textContent = 'Start scan';
+      });
+    }
+  } catch (error) {
+    reportDeepDiveError(
+      'Unable to initialize the deep dive experience. Please refresh and try again.',
+      error,
+    );
   }
 };
