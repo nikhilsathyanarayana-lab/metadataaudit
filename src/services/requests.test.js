@@ -170,6 +170,45 @@ test('fetchAggregation errors when token is missing', async () => {
   );
 });
 
+test('fetchAggregation logs response details before throwing', async () => {
+  const messages = [];
+  const originalConsoleError = console.error;
+
+  console.error = (...args) => {
+    messages.push(args);
+  };
+
+  try {
+    const fetchMock = async () => ({
+      ok: false,
+      status: 500,
+      text: async () => JSON.stringify({ message: 'server boom' }),
+    });
+
+    await assert.rejects(
+      () =>
+        fetchAggregation(
+          'https://aggregations.example.com/api',
+          {},
+          'pendo.sess.jwt2=jwt-token',
+          { region: 'us', subId: 'sub-1' },
+          fetchMock,
+        ),
+    );
+
+    assert.ok(
+      messages.some(
+        ([label, details]) =>
+          label === 'Aggregation response details:' &&
+          details?.status === 500 &&
+          details?.body?.message === 'server boom',
+      ),
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
 test('postAggregationWithIntegrationKey forwards the request payload', async () => {
   const calls = [];
   const fetchMock = async (url, options) => {

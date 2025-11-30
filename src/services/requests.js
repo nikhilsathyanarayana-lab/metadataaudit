@@ -389,6 +389,10 @@ export const fetchAggregation = async (
       : `Aggregation request failed (status ${statusLabel}).`;
 
     const error = new Error(message);
+    console.error('Aggregation response details:', {
+      status: response.status ?? 'unknown status',
+      body: parsedBody ?? rawBody ?? '',
+    });
     error.details = { status: response.status, body: parsedBody || rawBody };
     throw error;
   }
