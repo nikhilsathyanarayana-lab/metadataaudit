@@ -59,6 +59,7 @@ The Integration API workflow progresses through the HTML pages below. Each step 
 4. **deep_dive.html**
    - `bootstrapShared()` makes export modals available.
    - `initDeepDive()` gathers prior selections and metadata from `appSelectionResponses` and `metadataFieldRecords`, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and syncs results with manual app naming before enabling exports.
+   - JSON export downloads two files: `metadata-deep-dive-full.json` (all collected metadata) and `metadata-deep-dive-api-calls.json` (request/response payload history).
 
 Workbook and cookie-only flows (`workbook_ui.html` and `proxy.php`) run outside this Integration API sequence.
 
