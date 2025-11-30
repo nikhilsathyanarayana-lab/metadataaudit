@@ -188,3 +188,56 @@ test('postAggregationWithIntegrationKey forwards the request payload', async () 
   assert.equal(calls[0].options.headers['X-Pendo-Integration-Key'], 'abc');
   assert.equal(JSON.parse(calls[0].options.body).request.requestId, 'test');
 });
+
+test('postAggregationWithIntegrationKey attaches response metadata to thrown errors', async () => {
+  const fetchMock = async () => ({
+    ok: false,
+    status: 500,
+    text: async () => 'server boom',
+  });
+
+  const payload = { request: { requestId: 'test' } };
+  const entry = { domain: 'https://apps.example.com', integrationKey: 'abc' };
+
+  await assert.rejects(
+    postAggregationWithIntegrationKey(entry, payload, fetchMock),
+    (error) => {
+      assert.equal(error.responseStatus, 500);
+      assert.equal(error.responseBody, 'server boom');
+      assert.match(error.message, /Aggregation request failed/);
+      return true;
+    },
+  );
+});
+
+test('fetchAppsForEntry logs response metadata before returning null', async () => {
+  const messages = [];
+  const originalConsoleError = console.error;
+
+  console.error = (...args) => {
+    messages.push(args);
+  };
+
+  try {
+    const fetchMock = async () => ({
+      ok: false,
+      status: 404,
+      text: async () => 'not found',
+    });
+
+    const entry = { domain: 'https://apps.example.com', integrationKey: 'abc' };
+    const result = await fetchAppsForEntry(entry, fetchMock);
+
+    assert.equal(result, null);
+    assert.ok(
+      messages.some(
+        ([label, details]) =>
+          label === 'Aggregation response details:' &&
+          details?.status === 404 &&
+          details?.body === 'not found',
+      ),
+    );
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
