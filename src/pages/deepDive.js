@@ -315,9 +315,10 @@ export const exportDeepDiveJson = () => {
 };
 
 const clearDeepDiveCollections = () => {
-  metadata_visitors.splice(0, metadata_visitors.length);
-  metadata_accounts.splice(0, metadata_accounts.length);
-  metadata_api_calls.splice(0, metadata_api_calls.length);
+  metadata_visitors.length = 0;
+  metadata_accounts.length = 0;
+  metadata_api_calls.length = 0;
+
   metadataVisitorAggregation.clear();
   metadataAccountAggregation.clear();
   renderVisitorMetadataTree([]);
