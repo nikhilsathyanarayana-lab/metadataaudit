@@ -11,6 +11,7 @@ const metadataFieldGlobalKey = 'metadataFieldRecords';
 const appSelectionGlobalKey = 'appSelectionResponses';
 const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
+const DEEP_DIVE_CONCURRENCY = 2;
 const MAX_DEEP_DIVE_CALLS = 1;
 const DEBUG_DEEP_DIVE =
   (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
@@ -34,6 +35,16 @@ const dedupeAndSortFields = (fields) => {
   }
 
   return [];
+};
+
+const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
+const scheduleDomUpdate = (callback) => {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => callback());
+    return;
+  }
+
+  setTimeout(() => callback(), 0);
 };
 
 const extractAppIds = (apiResponse) => {
@@ -849,49 +860,54 @@ const runDeepDiveScan = async (
   clearDeepDiveCollections();
 
   const limitedEntries = entries.slice(0, MAX_DEEP_DIVE_CALLS);
-
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
+  const totalCalls = limitedEntries.length;
+  const queue = limitedEntries.slice();
+  let completedCalls = 0;
+  let successCount = 0;
+  const deepDiveAccumulator = new Map();
+
+  const updateProgressAsync = () =>
+    scheduleDomUpdate(() => {
+      updateProgress?.(completedCalls, totalCalls);
+      logDeepDive('info', 'Deep dive progress update', {
+        completedCalls,
+        totalCalls,
+      });
+    });
+
+  const sendMessageAsync = (message, tone = 'info') =>
+    scheduleDomUpdate(() => showMessage(messageRegion, message, tone));
 
   logDeepDive('info', 'Starting deep dive scan', {
     requestedEntries: entries.length,
-    limitedEntries: limitedEntries.length,
+    limitedEntries: totalCalls,
     targetLookback,
   });
 
-  if (!limitedEntries.length) {
-    updateProgress?.(0, 0);
-    logDeepDive('info', 'Deep dive progress update', { completedCalls: 0, totalCalls: 0 });
-    showMessage(
-      messageRegion,
+  if (!totalCalls) {
+    updateProgressAsync();
+    sendMessageAsync(
       'No metadata selections found. Run the Metadata Fields page first to capture app details.',
       'error',
     );
     return;
   }
 
-  let completedCalls = 0;
-  let successCount = 0;
-  const deepDiveAccumulator = new Map();
-  updateProgress?.(completedCalls, limitedEntries.length);
-  logDeepDive('info', 'Deep dive progress update', {
-    completedCalls,
-    totalCalls: limitedEntries.length,
-  });
+  updateProgressAsync();
 
-  if (entries.length > limitedEntries.length) {
-    showMessage(
-      messageRegion,
-      'Limiting deep dive scan to 1 request to keep exports manageable.',
-      'info',
-    );
+  if (entries.length > totalCalls) {
+    sendMessageAsync('Limiting deep dive scan to 1 request to keep exports manageable.', 'info');
   }
 
-  for (const entry of limitedEntries) {
+  const processEntry = async (entry) => {
     logDeepDive('info', 'Processing deep dive entry', {
       appId: entry.appId,
       subId: entry.subId,
       targetLookback,
     });
+
+    await yieldToBrowser();
     let payload;
     try {
       payload = buildMetaEventsPayload(entry.appId, targetLookback);
@@ -901,20 +917,23 @@ const runDeepDiveScan = async (
         targetLookback,
         payload,
       });
+
       logDeepDive('info', 'Dispatching deep dive request', {
         appId: entry.appId,
         subId: entry.subId,
         integrationKey: entry.integrationKey,
       });
-      const response = await postAggregationWithIntegrationKey(entry, payload);
 
+      const response = await postAggregationWithIntegrationKey(entry, payload);
       const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '', targetLookback);
       updateMetadataApiCalls(entry, payload, response, '');
       updateMetadataCollections(response, entry);
       successCount += 1;
-      onSuccessfulCall?.();
+      if (onSuccessfulCall) {
+        scheduleDomUpdate(() => onSuccessfulCall());
+      }
     } catch (error) {
       const detail = error?.message || 'Unable to fetch metadata events.';
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
@@ -929,32 +948,44 @@ const runDeepDiveScan = async (
         error: detail,
       });
 
-      showMessage(
-        messageRegion,
-        `Deep dive request failed for app ${entry.appId}: ${detail}`,
-        'error',
-      );
-    } finally {
-      completedCalls += 1;
-      updateProgress?.(completedCalls, limitedEntries.length);
-      logDeepDive('info', 'Deep dive progress update', {
-        completedCalls,
-        totalCalls: limitedEntries.length,
-      });
+      sendMessageAsync(`Deep dive request failed for app ${entry.appId}: ${detail}`, 'error');
     }
-  }
+  };
+
+  const workerCount = Math.min(Math.max(DEEP_DIVE_CONCURRENCY, 1), totalCalls);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (queue.length) {
+      const entry = queue.shift();
+
+      if (!entry) {
+        continue;
+      }
+
+      await processEntry(entry);
+      completedCalls += 1;
+      updateProgressAsync();
+      await yieldToBrowser();
+    }
+  });
+
+  await Promise.all(workers);
 
   if (successCount) {
-    showMessage(messageRegion, `Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`, 'info');
+    sendMessageAsync(
+      `Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`,
+      'info',
+    );
   }
 
   logDeepDive('info', 'Deep dive scan completed', {
     completedCalls,
     successCount,
-    totalCalls: limitedEntries.length,
+    totalCalls,
   });
 
-  onComplete?.();
+  if (onComplete) {
+    scheduleDomUpdate(() => onComplete());
+  }
 };
 
 const renderTable = (tableBody, rows, type, openModal, openRegexModal, lookback) => {
