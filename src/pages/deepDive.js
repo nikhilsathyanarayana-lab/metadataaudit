@@ -287,7 +287,7 @@ const updateMetadataCollections = async (response, entry) => {
   });
 };
 
-const updateMetadataApiCalls = (entry, payload, response, error = '') => {
+const updateMetadataApiCalls = (entry, status, error = '') => {
   if (!entry?.appId) {
     return;
   }
@@ -295,9 +295,9 @@ const updateMetadataApiCalls = (entry, payload, response, error = '') => {
   const callRecord = {
     appId: entry.appId,
     subId: entry.subId || '',
-    payload,
-    response: response || null,
+    status: status || 'unknown',
     error: error || '',
+    recordedAt: new Date().toISOString(),
   };
 
   metadata_api_calls.push(callRecord);
@@ -346,7 +346,6 @@ const loadDeepDiveRecords = () => {
 
 const upsertDeepDiveRecord = (
   entry,
-  response,
   normalizedFields,
   errorMessage = '',
   lookback = TARGET_LOOKBACK,
@@ -357,10 +356,12 @@ const upsertDeepDiveRecord = (
 
   const visitorFields = dedupeAndSortFields(normalizedFields?.visitorFields);
   const accountFields = dedupeAndSortFields(normalizedFields?.accountFields);
+  const status = errorMessage ? 'error' : 'success';
 
   const record = {
     windowDays: LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK,
     updatedAt: new Date().toISOString(),
+    status,
     appId: entry.appId,
     appName: entry.appName || '',
     subId: entry.subId || '',
@@ -368,7 +369,6 @@ const upsertDeepDiveRecord = (
     integrationKey: entry.integrationKey || '',
     visitorFields,
     accountFields,
-    response: response || null,
     error: errorMessage,
   };
 
@@ -911,6 +911,7 @@ const runDeepDiveScan = async (
 
     await yieldToBrowser();
     let payload;
+    let response = null;
     try {
       payload = buildMetaEventsPayload(entry.appId, targetLookback);
       logDeepDive('info', 'Built metadata events payload', {
@@ -926,16 +927,17 @@ const runDeepDiveScan = async (
         integrationKey: entry.integrationKey,
       });
 
-      const response = await postAggregationWithIntegrationKey(entry, payload);
+      response = await postAggregationWithIntegrationKey(entry, payload);
       const normalizedFields = await collectDeepDiveMetadataFields(
         response,
         deepDiveAccumulator,
         entry,
       );
 
-      upsertDeepDiveRecord(entry, response, normalizedFields, '', targetLookback);
-      updateMetadataApiCalls(entry, payload, response, '');
+      upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
+      updateMetadataApiCalls(entry, 'success', '');
       await updateMetadataCollections(response, entry);
+      response = null;
       successCount += 1;
       if (onSuccessfulCall) {
         scheduleDomUpdate(() => onSuccessfulCall());
@@ -944,8 +946,8 @@ const runDeepDiveScan = async (
       const detail = error?.message || 'Unable to fetch metadata events.';
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
 
-      upsertDeepDiveRecord(entry, null, normalizedFields, detail, targetLookback);
-      updateMetadataApiCalls(entry, payload, null, detail);
+      upsertDeepDiveRecord(entry, normalizedFields, detail, targetLookback);
+      updateMetadataApiCalls(entry, 'error', detail);
 
       console.error('Deep dive request failed', {
         appId: entry.appId,
@@ -955,6 +957,9 @@ const runDeepDiveScan = async (
       });
 
       sendMessageAsync(`Deep dive request failed for app ${entry.appId}: ${detail}`, 'error');
+    } finally {
+      payload = null;
+      response = null;
     }
   };
 
@@ -989,8 +994,15 @@ const runDeepDiveScan = async (
     totalCalls,
   });
 
+  const clearTransientCallData = () => metadata_api_calls.splice(0, metadata_api_calls.length);
+
   if (onComplete) {
-    scheduleDomUpdate(() => onComplete());
+    scheduleDomUpdate(() => {
+      onComplete();
+      clearTransientCallData();
+    });
+  } else {
+    clearTransientCallData();
   }
 };
 
