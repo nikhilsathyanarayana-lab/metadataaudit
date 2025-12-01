@@ -306,13 +306,22 @@ const openNamingModal = () =>
     backdrop.addEventListener('click', handleCancel);
   });
 
+const normalizeAppName = (value) => {
+  if (!value) {
+    return '';
+  }
+
+  const trimmed = String(value).trim();
+  return trimmed.toLowerCase() === 'not set' ? '' : trimmed;
+};
+
 const sanitizePlaceholderValues = (headers, rows) => {
   const normalizedHeaders = headers.map((header) => header.trim().toLowerCase());
 
   return rows.map((row) =>
     row.map((value, index) => {
-      if (normalizedHeaders[index] === 'app name' && typeof value === 'string') {
-        return value.trim().toLowerCase() === 'not set' ? '' : value;
+      if (normalizedHeaders[index] === 'app name') {
+        return normalizeAppName(value);
       }
 
       return value;
@@ -432,7 +441,7 @@ const collectFormatSelections = (table, type) => {
 
     return {
       subId: subIndex === -1 ? '' : cells[subIndex],
-      appName: appNameIndex === -1 ? '' : cells[appNameIndex],
+      appName: appNameIndex === -1 ? '' : normalizeAppName(cells[appNameIndex]),
       appId: appIdIndex === -1 ? '' : cells[appIdIndex],
       fieldName: fieldIndex === -1 ? '' : cells[fieldIndex],
       type,
@@ -460,11 +469,16 @@ const buildLookbackIndex = (records) => {
 
     const appEntry = index.get(record.appId) || {
       appId: record.appId,
-      appName: record.appName || '',
+      appName: '',
       subId: record.subId || '',
       visitor: new Map(),
       account: new Map(),
     };
+
+    const sanitizedAppName = normalizeAppName(record.appName);
+    if (sanitizedAppName) {
+      appEntry.appName = sanitizedAppName;
+    }
 
     if (Array.isArray(record.visitorFields)) {
       totals.visitor[record.windowDays] += record.visitorFields.length;
@@ -579,15 +593,16 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       return acc;
     }
 
+    const sanitizedSelection = { ...selection, appName: normalizeAppName(selection.appName) };
     const appEntry = acc.get(selection.appId) || { appId: selection.appId, rows: [] };
-    appEntry.rows.push(selection);
+    appEntry.rows.push(sanitizedSelection);
     acc.set(selection.appId, appEntry);
     return acc;
   }, new Map());
 
   groupedSelections.forEach((appSelection) => {
     const lookup = index.get(appSelection.appId);
-    const appName = lookup?.appName || appSelection.rows[0]?.appName || '';
+    const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
 
     const rows = appSelection.rows.map((selection) => {
