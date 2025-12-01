@@ -556,23 +556,40 @@ const buildVisitorExportRows = (aggregation) =>
 
 const buildAccountExportRows = (aggregation) =>
   Array.from(aggregation.values())
-    .map((subEntry) => ({
-      subId: subEntry.subId,
-      apps: Array.from(subEntry.apps.values())
-        .map((appEntry) => ({
-          appId: appEntry.appId,
-          metadataFields: Array.from(appEntry.fields.entries())
-            .map(([field, values]) => ({
-              field,
-              values: Array.from(values.entries())
-                .map(([value, count]) => ({ value, count }))
-                .sort((first, second) => first.value.localeCompare(second.value)),
-            }))
-            .sort((first, second) => first.field.localeCompare(second.field)),
-        }))
-        .sort((first, second) => first.appId.localeCompare(second.appId)),
-    }))
-    .sort((first, second) => first.subId.localeCompare(second.subId));
+    .flatMap((subEntry) =>
+      Array.from(subEntry.apps.values()).flatMap((appEntry) =>
+        Array.from(appEntry.fields.entries()).flatMap(([field, values]) =>
+          Array.from(values.entries()).map(([value, count]) => ({
+            subId: subEntry.subId,
+            appId: appEntry.appId,
+            field,
+            value,
+            count,
+          })),
+        ),
+      ),
+    )
+    .sort((first, second) => {
+      const subComparison = first.subId.localeCompare(second.subId);
+
+      if (subComparison) {
+        return subComparison;
+      }
+
+      const appComparison = String(first.appId).localeCompare(String(second.appId));
+
+      if (appComparison) {
+        return appComparison;
+      }
+
+      const fieldComparison = first.field.localeCompare(second.field);
+
+      if (fieldComparison) {
+        return fieldComparison;
+      }
+
+      return first.value.localeCompare(second.value);
+    });
 
 const updateAccountAggregation = (accountMetadata, entry, aggregation) => {
   const target = ensureAccountAggregationEntry(aggregation, entry);
