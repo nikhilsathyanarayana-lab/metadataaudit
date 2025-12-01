@@ -458,7 +458,7 @@ const replaceRows = (target, nextRows = []) => {
   target.splice(0, target.length, ...nextRows);
 };
 
-const ensureVisitorAggregationEntry = (aggregation, entry, visitorId) => {
+const ensureVisitorAggregationEntry = (aggregation, entry) => {
   if (!entry?.appId) {
     return null;
   }
@@ -470,22 +470,13 @@ const ensureVisitorAggregationEntry = (aggregation, entry, visitorId) => {
     aggregation.set(subId, subEntry);
   }
 
-  const appEntry = subEntry.apps.get(entry.appId) || { appId: entry.appId, visitors: new Map() };
+  const appEntry = subEntry.apps.get(entry.appId) || { appId: entry.appId, fields: new Map() };
 
   if (!subEntry.apps.has(entry.appId)) {
     subEntry.apps.set(entry.appId, appEntry);
   }
 
-  const normalizedVisitorId = visitorId || '';
-  const visitorEntry =
-    appEntry.visitors.get(normalizedVisitorId) ||
-    ({ visitorId: normalizedVisitorId, fields: new Map() });
-
-  if (!appEntry.visitors.has(normalizedVisitorId)) {
-    appEntry.visitors.set(normalizedVisitorId, visitorEntry);
-  }
-
-  return visitorEntry;
+  return appEntry;
 };
 
 const ensureAccountAggregationEntry = (aggregation, entry) => {
@@ -536,19 +527,14 @@ const buildVisitorExportRows = (aggregation) =>
       apps: Array.from(subEntry.apps.values())
         .map((appEntry) => ({
           appId: appEntry.appId,
-          visitors: Array.from(appEntry.visitors.values())
-            .map((visitorEntry) => ({
-              visitorId: visitorEntry.visitorId,
-              metadataFields: Array.from(visitorEntry.fields.entries())
-                .map(([field, values]) => ({
-                  field,
-                  values: Array.from(values.entries())
-                    .map(([value, count]) => ({ value, count }))
-                    .sort((first, second) => first.value.localeCompare(second.value)),
-                }))
-                .sort((first, second) => first.field.localeCompare(second.field)),
+          metadataFields: Array.from(appEntry.fields.entries())
+            .map(([field, values]) => ({
+              field,
+              values: Array.from(values.entries())
+                .map(([value, count]) => ({ value, count }))
+                .sort((first, second) => first.value.localeCompare(second.value)),
             }))
-            .sort((first, second) => first.visitorId.localeCompare(second.visitorId)),
+            .sort((first, second) => first.field.localeCompare(second.field)),
         }))
         .sort((first, second) => first.appId.localeCompare(second.appId)),
     }))
@@ -609,18 +595,24 @@ const updateAccountAggregation = (accountMetadata, entry, aggregation) => {
 };
 
 function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation) {
-  const target = ensureVisitorAggregationEntry(aggregation, entry, visitorId);
+  const target = ensureVisitorAggregationEntry(aggregation, entry);
 
   if (!target) {
     return;
   }
 
-  Object.entries(visitorMetadata).forEach(([field, value]) => {
+  const updateFieldCount = (field, value) => {
     const existingValues = target.fields.get(field) || new Map();
     const normalizedValue = normalizeMetadataValue(value);
     existingValues.set(normalizedValue, (existingValues.get(normalizedValue) || 0) + 1);
     target.fields.set(field, existingValues);
+  };
+
+  Object.entries(visitorMetadata).forEach(([field, value]) => {
+    updateFieldCount(field, value);
   });
+
+  updateFieldCount('visitorId', visitorId || '');
 
   replaceRows(metadata_visitors, buildVisitorExportRows(aggregation));
 }
