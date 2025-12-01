@@ -12,7 +12,6 @@ const appSelectionGlobalKey = 'appSelectionResponses';
 const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
 const DEEP_DIVE_CONCURRENCY = 2;
-const MAX_DEEP_DIVE_CALLS = 1;
 const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
 const DEBUG_DEEP_DIVE =
   (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
@@ -867,10 +866,9 @@ const runDeepDiveScan = async (
 ) => {
   clearDeepDiveCollections();
 
-  const limitedEntries = entries.slice(0, MAX_DEEP_DIVE_CALLS);
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
-  const totalCalls = limitedEntries.length;
-  const queue = limitedEntries.slice();
+  const queue = entries.slice();
+  const totalCalls = queue.length;
   let completedCalls = 0;
   let successCount = 0;
   const deepDiveAccumulator = new Map();
@@ -889,7 +887,7 @@ const runDeepDiveScan = async (
 
   logDeepDive('info', 'Starting deep dive scan', {
     requestedEntries: entries.length,
-    limitedEntries: totalCalls,
+    totalCalls,
     targetLookback,
   });
 
@@ -903,10 +901,6 @@ const runDeepDiveScan = async (
   }
 
   updateProgressAsync();
-
-  if (entries.length > totalCalls) {
-    sendMessageAsync('Limiting deep dive scan to 1 request to keep exports manageable.', 'info');
-  }
 
   const processEntry = async (entry) => {
     logDeepDive('info', 'Processing deep dive entry', {
