@@ -186,7 +186,6 @@ const downloadDeepDiveJson = (data, filename) => {
 export const exportDeepDiveJson = () => {
   downloadDeepDiveJson(metadata_visitors, 'metadata-deep-dive-visitors.json');
   downloadDeepDiveJson(metadata_accounts, 'metadata-deep-dive-accounts.json');
-  downloadDeepDiveJson(metadata_api_calls, 'metadata-deep-dive-api-calls.json');
 };
 
 const clearDeepDiveCollections = () => {
