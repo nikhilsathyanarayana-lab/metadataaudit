@@ -13,6 +13,17 @@
 
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
 
+const createAggregationError = (message, status, body) => {
+  const error = new Error(message);
+  error.responseStatus = status;
+  error.responseBody = body;
+  error.details = {
+    status: status ?? 'unknown status',
+    body: body ?? '',
+  };
+  return error;
+};
+
 export const buildAggregationUrl = (envUrls, envValue, subId) => {
   const endpointTemplate = envUrls?.[envValue];
   return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
@@ -294,25 +305,35 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
   }
 
   const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation`;
-  const response = await fetchImpl(endpoint, {
-    method: 'POST',
-    headers: buildRequestHeaders(integrationKey),
-    body: JSON.stringify(payload),
-  });
+  let response;
 
-  if (!response?.ok) {
-    const rawBody = await response.text().catch(() => '');
-    const statusLabel = response?.status ?? 'unknown status';
-    const detail = rawBody?.trim() ? `: ${rawBody.trim()}` : '';
-
-    const error = new Error(`Aggregation request failed (${statusLabel})${detail}`);
-    error.responseStatus = response?.status;
-    error.responseBody = rawBody;
-
-    throw error;
+  try {
+    response = await fetchImpl(endpoint, {
+      method: 'POST',
+      headers: buildRequestHeaders(integrationKey),
+      body: JSON.stringify(payload),
+    });
+  } catch (networkError) {
+    throw createAggregationError(
+      networkError?.message || 'Aggregation request could not be sent.',
+      null,
+      '',
+    );
   }
 
-  return response.json();
+  const rawBody = await response?.text().catch(() => '');
+
+  if (!response?.ok) {
+    const statusLabel = response?.status ?? 'unknown status';
+    const detail = rawBody?.trim() ? `: ${rawBody.trim()}` : '';
+    throw createAggregationError(`Aggregation request failed (${statusLabel})${detail}`.trim(), response?.status, rawBody);
+  }
+
+  try {
+    return rawBody ? JSON.parse(rawBody) : {};
+  } catch (parseError) {
+    throw createAggregationError('Aggregation response was not valid JSON.', response?.status, rawBody);
+  }
 };
 
 /**
@@ -341,32 +362,42 @@ export const fetchAggregation = async (
     throw new Error('Missing pendo.sess.jwt2 token for the proxy request.');
   }
 
-  const response = await fetchImpl(proxyEndpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
-      payload,
-      region,
-      subId,
-      token,
-      endpointPreview: normalizeDomain(url),
-    }),
-    credentials: 'same-origin',
-  });
+  let response;
 
-  if (!response.ok) {
-    const rawBody = await response.text().catch(() => '');
-    let parsedBody;
+  try {
+    response = await fetchImpl(proxyEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        payload,
+        region,
+        subId,
+        token,
+        endpointPreview: normalizeDomain(url),
+      }),
+      credentials: 'same-origin',
+    });
+  } catch (networkError) {
+    throw createAggregationError(
+      networkError?.message || 'Aggregation proxy request could not be sent.',
+      null,
+      '',
+    );
+  }
 
-    try {
-      parsedBody = rawBody ? JSON.parse(rawBody) : null;
-    } catch (parseError) {
-      parsedBody = null;
-    }
+  const rawBody = await response?.text().catch(() => '');
+  let parsedBody;
 
+  try {
+    parsedBody = rawBody ? JSON.parse(rawBody) : null;
+  } catch (parseError) {
+    parsedBody = null;
+  }
+
+  if (!response?.ok) {
     const extractDetails = () => {
       if (parsedBody && typeof parsedBody === 'object') {
         const { error, message, overall, fields } = parsedBody;
@@ -383,21 +414,28 @@ export const fetchAggregation = async (
     };
 
     const detail = extractDetails();
-    const statusLabel = response.status || 'unknown status';
+    const statusLabel = response?.status || 'unknown status';
     const message = detail
       ? `Aggregation request failed (${statusLabel}): ${detail}`
       : `Aggregation request failed (status ${statusLabel}).`;
 
-    const error = new Error(message);
     console.error('Aggregation response details:', {
-      status: response.status ?? 'unknown status',
+      status: response?.status ?? 'unknown status',
       body: parsedBody ?? rawBody ?? '',
     });
-    error.details = { status: response.status, body: parsedBody || rawBody };
-    throw error;
+
+    throw createAggregationError(message, response?.status, parsedBody || rawBody);
   }
 
-  return response.json();
+  if (!rawBody) {
+    return {};
+  }
+
+  try {
+    return parsedBody ?? JSON.parse(rawBody);
+  } catch (parseError) {
+    throw createAggregationError('Aggregation response was not valid JSON.', response?.status, rawBody);
+  }
 };
 
 export default {
