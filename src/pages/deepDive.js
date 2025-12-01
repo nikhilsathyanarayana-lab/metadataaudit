@@ -16,11 +16,19 @@ const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
 const DEBUG_DEEP_DIVE =
   (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
 const logDeepDive = (level, ...messages) => {
-  const logger = typeof console?.[level] === 'function' ? console[level] : console.log;
+  const normalizedLevel =
+    level === 'error' || level === 'warn' || level === 'debug' ? level : 'info';
 
-  if (!DEBUG_DEEP_DIVE && level === 'debug') {
+  if (!DEBUG_DEEP_DIVE && normalizedLevel !== 'error') {
     return;
   }
+
+  const logger =
+    normalizedLevel === 'error' && typeof console?.error === 'function'
+      ? console.error
+      : typeof console?.[normalizedLevel] === 'function'
+        ? console[normalizedLevel]
+        : console.log;
 
   logger('[DeepDive]', ...messages);
 };
