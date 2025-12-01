@@ -135,6 +135,29 @@ const extractCellValue = (cell) => {
   return cell.textContent.trim();
 };
 
+const LOOKBACK_WINDOWS = [180, 30, 7];
+
+const parseCount = (value) => {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  const numeric = Number(String(value).replace(/,/g, '').trim());
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const initWindowTotals = () => ({
+  180: 0,
+  30: 0,
+  7: 0,
+});
+
+const addCountsToTotals = (totals, counts) => {
+  LOOKBACK_WINDOWS.forEach((windowDays) => {
+    totals[windowDays] += counts?.[windowDays] || 0;
+  });
+};
+
 const combineAppIdentifiers = (headers, rows) => {
   const appNameIndex = headers.findIndex((header) => header.toLowerCase() === 'app name');
   const appIdIndex = headers.findIndex((header) => header.toLowerCase() === 'app id');
@@ -236,37 +259,80 @@ const collectTableData = (table) => {
   return { headers: cleanedHeaders, rows: cleanedRows };
 };
 
-const buildTableRows = (table, label) => {
+const collectMetadataRows = (table, type) => {
   if (!table) {
     return [];
   }
 
   const { headers, rows } = collectTableData(table);
+  const subIndex = headers.findIndex((header) => header.toLowerCase() === 'sub id');
+  const appNameIndex = headers.findIndex((header) => header.toLowerCase().includes('app name'));
+  const appIdIndex = headers.findIndex((header) => header.toLowerCase().includes('app id'));
+  const windowIndexes = LOOKBACK_WINDOWS.reduce((acc, windowDays) => {
+    const idx = headers.findIndex((header) => header.includes(windowDays));
+    if (idx !== -1) {
+      acc[windowDays] = idx;
+    }
+    return acc;
+  }, {});
 
-  return rows.map((rowCells) => {
-    const row = { Type: label };
-    headers.forEach((header, idx) => {
-      row[header || `Column ${idx + 1}`] = rowCells[idx];
-    });
-    return row;
-  });
+  return rows.map((cells) => ({
+    subId: subIndex === -1 ? '' : cells[subIndex],
+    appName: appNameIndex === -1 ? '' : cells[appNameIndex],
+    appId: appIdIndex === -1 ? '' : cells[appIdIndex],
+    type,
+    counts: LOOKBACK_WINDOWS.reduce(
+      (acc, windowDays) => ({
+        ...acc,
+        [windowDays]: parseCount(cells[windowIndexes[windowDays]]),
+      }),
+      {},
+    ),
+  }));
 };
 
-const collectPageTables = (root) => {
-  const visitorMetadataTable = root.getElementById('visitor-metadata-table');
-  const accountMetadataTable = root.getElementById('account-metadata-table');
-  const visitorDeepDiveTable = root.getElementById('visitor-deep-dive-table');
-  const accountDeepDiveTable = root.getElementById('account-deep-dive-table');
+const aggregateBySubscription = (visitorRows, accountRows) => {
+  const subscriptions = new Map();
+  const overallTotals = { visitor: initWindowTotals(), account: initWindowTotals() };
+
+  const addRow = (row) => {
+    if (!row) {
+      return;
+    }
+
+    const { subId, appId, appName, counts, type } = row;
+    const existingSub = subscriptions.get(subId) || {
+      subId,
+      apps: new Map(),
+      totals: { visitor: initWindowTotals(), account: initWindowTotals() },
+    };
+
+    addCountsToTotals(existingSub.totals[type], counts);
+
+    const existingApp = existingSub.apps.get(appId) || {
+      appId,
+      appName,
+      totals: { visitor: initWindowTotals(), account: initWindowTotals() },
+    };
+
+    addCountsToTotals(existingApp.totals[type], counts);
+
+    existingSub.apps.set(appId, existingApp);
+    subscriptions.set(subId, existingSub);
+    addCountsToTotals(overallTotals[type], counts);
+  };
+
+  visitorRows.forEach((row) => addRow(row));
+  accountRows.forEach((row) => addRow(row));
 
   return {
-    metadataRows: [
-      ...buildTableRows(visitorMetadataTable, 'Visitor metadata'),
-      ...buildTableRows(accountMetadataTable, 'Account metadata'),
-    ],
-    deepDiveRows: [
-      ...buildTableRows(visitorDeepDiveTable, 'Visitor deep dive'),
-      ...buildTableRows(accountDeepDiveTable, 'Account deep dive'),
-    ],
+    overallTotals,
+    subscriptions: Array.from(subscriptions.values()).map((subscription) => ({
+      ...subscription,
+      apps: Array.from(subscription.apps.values()),
+    })),
+    distinctSubCount: subscriptions.size,
+    distinctAppCount: new Set([...visitorRows, ...accountRows].map((row) => row.appId)).size,
   };
 };
 
@@ -317,20 +383,99 @@ const downloadWorkbook = (workbook, filename) => {
   );
 };
 
-const buildWorkbook = ({ metadataRows, deepDiveRows }) => {
+const sanitizeSheetName = (name, existingNames = new Set()) => {
+  const cleaned = (name || 'Sheet').replace(/[\[\]\*\?:\\\/]/g, '').slice(0, 31) || 'Sheet';
+  let candidate = cleaned;
+  let suffix = 1;
+
+  while (existingNames.has(candidate)) {
+    const trimmedBase = cleaned.slice(0, 28);
+    candidate = `${trimmedBase}-${suffix}`.slice(0, 31);
+    suffix += 1;
+  }
+
+  existingNames.add(candidate);
+  return candidate;
+};
+
+const buildWorkbook = ({ overallTotals, subscriptions, distinctSubCount, distinctAppCount }) => {
   const workbook = window.XLSX.utils.book_new();
+  const sheetNames = new Set();
 
-  const metadataSheet = buildSheet(
-    metadataRows,
-    'No metadata fields were available to export. Run the Metadata Fields page and try again.',
-  );
-  window.XLSX.utils.book_append_sheet(workbook, metadataSheet, 'Metadata fields');
+  const summaryRows = [
+    {
+      Scope: 'All data',
+      Type: 'Visitor',
+      'Distinct subs': distinctSubCount,
+      'Distinct apps': distinctAppCount,
+      '180 days': overallTotals.visitor[180],
+      '30 days': overallTotals.visitor[30],
+      '7 days': overallTotals.visitor[7],
+    },
+    {
+      Scope: 'All data',
+      Type: 'Account',
+      'Distinct subs': distinctSubCount,
+      'Distinct apps': distinctAppCount,
+      '180 days': overallTotals.account[180],
+      '30 days': overallTotals.account[30],
+      '7 days': overallTotals.account[7],
+    },
+  ];
 
-  const deepDiveSheet = buildSheet(
-    deepDiveRows,
-    'No deep-dive rows were available to export. Visit the Deep Dive page and try again.',
-  );
-  window.XLSX.utils.book_append_sheet(workbook, deepDiveSheet, 'Deep dive');
+  const summarySheet = buildSheet(summaryRows, 'No metadata fields were available to summarize.');
+  window.XLSX.utils.book_append_sheet(workbook, summarySheet, sanitizeSheetName('whole-data summary', sheetNames));
+
+  const subLevelRows = subscriptions.flatMap((subscription) => [
+    {
+      'Sub ID': subscription.subId || 'Unknown',
+      Type: 'Visitor',
+      'App count': subscription.apps.length,
+      '180 days': subscription.totals.visitor[180],
+      '30 days': subscription.totals.visitor[30],
+      '7 days': subscription.totals.visitor[7],
+    },
+    {
+      'Sub ID': subscription.subId || 'Unknown',
+      Type: 'Account',
+      'App count': subscription.apps.length,
+      '180 days': subscription.totals.account[180],
+      '30 days': subscription.totals.account[30],
+      '7 days': subscription.totals.account[7],
+    },
+  ]);
+
+  const subLevelSheet = buildSheet(subLevelRows, 'No subscription-level details were available to export.');
+  window.XLSX.utils.book_append_sheet(workbook, subLevelSheet, sanitizeSheetName('Sub level', sheetNames));
+
+  subscriptions.forEach((subscription) => {
+    subscription.apps.forEach((app) => {
+      const rows = [
+        {
+          Type: 'Visitor',
+          'Sub ID': subscription.subId || 'Unknown',
+          'App name': app.appName || app.appId || 'Unknown',
+          'App ID': app.appId || '',
+          '180 days': app.totals.visitor[180],
+          '30 days': app.totals.visitor[30],
+          '7 days': app.totals.visitor[7],
+        },
+        {
+          Type: 'Account',
+          'Sub ID': subscription.subId || 'Unknown',
+          'App name': app.appName || app.appId || 'Unknown',
+          'App ID': app.appId || '',
+          '180 days': app.totals.account[180],
+          '30 days': app.totals.account[30],
+          '7 days': app.totals.account[7],
+        },
+      ];
+
+      const sheet = buildSheet(rows, 'No app-level metadata was available to export.');
+      const sheetLabel = `${subscription.subId || 'sub'}-${app.appName || app.appId || 'app'} breakdown`;
+      window.XLSX.utils.book_append_sheet(workbook, sheet, sanitizeSheetName(sheetLabel, sheetNames));
+    });
+  });
 
   return workbook;
 };
@@ -345,15 +490,14 @@ export const exportMetadataXlsx = async () => {
   await waitForMetadataFields();
 
   const metadataDoc = await ensurePageDocument('metadata_fields.html');
-  const deepDiveDoc = await ensurePageDocument('deep_dive.html');
+  const visitorTable = metadataDoc?.getElementById('visitor-metadata-table');
+  const accountTable = metadataDoc?.getElementById('account-metadata-table');
 
-  const metadataTables = metadataDoc ? collectPageTables(metadataDoc) : { metadataRows: [], deepDiveRows: [] };
-  const deepDiveTables = deepDiveDoc ? collectPageTables(deepDiveDoc) : { metadataRows: [], deepDiveRows: [] };
+  const visitorRows = collectMetadataRows(visitorTable, 'visitor');
+  const accountRows = collectMetadataRows(accountTable, 'account');
+  const aggregation = aggregateBySubscription(visitorRows, accountRows);
 
-  const workbook = buildWorkbook({
-    metadataRows: metadataTables.metadataRows,
-    deepDiveRows: deepDiveTables.deepDiveRows,
-  });
+  const workbook = buildWorkbook(aggregation);
 
   downloadWorkbook(workbook, desiredName || buildDefaultFileName());
 };

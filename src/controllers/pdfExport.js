@@ -54,6 +54,29 @@ const extractCellValue = (cell) => {
   return cell.textContent.trim();
 };
 
+const LOOKBACK_WINDOWS = [180, 30, 7];
+
+const parseCount = (value) => {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  const numeric = Number(String(value).replace(/,/g, '').trim());
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const initWindowTotals = () => ({
+  180: 0,
+  30: 0,
+  7: 0,
+});
+
+const addCountsToTotals = (totals, counts) => {
+  LOOKBACK_WINDOWS.forEach((windowDays) => {
+    totals[windowDays] += counts?.[windowDays] || 0;
+  });
+};
+
 const combineAppIdentifiers = (headers, rows) => {
   const appNameIndex = headers.findIndex((header) => header.toLowerCase() === 'app name');
   const appIdIndex = headers.findIndex((header) => header.toLowerCase() === 'app id');
@@ -87,6 +110,100 @@ const collectTableData = (table) => {
 
   return combineAppIdentifiers(headers, rows);
 };
+
+const collectMetadataRows = (table, type) => {
+  if (!table) {
+    return [];
+  }
+
+  const { headers, rows } = collectTableData(table);
+  const subIndex = headers.findIndex((header) => header.toLowerCase() === 'sub id');
+  const appNameIndex = headers.findIndex((header) => header.toLowerCase().includes('app name'));
+  const appIdIndex = headers.findIndex((header) => header.toLowerCase().includes('app id'));
+  const windowIndexes = LOOKBACK_WINDOWS.reduce((acc, windowDays) => {
+    const idx = headers.findIndex((header) => header.includes(windowDays));
+    if (idx !== -1) {
+      acc[windowDays] = idx;
+    }
+    return acc;
+  }, {});
+
+  return rows.map((cells) => ({
+    subId: subIndex === -1 ? '' : cells[subIndex],
+    appName: appNameIndex === -1 ? '' : cells[appNameIndex],
+    appId: appIdIndex === -1 ? '' : cells[appIdIndex],
+    type,
+    counts: LOOKBACK_WINDOWS.reduce(
+      (acc, windowDays) => ({
+        ...acc,
+        [windowDays]: parseCount(cells[windowIndexes[windowDays]]),
+      }),
+      {},
+    ),
+  }));
+};
+
+const aggregateBySubscription = (visitorRows, accountRows) => {
+  const subscriptions = new Map();
+  const overallTotals = { visitor: initWindowTotals(), account: initWindowTotals() };
+
+  const addRow = (row) => {
+    if (!row) {
+      return;
+    }
+
+    const { subId, appId, appName, counts, type } = row;
+    const existingSub = subscriptions.get(subId) || {
+      subId,
+      apps: new Map(),
+      totals: { visitor: initWindowTotals(), account: initWindowTotals() },
+    };
+
+    addCountsToTotals(existingSub.totals[type], counts);
+
+    const existingApp = existingSub.apps.get(appId) || {
+      appId,
+      appName,
+      totals: { visitor: initWindowTotals(), account: initWindowTotals() },
+    };
+
+    addCountsToTotals(existingApp.totals[type], counts);
+
+    existingSub.apps.set(appId, existingApp);
+    subscriptions.set(subId, existingSub);
+    addCountsToTotals(overallTotals[type], counts);
+  };
+
+  visitorRows.forEach((row) => addRow(row));
+  accountRows.forEach((row) => addRow(row));
+
+  return {
+    overallTotals,
+    subscriptions: Array.from(subscriptions.values()).map((subscription) => ({
+      ...subscription,
+      apps: Array.from(subscription.apps.values()),
+    })),
+  };
+};
+
+const buildSubscriptionSummaryRows = (subscriptions) =>
+  subscriptions.map((subscription) => [
+    subscription.subId || 'Unknown',
+    subscription.apps.length,
+    LOOKBACK_WINDOWS.map((windowDays) => subscription.totals.visitor[windowDays]).join(' / '),
+    LOOKBACK_WINDOWS.map((windowDays) => subscription.totals.account[windowDays]).join(' / '),
+  ]);
+
+const buildSubscriptionOverviewRows = (subscription) => [
+  ['Visitor', subscription.totals.visitor[180], subscription.totals.visitor[30], subscription.totals.visitor[7]],
+  ['Account', subscription.totals.account[180], subscription.totals.account[30], subscription.totals.account[7]],
+];
+
+const buildAppBreakdownRows = (subscription) =>
+  subscription.apps.flatMap((app) => [
+    ['Visitor', app.appName || app.appId || 'Unknown', app.appId || '', app.totals.visitor[180], app.totals.visitor[30], app.totals.visitor[7]],
+    ['Account', app.appName || app.appId || 'Unknown', app.appId || '', app.totals.account[180], app.totals.account[30], app.totals.account[7]],
+  ]);
 
 const createTableElement = ({ title, hint, headers, rows }) => {
   const section = document.createElement('section');
@@ -149,23 +266,54 @@ const buildPrintableDocument = () => {
   `;
   container.appendChild(brandHeader);
 
-  const cardSections = document.querySelectorAll('section.card');
-  cardSections.forEach((card) => {
-    const table = card.querySelector('table');
-    if (!table) {
-      return;
-    }
+  const visitorTable = document.getElementById('visitor-metadata-table');
+  const accountTable = document.getElementById('account-metadata-table');
 
-    const title = card.querySelector('.section-title')?.textContent?.trim();
-    const hint = card.querySelector('.section-hint')?.textContent?.trim();
-    const tableData = collectTableData(table);
-    const printableSection = createTableElement({
-      title,
-      hint,
-      ...tableData,
+  const visitorRows = collectMetadataRows(visitorTable, 'visitor');
+  const accountRows = collectMetadataRows(accountTable, 'account');
+  const { overallTotals, subscriptions } = aggregateBySubscription(visitorRows, accountRows);
+
+  const summarySection = createTableElement({
+    title: 'Subscription summary',
+    hint: 'Totals represent visitor/account metadata across 180 / 30 / 7 days.',
+    headers: ['Sub ID', 'App count', 'Visitor totals', 'Account totals'],
+    rows: [
+      [
+        'All subscriptions',
+        new Set([...visitorRows, ...accountRows].map((row) => row.appId)).size,
+        LOOKBACK_WINDOWS.map((windowDays) => overallTotals.visitor[windowDays]).join(' / '),
+        LOOKBACK_WINDOWS.map((windowDays) => overallTotals.account[windowDays]).join(' / '),
+      ],
+      ...buildSubscriptionSummaryRows(subscriptions),
+    ],
+  });
+
+  container.appendChild(summarySection);
+
+  subscriptions.forEach((subscription) => {
+    const section = document.createElement('section');
+    section.className = 'pdf-subscription-section';
+
+    const heading = document.createElement('h2');
+    heading.textContent = `Subscription ${subscription.subId || 'Unknown'}`;
+    section.appendChild(heading);
+
+    const overviewTable = createTableElement({
+      title: 'Metadata overview',
+      headers: ['Type', '180 days', '30 days', '7 days'],
+      rows: buildSubscriptionOverviewRows(subscription),
     });
 
-    container.appendChild(printableSection);
+    const appBreakdownTable = createTableElement({
+      title: 'App breakdown',
+      hint: 'Rows list visitor and account metadata totals per app.',
+      headers: ['Type', 'App name', 'App ID', '180 days', '30 days', '7 days'],
+      rows: buildAppBreakdownRows(subscription),
+    });
+
+    section.appendChild(overviewTable);
+    section.appendChild(appBreakdownTable);
+    container.appendChild(section);
   });
 
   return container;
