@@ -534,9 +534,9 @@ const buildVisitorExportRows = (aggregation) =>
             }))
             .sort((first, second) => first.field.localeCompare(second.field)),
         }))
-        .sort((first, second) => first.appId.localeCompare(second.appId)),
+        .sort((first, second) => String(first.appId).localeCompare(String(second.appId))),
     }))
-    .sort((first, second) => first.subId.localeCompare(second.subId));
+    .sort((first, second) => String(first.subId).localeCompare(String(second.subId)));
 
 const buildAccountExportRows = (aggregation) =>
   Array.from(aggregation.values())
@@ -554,7 +554,7 @@ const buildAccountExportRows = (aggregation) =>
       ),
     )
     .sort((first, second) => {
-      const subComparison = first.subId.localeCompare(second.subId);
+      const subComparison = String(first.subId).localeCompare(String(second.subId));
 
       if (subComparison) {
         return subComparison;
