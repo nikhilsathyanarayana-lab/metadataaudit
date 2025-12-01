@@ -43,7 +43,8 @@ export const initAppSelection = () => {
       return;
     }
 
-    progressBanner.textContent = `Fetched ${completed} of ${total}`;
+    const isComplete = completed >= total;
+    progressBanner.textContent = isComplete ? 'Fetched' : `Fetching ${completed} / ${total}`;
   };
 
   const parseStoredLaunchData = () => {
