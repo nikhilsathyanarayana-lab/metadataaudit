@@ -36,6 +36,55 @@
   gap: 1.5rem;
 }
 
+.pdf-cover-page {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 1.75rem 1.5rem;
+  background: linear-gradient(120deg, #f557a6 0%, #e0006c 100%);
+  color: #fff;
+  border-radius: 18px;
+  box-shadow: 0 14px 42px rgba(224, 0, 108, 0.25);
+}
+
+.pdf-cover-brand {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.75rem 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  border-radius: 16px;
+  text-align: center;
+  min-width: 96px;
+}
+
+.pdf-cover-copy h1 {
+  margin: 0 0 0.35rem 0;
+  font-size: 1.9rem;
+  color: #fff;
+}
+
+.pdf-cover-subtitle {
+  margin: 0 0 0.9rem 0;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+}
+
+.pdf-cover-list-heading {
+  margin: 0 0 0.35rem 0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pdf-cover-sub-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: rgba(255, 255, 255, 0.92);
+  display: grid;
+  gap: 0.2rem;
+}
+
 .pdf-export-header {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -89,6 +138,49 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
   break-inside: avoid;
   page-break-inside: avoid;
+}
+
+.pdf-subscription-hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.2rem 1.4rem;
+  background: linear-gradient(135deg, #f557a6 0%, #e0006c 100%);
+  color: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(224, 0, 108, 0.22);
+  margin-bottom: 1rem;
+}
+
+.pdf-hero-brand {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.6rem 0.9rem;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.pdf-hero-copy h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #fff;
+}
+
+.pdf-hero-eyebrow {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pdf-hero-subtitle {
+  margin: 0.2rem 0 0 0;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .pdf-section h3 {

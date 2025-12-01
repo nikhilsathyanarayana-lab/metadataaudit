@@ -54,61 +54,13 @@ const extractCellValue = (cell) => {
   return cell.textContent.trim();
 };
 
-const LOOKBACK_WINDOWS = [180, 30, 7];
-
-const parseCount = (value) => {
-  if (value === null || value === undefined) {
-    return 0;
-  }
-
-  const numeric = Number(String(value).replace(/,/g, '').trim());
-  return Number.isFinite(numeric) ? numeric : 0;
-};
-
-const initWindowTotals = () => ({
-  180: 0,
-  30: 0,
-  7: 0,
-});
-
-const addCountsToTotals = (totals, counts) => {
-  LOOKBACK_WINDOWS.forEach((windowDays) => {
-    totals[windowDays] += counts?.[windowDays] || 0;
-  });
-};
-
-const combineAppIdentifiers = (headers, rows) => {
-  const appNameIndex = headers.findIndex((header) => header.toLowerCase() === 'app name');
-  const appIdIndex = headers.findIndex((header) => header.toLowerCase() === 'app id');
-
-  if (appNameIndex === -1 || appIdIndex === -1) {
-    return { headers, rows };
-  }
-
-  const primaryIndex = Math.min(appNameIndex, appIdIndex);
-  const removalIndex = appNameIndex === primaryIndex ? appIdIndex : appNameIndex;
-
-  const updatedHeaders = [...headers];
-  updatedHeaders.splice(removalIndex, 1);
-
-  const updatedRows = rows.map((row) => {
-    const combinedValue = [row[appNameIndex], row[appIdIndex]].filter(Boolean).join('\n');
-    const updatedRow = [...row];
-    updatedRow[primaryIndex] = combinedValue;
-    updatedRow.splice(removalIndex, 1);
-    return updatedRow;
-  });
-
-  return { headers: updatedHeaders, rows: updatedRows };
-};
-
 const collectTableData = (table) => {
-  let headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
-  let rows = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
+  const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+  const rows = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
     Array.from(row.querySelectorAll('td')).map(extractCellValue),
   );
 
-  return combineAppIdentifiers(headers, rows);
+  return { headers, rows };
 };
 
 const collectMetadataRows = (table, type) => {
@@ -118,92 +70,34 @@ const collectMetadataRows = (table, type) => {
 
   const { headers, rows } = collectTableData(table);
   const subIndex = headers.findIndex((header) => header.toLowerCase() === 'sub id');
-  const appNameIndex = headers.findIndex((header) => header.toLowerCase().includes('app name'));
-  const appIdIndex = headers.findIndex((header) => header.toLowerCase().includes('app id'));
-  const windowIndexes = LOOKBACK_WINDOWS.reduce((acc, windowDays) => {
-    const idx = headers.findIndex((header) => header.includes(windowDays));
-    if (idx !== -1) {
-      acc[windowDays] = idx;
-    }
-    return acc;
-  }, {});
+  const subColumn = subIndex === -1 ? null : subIndex;
 
   return rows.map((cells) => ({
-    subId: subIndex === -1 ? '' : cells[subIndex],
-    appName: appNameIndex === -1 ? '' : cells[appNameIndex],
-    appId: appIdIndex === -1 ? '' : cells[appIdIndex],
+    subId: subColumn === null ? 'Unknown' : cells[subColumn] || 'Unknown',
     type,
-    counts: LOOKBACK_WINDOWS.reduce(
-      (acc, windowDays) => ({
-        ...acc,
-        [windowDays]: parseCount(cells[windowIndexes[windowDays]]),
-      }),
-      {},
-    ),
+    headers,
+    cells,
   }));
 };
 
 const aggregateBySubscription = (visitorRows, accountRows) => {
   const subscriptions = new Map();
-  const overallTotals = { visitor: initWindowTotals(), account: initWindowTotals() };
 
   const addRow = (row) => {
     if (!row) {
       return;
     }
 
-    const { subId, appId, appName, counts, type } = row;
-    const existingSub = subscriptions.get(subId) || {
-      subId,
-      apps: new Map(),
-      totals: { visitor: initWindowTotals(), account: initWindowTotals() },
-    };
-
-    addCountsToTotals(existingSub.totals[type], counts);
-
-    const existingApp = existingSub.apps.get(appId) || {
-      appId,
-      appName,
-      totals: { visitor: initWindowTotals(), account: initWindowTotals() },
-    };
-
-    addCountsToTotals(existingApp.totals[type], counts);
-
-    existingSub.apps.set(appId, existingApp);
-    subscriptions.set(subId, existingSub);
-    addCountsToTotals(overallTotals[type], counts);
+    const existing = subscriptions.get(row.subId) || { subId: row.subId, visitor: [], account: [] };
+    existing[row.type].push({ headers: row.headers, cells: row.cells });
+    subscriptions.set(row.subId, existing);
   };
 
   visitorRows.forEach((row) => addRow(row));
   accountRows.forEach((row) => addRow(row));
 
-  return {
-    overallTotals,
-    subscriptions: Array.from(subscriptions.values()).map((subscription) => ({
-      ...subscription,
-      apps: Array.from(subscription.apps.values()),
-    })),
-  };
+  return Array.from(subscriptions.values());
 };
-
-const buildSubscriptionSummaryRows = (subscriptions) =>
-  subscriptions.map((subscription) => [
-    subscription.subId || 'Unknown',
-    subscription.apps.length,
-    LOOKBACK_WINDOWS.map((windowDays) => subscription.totals.visitor[windowDays]).join(' / '),
-    LOOKBACK_WINDOWS.map((windowDays) => subscription.totals.account[windowDays]).join(' / '),
-  ]);
-
-const buildSubscriptionOverviewRows = (subscription) => [
-  ['Visitor', subscription.totals.visitor[180], subscription.totals.visitor[30], subscription.totals.visitor[7]],
-  ['Account', subscription.totals.account[180], subscription.totals.account[30], subscription.totals.account[7]],
-];
-
-const buildAppBreakdownRows = (subscription) =>
-  subscription.apps.flatMap((app) => [
-    ['Visitor', app.appName || app.appId || 'Unknown', app.appId || '', app.totals.visitor[180], app.totals.visitor[30], app.totals.visitor[7]],
-    ['Account', app.appName || app.appId || 'Unknown', app.appId || '', app.totals.account[180], app.totals.account[30], app.totals.account[7]],
-  ]);
 
 const createTableElement = ({ title, hint, headers, rows }) => {
   const section = document.createElement('section');
@@ -250,69 +144,126 @@ const createTableElement = ({ title, hint, headers, rows }) => {
   return section;
 };
 
+const buildCoverPage = (subscriptions) => {
+  const cover = document.createElement('section');
+  cover.className = 'pdf-cover-page';
+
+  const brand = document.createElement('div');
+  brand.className = 'pdf-cover-brand';
+  brand.textContent = 'Pendo';
+
+  const copy = document.createElement('div');
+  copy.className = 'pdf-cover-copy';
+
+  const title = document.createElement('h1');
+  title.textContent = 'Metadata Fields Export';
+
+  const subtitle = document.createElement('p');
+  subtitle.className = 'pdf-cover-subtitle';
+  subtitle.textContent = 'Visitor and account metadata pulled directly from your selections.';
+
+  const listHeading = document.createElement('p');
+  listHeading.className = 'pdf-cover-list-heading';
+  listHeading.textContent = 'Subscriptions included';
+
+  const list = document.createElement('ul');
+  list.className = 'pdf-cover-sub-list';
+
+  const uniqueSubs = subscriptions.length ? subscriptions : ['None provided'];
+  uniqueSubs.forEach((subId) => {
+    const li = document.createElement('li');
+    li.textContent = subId || 'Unknown';
+    list.appendChild(li);
+  });
+
+  copy.append(title, subtitle, listHeading, list);
+  cover.append(brand, copy);
+  return cover;
+};
+
+const buildSubscriptionHero = (subId) => {
+  const header = document.createElement('header');
+  header.className = 'pdf-subscription-hero';
+
+  const brand = document.createElement('div');
+  brand.className = 'pdf-hero-brand';
+  brand.textContent = 'Pendo';
+
+  const copy = document.createElement('div');
+  copy.className = 'pdf-hero-copy';
+
+  const eyebrow = document.createElement('p');
+  eyebrow.className = 'pdf-hero-eyebrow';
+  eyebrow.textContent = 'Metadata Audit Export';
+
+  const title = document.createElement('h2');
+  title.textContent = `Metadata Fields — Subscription ${subId || 'Unknown'}`;
+
+  const subtitle = document.createElement('p');
+  subtitle.className = 'pdf-hero-subtitle';
+  subtitle.textContent = 'Visitor and account metadata with deep-dive details';
+
+  copy.append(eyebrow, title, subtitle);
+  header.append(brand, copy);
+  return header;
+};
+
+const createMetadataTable = (title, headers, rows, emptyMessage) => {
+  if (!headers?.length) {
+    const wrapper = document.createElement('section');
+    wrapper.className = 'pdf-section';
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    const hint = document.createElement('p');
+    hint.className = 'pdf-section-hint';
+    hint.textContent = emptyMessage;
+    wrapper.append(heading, hint);
+    return wrapper;
+  }
+
+  const normalizedRows = rows?.length ? rows : [[emptyMessage]];
+  return createTableElement({ title, headers, rows: normalizedRows });
+};
+
 const buildPrintableDocument = () => {
   const container = document.createElement('div');
   container.className = 'pdf-export-root';
-
-  const brandHeader = document.createElement('header');
-  brandHeader.className = 'pdf-export-header';
-  brandHeader.innerHTML = `
-    <div class="pdf-brand-mark">Pendo</div>
-    <div class="pdf-title-block">
-      <p class="pdf-eyebrow">Metadata audit export</p>
-      <h1>${document.title || 'Metadata Export'}</h1>
-      <p class="pdf-subtitle">Visitor and account metadata with deep-dive details</p>
-    </div>
-  `;
-  container.appendChild(brandHeader);
 
   const visitorTable = document.getElementById('visitor-metadata-table');
   const accountTable = document.getElementById('account-metadata-table');
 
   const visitorRows = collectMetadataRows(visitorTable, 'visitor');
   const accountRows = collectMetadataRows(accountTable, 'account');
-  const { overallTotals, subscriptions } = aggregateBySubscription(visitorRows, accountRows);
 
-  const summarySection = createTableElement({
-    title: 'Subscription summary',
-    hint: 'Totals represent visitor/account metadata across 180 / 30 / 7 days.',
-    headers: ['Sub ID', 'App count', 'Visitor totals', 'Account totals'],
-    rows: [
-      [
-        'All subscriptions',
-        new Set([...visitorRows, ...accountRows].map((row) => row.appId)).size,
-        LOOKBACK_WINDOWS.map((windowDays) => overallTotals.visitor[windowDays]).join(' / '),
-        LOOKBACK_WINDOWS.map((windowDays) => overallTotals.account[windowDays]).join(' / '),
-      ],
-      ...buildSubscriptionSummaryRows(subscriptions),
-    ],
-  });
-
-  container.appendChild(summarySection);
+  const subscriptions = aggregateBySubscription(visitorRows, accountRows);
+  const subscriptionIds = subscriptions.map((subscription) => subscription.subId);
+  container.appendChild(buildCoverPage(subscriptionIds));
 
   subscriptions.forEach((subscription) => {
     const section = document.createElement('section');
     section.className = 'pdf-subscription-section';
 
-    const heading = document.createElement('h2');
-    heading.textContent = `Subscription ${subscription.subId || 'Unknown'}`;
-    section.appendChild(heading);
+    section.appendChild(buildSubscriptionHero(subscription.subId));
 
-    const overviewTable = createTableElement({
-      title: 'Metadata overview',
-      headers: ['Type', '180 days', '30 days', '7 days'],
-      rows: buildSubscriptionOverviewRows(subscription),
-    });
+    const visitorHeaders = subscription.visitor[0]?.headers || visitorRows[0]?.headers || [];
+    const visitorData = subscription.visitor.map((row) => row.cells);
+    const visitorTableSection = createMetadataTable(
+      'Visitor metadata fields',
+      visitorHeaders,
+      visitorData,
+      'No visitor metadata found for this subscription.',
+    );
 
-    const appBreakdownTable = createTableElement({
-      title: 'App breakdown',
-      hint: 'Rows list visitor and account metadata totals per app.',
-      headers: ['Type', 'App name', 'App ID', '180 days', '30 days', '7 days'],
-      rows: buildAppBreakdownRows(subscription),
-    });
+    const accountHeaders = subscription.account[0]?.headers || accountRows[0]?.headers || [];
+    const accountData = subscription.account.map((row) => row.cells);
+    const accountTableSection = createMetadataTable(
+      'Account metadata fields',
+      accountHeaders,
+      accountData,
+      'No account metadata found for this subscription.',
+    );
 
-    section.appendChild(overviewTable);
-    section.appendChild(appBreakdownTable);
+    section.append(visitorTableSection, accountTableSection);
     container.appendChild(section);
   });
 
