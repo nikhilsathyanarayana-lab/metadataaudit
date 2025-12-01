@@ -23,7 +23,9 @@ import {
   collectDeepDiveMetadataFields,
   ensureDeepDiveAccumulatorEntry,
   exportDeepDiveJson,
+  metadata_accounts,
   metadata_api_calls,
+  metadata_visitors,
   updateMetadataApiCalls,
   updateMetadataCollections,
 } from './deepDive/aggregation.js';
@@ -395,6 +397,134 @@ const parseCount = (value) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
+const TOP_VALUE_LIMIT = 3;
+const NULL_RATE_THRESHOLD = 0.2;
+const MATCH_RATE_THRESHOLD = 0.8;
+
+const isNullishValue = (value) => {
+  if (value === null || value === undefined) {
+    return true;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === '' || normalized === 'null' || normalized === 'undefined';
+};
+
+const buildValueLookup = () => {
+  const lookup = new Map();
+
+  const addValueCount = (type, appId, field, rawValue, count = 0) => {
+    if (!type || !appId || !field) {
+      return;
+    }
+
+    const value = rawValue ?? '';
+    const key = `${type}:${appId}:${field}`;
+    const existing = lookup.get(key) || { total: 0, nullishCount: 0, counts: new Map() };
+    const nextCount = parseCount(count);
+
+    existing.total += nextCount;
+    existing.nullishCount += isNullishValue(value) ? nextCount : 0;
+    existing.counts.set(value, (existing.counts.get(value) || 0) + nextCount);
+
+    lookup.set(key, existing);
+  };
+
+  metadata_visitors.forEach((visitorEntry) => {
+    visitorEntry?.apps?.forEach((appEntry) => {
+      appEntry?.metadataFields?.forEach((fieldEntry) => {
+        fieldEntry?.values?.forEach((valueEntry) => {
+          addValueCount('visitor', appEntry.appId, fieldEntry.field, valueEntry.value, valueEntry.count);
+        });
+      });
+    });
+  });
+
+  metadata_accounts.forEach((accountEntry) => {
+    addValueCount('account', accountEntry.appId, accountEntry.field, accountEntry.value, accountEntry.count);
+  });
+
+  return lookup;
+};
+
+const getFormatEvaluator = (format, regexPattern) => {
+  if (format === 'email') {
+    return (value) => /[^@\s]+@[^@\s]+\.[^@\s]+/.test(String(value).trim());
+  }
+
+  if (format === 'number') {
+    return (value) => Number.isFinite(Number(String(value).trim()));
+  }
+
+  if (format === 'text') {
+    return (value) => !isNullishValue(value);
+  }
+
+  if (format === 'regex' && regexPattern) {
+    try {
+      const regex = new RegExp(regexPattern);
+      return (value) => regex.test(String(value));
+    } catch (error) {
+      logDeepDive('warn', 'Invalid regex pattern encountered for format evaluation', {
+        error: error?.message,
+      });
+      return null;
+    }
+  }
+
+  return null;
+};
+
+const getValueStats = (selection, valueLookup) => {
+  const key = `${selection.type}:${selection.appId}:${selection.fieldName}`;
+  const entry = valueLookup.get(key);
+
+  if (!entry) {
+    return {
+      topValues: 'No values captured',
+      matchRate: null,
+      nullRate: 0,
+      needsReview: false,
+      totalValues: 0,
+    };
+  }
+
+  const sortedValues = Array.from(entry.counts.entries()).sort((first, second) => {
+    if (second[1] === first[1]) {
+      return String(first[0]).localeCompare(String(second[0]));
+    }
+    return second[1] - first[1];
+  });
+  const topValues = sortedValues
+    .slice(0, TOP_VALUE_LIMIT)
+    .map(([value, count]) => `${value} (${count})`)
+    .join('; ');
+
+  const evaluator = getFormatEvaluator(selection.format, selection.regexPattern);
+  let matchRate = null;
+
+  if (evaluator && entry.total) {
+    const matches = sortedValues.reduce(
+      (total, [value, count]) => total + (evaluator(value) ? parseCount(count) : 0),
+      0,
+    );
+    matchRate = entry.total ? matches / entry.total : null;
+  }
+
+  const nullRate = entry.total ? entry.nullishCount / entry.total : 0;
+  const mismatchConcern = matchRate !== null && matchRate < MATCH_RATE_THRESHOLD;
+  const nullConcern = entry.total > 0 && nullRate >= NULL_RATE_THRESHOLD;
+  const missingRegex = selection.format === 'regex' && !selection.regexPattern;
+
+  return {
+    topValues: topValues || 'No values captured',
+    matchRate,
+    nullRate,
+    needsReview: mismatchConcern || nullConcern || missingRegex,
+    totalValues: entry.total,
+  };
+};
+
 const collectTableData = (table) => {
   const headerCells = Array.from(table?.querySelectorAll('thead th') || []);
   let headers = headerCells.map((th) => th.textContent.trim());
@@ -524,6 +654,8 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
   const workbook = window.XLSX.utils.book_new();
   const sheetNames = new Set();
   const { index, totals, distinctSubs, distinctApps } = buildLookbackIndex(metadataRecords);
+  const valueLookup = buildValueLookup();
+  const aggregatedRows = [];
 
   const summaryRows = [
     {
@@ -596,8 +728,11 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
         30: 0,
         7: 0,
       };
-
-      return {
+      const totalOccurrences = parseCount(counts[180]) + parseCount(counts[30]) + parseCount(counts[7]);
+      const valueStats = getValueStats(selection, valueLookup);
+      const matchPercent =
+        valueStats.matchRate === null ? 'N/A' : Number((valueStats.matchRate * 100).toFixed(1));
+      const row = {
         Type: selection.type === 'visitor' ? 'Visitor' : 'Account',
         'Sub ID': subId || selection.subId || 'Unknown',
         'App name': appName || selection.appId || 'Unknown',
@@ -608,7 +743,14 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
         '180 days': parseCount(counts[180]),
         '30 days': parseCount(counts[30]),
         '7 days': parseCount(counts[7]),
+        'Total occurrences': totalOccurrences,
+        'Top values (count)': valueStats.topValues || 'No values captured',
+        'Format match %': matchPercent,
+        'Needs review': valueStats.needsReview ? 'Yes' : 'No',
       };
+
+      aggregatedRows.push(row);
+      return row;
     });
 
     const sheet = buildSheet(rows, 'No deep dive metadata was available for this app.');
@@ -619,6 +761,21 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       sanitizeSheetName(sheetLabel, sheetNames),
     );
   });
+
+  const fieldAnalysisRows = aggregatedRows.sort(
+    (first, second) => (parseCount(second['Total occurrences']) || 0) - (parseCount(first['Total occurrences']) || 0),
+  );
+
+  const fieldAnalysisSheet = buildSheet(
+    fieldAnalysisRows,
+    'No field-level analytics were available to export.',
+  );
+
+  window.XLSX.utils.book_append_sheet(
+    workbook,
+    fieldAnalysisSheet,
+    sanitizeSheetName('Field analysis', sheetNames),
+  );
 
   return workbook;
 };
