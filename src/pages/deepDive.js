@@ -13,6 +13,7 @@ const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
 const DEEP_DIVE_CONCURRENCY = 2;
 const MAX_DEEP_DIVE_CALLS = 1;
+const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
 const DEBUG_DEEP_DIVE =
   (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
 const logDeepDive = (level, ...messages) => {
@@ -226,8 +227,8 @@ const appendFieldsFromMetadataObject = (metadataObject, targetSet) => {
   Object.keys(metadataObject).forEach((field) => targetSet.add(field));
 };
 
-const updateMetadataCollections = (response, entry) => {
-  if (!entry?.appId) {
+const processDeepDiveResponseItems = async (response, onItem) => {
+  if (!onItem) {
     return;
   }
 
@@ -245,27 +246,47 @@ const updateMetadataCollections = (response, entry) => {
     candidateArrays.push(response);
   }
 
-  candidateArrays
-    .filter(Array.isArray)
-    .flat()
-    .forEach((item) => {
+  let processedCount = 0;
+
+  for (const candidate of candidateArrays) {
+    if (!Array.isArray(candidate)) {
+      continue;
+    }
+
+    for (const item of candidate) {
       if (!item || typeof item !== 'object') {
-        return;
+        continue;
       }
 
-      const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-      const visitorMetadata = metadata.visitor || item.visitor;
-      const accountMetadata = metadata.account || item.account;
+      await onItem(item);
+      processedCount += 1;
 
-      if (visitorMetadata && typeof visitorMetadata === 'object' && !Array.isArray(visitorMetadata)) {
-        const visitorId = item.visitorId || metadata.visitorId || '';
-        updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
+      if (processedCount % DEEP_DIVE_AGGREGATION_BATCH_SIZE === 0) {
+        await yieldToBrowser();
       }
+    }
+  }
+};
 
-      if (accountMetadata && typeof accountMetadata === 'object' && !Array.isArray(accountMetadata)) {
-        updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
-      }
-    });
+const updateMetadataCollections = async (response, entry) => {
+  if (!entry?.appId) {
+    return;
+  }
+
+  await processDeepDiveResponseItems(response, async (item) => {
+    const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+    const visitorMetadata = metadata.visitor || item.visitor;
+    const accountMetadata = metadata.account || item.account;
+
+    if (visitorMetadata && typeof visitorMetadata === 'object' && !Array.isArray(visitorMetadata)) {
+      const visitorId = item.visitorId || metadata.visitorId || '';
+      updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
+    }
+
+    if (accountMetadata && typeof accountMetadata === 'object' && !Array.isArray(accountMetadata)) {
+      updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
+    }
+  });
 };
 
 const updateMetadataApiCalls = (entry, payload, response, error = '') => {
@@ -284,50 +305,29 @@ const updateMetadataApiCalls = (entry, payload, response, error = '') => {
   metadata_api_calls.push(callRecord);
 };
 
-const collectDeepDiveMetadataFields = (response, accumulator, entry) => {
+const collectDeepDiveMetadataFields = async (response, accumulator, entry) => {
   const target = ensureDeepDiveAccumulatorEntry(accumulator, entry);
 
   if (!target) {
     return null;
   }
 
-  const candidateArrays = [];
+  await processDeepDiveResponseItems(response, async (item) => {
+    const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+    const visitorMetadata = metadata.visitor || item.visitor;
+    const accountMetadata = metadata.account || item.account;
 
-  if (Array.isArray(response?.results)) {
-    candidateArrays.push(response.results);
-  }
+    appendFieldsFromMetadataObject(visitorMetadata, target.visitorFields);
+    appendFieldsFromMetadataObject(accountMetadata, target.accountFields);
 
-  if (Array.isArray(response?.data)) {
-    candidateArrays.push(response.data);
-  }
+    if (Array.isArray(item.visitorMetadata)) {
+      item.visitorMetadata.forEach((field) => target.visitorFields.add(field));
+    }
 
-  if (Array.isArray(response)) {
-    candidateArrays.push(response);
-  }
-
-  candidateArrays
-    .filter(Array.isArray)
-    .flat()
-    .forEach((item) => {
-      if (!item || typeof item !== 'object') {
-        return;
-      }
-
-      const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-      const visitorMetadata = metadata.visitor || item.visitor;
-      const accountMetadata = metadata.account || item.account;
-
-      appendFieldsFromMetadataObject(visitorMetadata, target.visitorFields);
-      appendFieldsFromMetadataObject(accountMetadata, target.accountFields);
-
-      if (Array.isArray(item.visitorMetadata)) {
-        item.visitorMetadata.forEach((field) => target.visitorFields.add(field));
-      }
-
-      if (Array.isArray(item.accountMetadata)) {
-        item.accountMetadata.forEach((field) => target.accountFields.add(field));
-      }
-    });
+    if (Array.isArray(item.accountMetadata)) {
+      item.accountMetadata.forEach((field) => target.accountFields.add(field));
+    }
+  });
 
   return target;
 };
@@ -934,11 +934,15 @@ const runDeepDiveScan = async (
       });
 
       const response = await postAggregationWithIntegrationKey(entry, payload);
-      const normalizedFields = collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
+      const normalizedFields = await collectDeepDiveMetadataFields(
+        response,
+        deepDiveAccumulator,
+        entry,
+      );
 
       upsertDeepDiveRecord(entry, response, normalizedFields, '', targetLookback);
       updateMetadataApiCalls(entry, payload, response, '');
-      updateMetadataCollections(response, entry);
+      await updateMetadataCollections(response, entry);
       successCount += 1;
       if (onSuccessfulCall) {
         scheduleDomUpdate(() => onSuccessfulCall());
