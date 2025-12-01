@@ -1,6 +1,7 @@
 import { bootstrapShared } from './shared.js';
 import {
   exportDeepDiveJson,
+  exportDeepDiveXlsx,
   initDeepDive,
   installDeepDiveGlobalErrorHandlers,
   reportDeepDiveError,
@@ -12,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await bootstrapShared({
       enableJsonExport: true,
-      additionalFormats: { json: exportDeepDiveJson },
+      additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },
     });
     await initDeepDive();
   } catch (error) {
