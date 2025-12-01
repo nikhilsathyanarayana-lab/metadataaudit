@@ -168,6 +168,20 @@ h1 {
   font-size: 0.95rem;
 }
 
+.lookback-button:disabled,
+.lookback-button.is-disabled {
+  background: #f5f5f5;
+  color: #9b9b9b;
+  border-color: rgba(61, 61, 61, 0.12);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.lookback-button:disabled:hover,
+.lookback-button.is-disabled:hover {
+  color: #9b9b9b;
+}
+
 .lookback-button.is-active {
   background: var(--pendo-pink);
   color: #fff;
