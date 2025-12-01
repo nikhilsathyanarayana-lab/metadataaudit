@@ -13,6 +13,7 @@ const LOOKBACK_OPTIONS = [7, 30, 180];
 const TARGET_LOOKBACK = 7;
 const DEEP_DIVE_CONCURRENCY = 2;
 const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
+// Deep-dive logs emit errors to keep noise low; set window.DEBUG_DEEP_DIVE = true for debug output alongside UI alert banners.
 const DEBUG_DEEP_DIVE =
   (typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE)) || false;
 const logDeepDive = (level, ...messages) => {

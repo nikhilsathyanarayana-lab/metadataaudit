@@ -8,6 +8,8 @@ is consistent and to identify any discrepancies in how data is reported.
 
 The tool supports two methods for pulling metadata: one using an integration key with the Engage API, and another using a cookie-based approach.
 
+Deep-dive logging is streamlined: only errors are emitted by default to keep noise low, while the optional `window.DEBUG_DEEP_DIVE = true` flag exposes debug-level details for troubleshooting. Errors surface directly on the deep dive page as inline alert banners and remain visible in the browser console for diagnostics, so issues show up both in the UI and in devtools without forcing verbose logging on by default.
+
 ## Prerequisites
 - **Hosting**: GitHub Pages can host the Integration API workflow, but the cookie workflow still requires a PHP proxy (`proxy.php`) to avoid CORS errors. Use a server or local environment with PHP and cURL enabled when exercising cookie-based requests.
 - **Authentication**: Provide either an integration key with read access or a superuser session cookie.
@@ -25,6 +27,7 @@ Follow these steps to serve the project on your Mac:
    php -S localhost:8000
    ```
 4. Visit `http://localhost:8000` in your browser and open `index.html` to begin the workflow. You can navigate directly to `app_selection.html`, `metadata_fields.html`, `deep_dive.html`, or `workbook_ui.html` if you need to test a specific page.
+5. When investigating deep-dive issues, open your browser console and run `window.DEBUG_DEEP_DIVE = true` *before* triggering a scan to turn on debug logging, then revert to `false` afterward to keep routine runs quieter. Error banners appear inline on the deep dive page while the same messages land in the console, so make sure your browser’s developer tools are available alongside the page view.
 
 ## Project structure
 - `index.html`: Landing view where auditors enter SubIDs, choose a Pendo domain, and link integration keys before triggering aggregation requests.
@@ -42,6 +45,7 @@ Follow these steps to serve the project on your Mac:
 - `styles.css` / `exports.css`: Global styling, layout, and export-specific tweaks.
 - `proxy.php`: PHP proxy used for cookie-based Aggregations calls and to avoid browser CORS errors.
 - `package.json`: Project metadata and npm scripts for dependency management.
+- `src/pages/deepDive.js`: Orchestrates deep-dive scans, defaulting to error-only logging with inline alert banners for surfaced issues and optional debug output gated by `window.DEBUG_DEEP_DIVE`; this keeps noise low while still surfacing errors both on the page and in the console for follow-up.
 
 ## Integration workflow overview
 The Integration API workflow progresses through the HTML pages below. Each step lists the functions that run (in order) and how data persists between screens:
@@ -59,7 +63,8 @@ The Integration API workflow progresses through the HTML pages below. Each step 
 4. **deep_dive.html**
    - `bootstrapShared()` makes export modals available.
    - `initDeepDive()` gathers prior selections and metadata from `appSelectionResponses` and `metadataFieldRecords`, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and syncs results with manual app naming before enabling exports.
-  - JSON export downloads visitor and account files: `metadata-deep-dive-visitors.json` and `metadata-deep-dive-accounts.json`. The visitor export nests Sub ID → App ID and summarizes each metadata field (including `visitorId`) as an array of value/count pairs; the account export groups Sub ID → App ID with the same value/count structure. Both exports intentionally omit `appName` because names are persisted separately in `localStorage` under the `manualAppNames` key and reapplied wherever the UI needs to label a record.
+   - Deep-dive logging is error-first to keep the page quiet unless something fails; set `window.DEBUG_DEEP_DIVE = true` if you need verbose diagnostics. Error banners display inline on the page and mirror the messages that appear in the browser console.
+   - JSON export downloads visitor and account files: `metadata-deep-dive-visitors.json` and `metadata-deep-dive-accounts.json`. The visitor export nests Sub ID → App ID and summarizes each metadata field (including `visitorId`) as an array of value/count pairs; the account export groups Sub ID → App ID with the same value/count structure. Both exports intentionally omit `appName` because names are persisted separately in `localStorage` under the `manualAppNames` key and reapplied wherever the UI needs to label a record.
 
 Workbook and cookie-only flows (`workbook_ui.html` and `proxy.php`) run outside this Integration API sequence.
 
@@ -70,6 +75,8 @@ Workbook and cookie-only flows (`workbook_ui.html` and `proxy.php`) run outside 
   - *Next step*: Write a short auth guide that covers secret handling, masking/validation behavior in the UI, and troubleshooting for 401/403 responses from both direct and proxied requests.
 - **Testing strategy**: Outline how to validate the workbook flow and controllers (e.g., stubbed fetch for Aggregations, DOM-driven smoke checks for page scripts).
   - *Next step*: Propose a lightweight test plan (unit tests around `src/services/requests.js`, fixture-driven DOM tests for `src/pages/*.js`, and a manual workbook runbook) and identify preferred tools or runners.
+- **Deep-dive UI error states**: Capture screenshots or examples of the deep dive alert banners that surface API failures or unexpected errors.
+  - *Next step*: Add UI references or sample images for the deep dive error banners and debug logging toggles so downstream contributors can mirror the expected states.
 
 ## Pendo integration
 - **Pendo Aggregation API**: `src/pages/workbookUi.js` posts to each environment's `/api/v1/aggregation` endpoint with the user-supplied integration key to retrieve app metadata across domains.
