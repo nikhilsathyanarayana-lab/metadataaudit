@@ -29,14 +29,12 @@ import {
   updateMetadataCollections,
 } from './deepDive/aggregation.js';
 import {
-  ensureMessageRegion,
   installDeepDiveGlobalErrorHandlers,
   renderTable,
   reportDeepDiveError,
   setExportAvailability,
   setupLookbackControls,
   setupProgressTracker,
-  showMessage,
   updateMetadataFieldHeaders,
 } from './deepDive/ui/render.js';
 import { setupManualAppNameModal, setupRegexFormatModal } from './deepDive/ui/modals.js';
@@ -45,15 +43,7 @@ import { exportDeepDiveXlsx } from '../controllers/exports/deep_xlsx.js';
 
 export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandlers, reportDeepDiveError };
 
-const runDeepDiveScan = async (
-  entries,
-  lookback,
-  progressHandlers,
-  messageRegion,
-  rows,
-  onSuccessfulCall,
-  onComplete,
-) => {
+const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSuccessfulCall, onComplete) => {
   clearDeepDiveCollections();
 
   const updateApiProgress =
@@ -62,44 +52,52 @@ const runDeepDiveScan = async (
     typeof progressHandlers === 'object' && progressHandlers !== null
       ? progressHandlers.updateProcessingProgress
       : null;
+  const setApiStatus = progressHandlers?.setApiStatus;
+  const setProcessingStatus = progressHandlers?.setProcessingStatus;
+  const setApiError = progressHandlers?.setApiError;
+  const setProcessingError = progressHandlers?.setProcessingError;
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
   const queue = entries.slice();
-  const totalCalls = queue.length;
-  let completedCalls = 0;
+  const totalApiCalls = queue.length;
+  let completedApiCalls = 0;
+  let completedProcessingSteps = 0;
   let successCount = 0;
   const deepDiveAccumulator = new Map();
 
-  const updateProgressAsync = () =>
+  const syncApiProgress = () =>
     scheduleDomUpdate(() => {
-      updateApiProgress?.(completedCalls, totalCalls);
-      updateProcessingProgress?.(successCount, totalCalls);
-      logDeepDive('info', 'Deep dive progress update', {
-        completedCalls,
-        successCount,
-        totalCalls,
-      });
+      updateApiProgress?.(completedApiCalls, totalApiCalls);
     });
 
-  const sendMessageAsync = (message, tone = 'info') =>
-    scheduleDomUpdate(() => showMessage(messageRegion, message, tone));
+  const syncProcessingProgress = () =>
+    scheduleDomUpdate(() => {
+      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+    });
 
   logDeepDive('info', 'Starting deep dive scan', {
     requestedEntries: entries.length,
-    totalCalls,
+    totalApiCalls,
     targetLookback,
   });
 
-  if (!totalCalls) {
-    updateProgressAsync();
-    sendMessageAsync(
-      'No metadata selections found. Run the Metadata Fields page first to capture app details.',
-      'error',
-    );
+  if (!totalApiCalls) {
+    syncApiProgress();
+    scheduleDomUpdate(() => {
+      setApiError?.(
+        'No metadata selections found. Run the Metadata Fields page first to capture app details.',
+      );
+      setProcessingStatus?.('Processing queue idle.');
+    });
     return;
   }
 
-  updateProgressAsync();
+  scheduleDomUpdate(() => {
+    updateApiProgress?.(completedApiCalls, totalApiCalls);
+    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+    setApiStatus?.('Starting deep dive scan…');
+    setProcessingStatus?.('Waiting for the first API response…');
+  });
 
   const processEntry = async (entry) => {
     logDeepDive('info', 'Processing deep dive entry', {
@@ -111,6 +109,7 @@ const runDeepDiveScan = async (
     await yieldToBrowser();
     let payload;
     let response = null;
+    let apiCompleted = false;
     try {
       payload = buildMetaEventsPayload(entry.appId, targetLookback);
       logDeepDive('info', 'Built metadata events payload', {
@@ -132,6 +131,13 @@ const runDeepDiveScan = async (
         throw new Error('Aggregation response was empty or malformed.');
       }
 
+      apiCompleted = true;
+      completedApiCalls += 1;
+      syncApiProgress();
+      scheduleDomUpdate(() => {
+        setProcessingStatus?.(`Processing call ${completedProcessingSteps + 1}/${totalApiCalls}.`);
+      });
+
       const normalizedFields = await collectDeepDiveMetadataFields(
         response,
         deepDiveAccumulator,
@@ -143,6 +149,8 @@ const runDeepDiveScan = async (
       await updateMetadataCollections(response, entry);
       response = null;
       successCount += 1;
+      completedProcessingSteps += 1;
+      syncProcessingProgress();
       if (onSuccessfulCall) {
         scheduleDomUpdate(() => onSuccessfulCall());
       }
@@ -156,18 +164,31 @@ const runDeepDiveScan = async (
       upsertDeepDiveRecord(entry, normalizedFields, detail, targetLookback);
       updateMetadataApiCalls(entry, 'error', detail);
 
-      reportDeepDiveError(
-        `Deep dive request failed for app ${entry.appId}: ${detail}`,
-        error,
-        messageRegion,
-      );
+      if (!apiCompleted) {
+        completedApiCalls += 1;
+        syncApiProgress();
+      }
+      completedProcessingSteps += 1;
+      syncProcessingProgress();
+
+      const targetSetter = apiCompleted ? setProcessingError : setApiError;
+      const errorTargetLabel = apiCompleted ? 'processing' : 'API';
+      scheduleDomUpdate(() => {
+        targetSetter?.(`Deep dive ${errorTargetLabel} error for app ${entry.appId}: ${detail}`);
+      });
+
+      if (apiCompleted) {
+        logDeepDive('error', 'Processing deep dive response failed', { appId: entry.appId, error });
+      } else {
+        logDeepDive('error', 'Deep dive request failed', { appId: entry.appId, error });
+      }
     } finally {
       payload = null;
       response = null;
     }
   };
 
-  const workerCount = Math.min(Math.max(DEEP_DIVE_CONCURRENCY, 1), totalCalls);
+  const workerCount = Math.min(Math.max(DEEP_DIVE_CONCURRENCY, 1), totalApiCalls);
   const workers = Array.from({ length: workerCount }, async () => {
     while (queue.length) {
       const entry = queue.shift();
@@ -177,8 +198,6 @@ const runDeepDiveScan = async (
       }
 
       await processEntry(entry);
-      completedCalls += 1;
-      updateProgressAsync();
       await yieldToBrowser();
     }
   });
@@ -186,16 +205,15 @@ const runDeepDiveScan = async (
   await Promise.all(workers);
 
   if (successCount) {
-    sendMessageAsync(
-      `Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`,
-      'info',
-    );
+    scheduleDomUpdate(() => {
+      setApiStatus?.(`Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`);
+    });
   }
 
   logDeepDive('info', 'Deep dive scan completed', {
-    completedCalls,
+    completedCalls: completedApiCalls,
     successCount,
-    totalCalls,
+    totalCalls: totalApiCalls,
   });
 
   const clearTransientCallData = () => metadata_api_calls.splice(0, metadata_api_calls.length);
@@ -220,8 +238,7 @@ export const initDeepDive = async () => {
       return;
     }
 
-    const messageRegion = ensureMessageRegion();
-    const { updateApiProgress, updateProcessingProgress } = setupProgressTracker();
+    const progressHandlers = setupProgressTracker();
     const startButton = document.getElementById('deep-dive-start');
 
     const manualAppNames = loadManualAppNames();
@@ -293,11 +310,12 @@ export const initDeepDive = async () => {
         });
 
         const totalEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length;
-        updateProcessingProgress(rows.length, totalEntries);
-        updateApiProgress(0, totalEntries);
+        progressHandlers.updateProcessingProgress(rows.length, totalEntries);
+        progressHandlers.updateApiProgress(0, totalEntries);
         updateExportAvailability();
       } catch (error) {
-        reportDeepDiveError('Unable to refresh deep dive tables.', error, messageRegion);
+        progressHandlers.setProcessingError?.('Unable to refresh deep dive tables.');
+        reportDeepDiveError('Unable to refresh deep dive tables.', error);
       }
     };
 
@@ -308,14 +326,14 @@ export const initDeepDive = async () => {
       startButton.addEventListener('click', async () => {
         startButton.disabled = true;
         startButton.textContent = 'Scanning…';
-        showMessage(messageRegion, 'Starting deep dive scan…', 'info');
+        progressHandlers.setApiStatus?.('Starting deep dive scan…');
+        progressHandlers.setProcessingStatus?.('Waiting for the first API response…');
 
         try {
           await runDeepDiveScan(
             buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
             selectedLookback,
-            { updateApiProgress, updateProcessingProgress },
-            messageRegion,
+            progressHandlers,
             rows,
             () => {
               updateExportAvailability();
@@ -323,11 +341,10 @@ export const initDeepDive = async () => {
             updateExportAvailability,
           );
         } catch (error) {
-          reportDeepDiveError(
+          progressHandlers.setApiError?.(
             'Deep dive scan encountered an unexpected error. Please try again.',
-            error,
-            messageRegion,
           );
+          reportDeepDiveError('Deep dive scan encountered an unexpected error. Please try again.', error);
         } finally {
           startButton.disabled = false;
           startButton.textContent = 'Start scan';
