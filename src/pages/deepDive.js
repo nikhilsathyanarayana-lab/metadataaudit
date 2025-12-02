@@ -10,6 +10,7 @@ import {
 import {
   buildRowsForLookback,
   buildScanEntries,
+  dedupeMetadataRecords,
   loadDeepDiveRecords,
   loadMetadataRecords,
   scheduleDomUpdate,
@@ -586,6 +587,8 @@ const buildLookbackIndex = (records) => {
   const totals = { visitor: { 180: 0, 30: 0, 7: 0 }, account: { 180: 0, 30: 0, 7: 0 } };
   const subIds = new Set();
   const appIds = new Set();
+  const datasetTotals = new Map();
+  let totalDatasets = 0;
 
   records.forEach((record) => {
     if (!record?.appId || !LOOKBACK_WINDOWS.includes(record.windowDays)) {
@@ -596,6 +599,11 @@ const buildLookbackIndex = (records) => {
       subIds.add(record.subId);
     }
     appIds.add(record.appId);
+
+    if (record.subId && Number.isFinite(record.datasetCount)) {
+      datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + record.datasetCount);
+      totalDatasets += record.datasetCount;
+    }
 
     const appEntry = index.get(record.appId) || {
       appId: record.appId,
@@ -631,7 +639,15 @@ const buildLookbackIndex = (records) => {
     index.set(record.appId, appEntry);
   });
 
-  return { index, totals, distinctSubs: subIds.size, distinctApps: appIds.size };
+  return {
+    index,
+    totals,
+    distinctSubs: subIds.size,
+    distinctApps: appIds.size,
+    subIds: Array.from(subIds).sort(),
+    datasetTotals,
+    totalDatasets,
+  };
 };
 
 const buildSubscriptionTotals = (records) => {
@@ -667,25 +683,39 @@ const buildSubscriptionTotals = (records) => {
 const buildWorkbook = (formatSelections, metadataRecords) => {
   const workbook = window.XLSX.utils.book_new();
   const sheetNames = new Set();
-  const { index, totals, distinctSubs, distinctApps } = buildLookbackIndex(metadataRecords);
+  const { index, totals, distinctSubs, distinctApps, subIds, datasetTotals, totalDatasets } =
+    buildLookbackIndex(metadataRecords);
+  const scannedSubIds = subIds.length ? subIds.join(', ') : 'No Sub IDs captured';
+  const datasetsBySub =
+    datasetTotals.size > 0
+      ? Array.from(datasetTotals.entries())
+          .sort(([first], [second]) => String(first || '').localeCompare(String(second || '')))
+          .map(([subId, count]) => `${subId}: ${count}`)
+          .join('; ')
+      : 'No datasets tracked';
+  const totalDatasetCount = totalDatasets || 0;
   const valueLookup = buildValueLookup();
   const aggregatedRows = [];
 
   const summaryRows = [
     {
-      Scope: 'All data',
       Type: 'Visitor',
       'Distinct subs': distinctSubs,
       'Distinct apps': distinctApps,
+      'Sub IDs scanned': scannedSubIds,
+      'Datasets tracked': totalDatasetCount,
+      'Datasets by sub': datasetsBySub,
       '180 days': parseCount(totals.visitor[180]),
       '30 days': parseCount(totals.visitor[30]),
       '7 days': parseCount(totals.visitor[7]),
     },
     {
-      Scope: 'All data',
       Type: 'Account',
       'Distinct subs': distinctSubs,
       'Distinct apps': distinctApps,
+      'Sub IDs scanned': scannedSubIds,
+      'Datasets tracked': totalDatasetCount,
+      'Datasets by sub': datasetsBySub,
       '180 days': parseCount(totals.account[180]),
       '30 days': parseCount(totals.account[30]),
       '7 days': parseCount(totals.account[7]),
@@ -693,7 +723,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
   ];
 
   const summarySheet = buildSheet(summaryRows, 'No deep dive metadata was available to summarize.');
-  window.XLSX.utils.book_append_sheet(workbook, summarySheet, sanitizeSheetName('whole-data summary', sheetNames));
+  window.XLSX.utils.book_append_sheet(workbook, summarySheet, sanitizeSheetName('Overview', sheetNames));
 
   const subscriptionRows = buildSubscriptionTotals(metadataRecords).flatMap((subscription) => [
     {
@@ -805,7 +835,10 @@ export const exportDeepDiveXlsx = async () => {
 
   const visitorTable = document.getElementById('visitor-deep-dive-table');
   const accountTable = document.getElementById('account-deep-dive-table');
-  const metadataRecords = loadMetadataRecords(reportDeepDiveError);
+  const metadataRecords = dedupeMetadataRecords(
+    loadMetadataRecords(reportDeepDiveError),
+    loadDeepDiveRecords(),
+  );
 
   const visitorSelections = collectFormatSelections(visitorTable, 'visitor');
   const accountSelections = collectFormatSelections(accountTable, 'account');

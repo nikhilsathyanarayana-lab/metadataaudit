@@ -177,6 +177,9 @@ export const upsertDeepDiveRecord = (
 
   const visitorFields = dedupeAndSortFields(normalizedFields?.visitorFields);
   const accountFields = dedupeAndSortFields(normalizedFields?.accountFields);
+  const datasetCount = Number.isFinite(normalizedFields?.datasetCount)
+    ? normalizedFields.datasetCount
+    : 0;
   const status = errorMessage ? 'error' : 'success';
 
   const record = {
@@ -190,6 +193,7 @@ export const upsertDeepDiveRecord = (
     integrationKey: entry.integrationKey || '',
     visitorFields,
     accountFields,
+    datasetCount,
     error: errorMessage,
   };
 
