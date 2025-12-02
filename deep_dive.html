@@ -98,6 +98,41 @@
     </section>
   </main>
 
+  <script>
+    (() => {
+      const deepDiveData = {};
+
+      const parseStoredRecords = (key) => {
+        try {
+          const raw = localStorage.getItem(key);
+
+          if (!raw) {
+            return null;
+          }
+
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed?.records) ? parsed.records : parsed;
+        } catch (error) {
+          console.error(`Unable to read cached ${key}:`, error);
+          return null;
+        }
+      };
+
+      const storedMetadataFields = parseStoredRecords('metadataFieldRecords');
+      if (storedMetadataFields) {
+        deepDiveData.metadataFieldRecords = storedMetadataFields;
+      }
+
+      const storedDeepDiveEvents = parseStoredRecords('deepDiveMetaEvents');
+      if (storedDeepDiveEvents) {
+        deepDiveData.deepDiveMetaEvents = storedDeepDiveEvents;
+      }
+
+      if (Object.keys(deepDiveData).length > 0) {
+        window.deepDiveData = deepDiveData;
+      }
+    })();
+  </script>
   <script type="module" src="src/entries/deep_dive.js"></script>
 </body>
 </html>
