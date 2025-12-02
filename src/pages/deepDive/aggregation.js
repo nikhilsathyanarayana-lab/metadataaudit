@@ -35,6 +35,7 @@ export const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
     integrationKey: entry.integrationKey || '',
     visitorFields: new Set(),
     accountFields: new Set(),
+    datasetCount: 0,
   };
 
   if (!accumulator.has(entry.appId)) {
@@ -111,6 +112,7 @@ export const updateMetadataApiCalls = (entry, status, error = '') => {
 
 export const collectDeepDiveMetadataFields = async (response, accumulator, entry) => {
   const target = ensureDeepDiveAccumulatorEntry(accumulator, entry);
+  let datasetCount = 0;
 
   if (!target) {
     return null;
@@ -131,7 +133,11 @@ export const collectDeepDiveMetadataFields = async (response, accumulator, entry
     if (Array.isArray(item.accountMetadata)) {
       item.accountMetadata.forEach((field) => target.accountFields.add(field));
     }
+
+    datasetCount += 1;
   });
+
+  target.datasetCount = (target.datasetCount || 0) + datasetCount;
 
   return target;
 };
