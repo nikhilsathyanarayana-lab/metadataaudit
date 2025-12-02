@@ -24,6 +24,8 @@ const createAggregationError = (message, status, body) => {
   return error;
 };
 
+const DEFAULT_AGGREGATION_TIMEOUT_MS = 60_000;
+
 export const buildAggregationUrl = (envUrls, envValue, subId) => {
   const endpointTemplate = envUrls?.[envValue];
   return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
@@ -306,19 +308,34 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
 
   const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation`;
   let response;
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  let timedOut = false;
+  const timeoutId = controller
+    ? setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, DEFAULT_AGGREGATION_TIMEOUT_MS)
+    : null;
 
   try {
     response = await fetchImpl(endpoint, {
       method: 'POST',
       headers: buildRequestHeaders(integrationKey),
       body: JSON.stringify(payload),
+      signal: controller?.signal,
     });
   } catch (networkError) {
-    throw createAggregationError(
-      networkError?.message || 'Aggregation request could not be sent.',
-      null,
-      '',
-    );
+    const timeoutMessage = `Aggregation request timed out after ${DEFAULT_AGGREGATION_TIMEOUT_MS / 1000} seconds.`;
+
+    if (timedOut || networkError?.name === 'AbortError') {
+      throw createAggregationError(timeoutMessage, null, '');
+    }
+
+    throw createAggregationError(networkError?.message || 'Aggregation request could not be sent.', null, '');
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 
   const rawBody = await response?.text().catch(() => '');

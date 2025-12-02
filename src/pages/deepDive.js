@@ -138,7 +138,10 @@ const runDeepDiveScan = async (
         scheduleDomUpdate(() => onSuccessfulCall());
       }
     } catch (error) {
-      const detail = error?.message || 'Unable to fetch metadata events.';
+      const timedOut = error?.name === 'AbortError' || /timed out/i.test(error?.message || '');
+      const detail = timedOut
+        ? 'Deep dive request timed out after 60 seconds.'
+        : error?.message || 'Unable to fetch metadata events.';
       const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
 
       upsertDeepDiveRecord(entry, normalizedFields, detail, targetLookback);
