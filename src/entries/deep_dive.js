@@ -1,5 +1,9 @@
 import { bootstrapShared } from './shared.js';
-import { deepDiveGlobalKey, metadataFieldGlobalKey } from '../pages/deepDive/constants.js';
+import {
+  appSelectionGlobalKey,
+  deepDiveGlobalKey,
+  metadataFieldGlobalKey,
+} from '../pages/deepDive/constants.js';
 import {
   exportDeepDiveJson,
   exportDeepDiveXlsx,
@@ -26,6 +30,11 @@ const parseStoredRecords = (key) => {
 
 const hydrateDeepDiveDataFromStorage = () => {
   const deepDiveData = {};
+
+  const storedAppSelections = parseStoredRecords(appSelectionGlobalKey);
+  if (storedAppSelections) {
+    deepDiveData[appSelectionGlobalKey] = storedAppSelections;
+  }
 
   const storedMetadataFields = parseStoredRecords(metadataFieldGlobalKey);
   if (storedMetadataFields) {
