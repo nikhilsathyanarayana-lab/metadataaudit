@@ -1,4 +1,9 @@
-import { createAddButton, createDomainSelect, createModalControls } from '../ui/components.js';
+import {
+  createAddButton,
+  createDomainSelect,
+  createModalControls,
+  createRemoveButton,
+} from '../ui/components.js';
 
 const storageKey = 'subidLaunchData';
 
@@ -126,6 +131,58 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
 
   const handleAddSubId = () => addSubIdField();
 
+  const renumberRows = () => {
+    Array.from(fieldsContainer.querySelectorAll('.subid-row')).forEach((row, index) => {
+      const label = row.querySelector('label');
+      const input = row.querySelector('input[name="subid[]"]');
+      const displayIndex = index + 1;
+
+      if (input) {
+        input.id = `subid-${displayIndex}`;
+      }
+
+      if (label) {
+        label.textContent = `SubID ${displayIndex}`;
+        if (input?.id) {
+          label.setAttribute('for', input.id);
+        }
+      }
+    });
+  };
+
+  const refreshAddButtonPlacement = () => {
+    const existingButton = fieldsContainer.querySelector('.add-subid-btn');
+
+    if (existingButton) {
+      existingButton.removeEventListener('click', handleAddSubId);
+      existingButton.remove();
+    }
+
+    const rows = fieldsContainer.querySelectorAll('.subid-row');
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    const addButton = createAddButton(handleAddSubId);
+    rows[rows.length - 1].querySelector('.input-group')?.appendChild(addButton);
+  };
+
+  const removeSubIdField = (rowId) => {
+    const row = fieldsContainer.querySelector(`[data-subid-row="${rowId}"]`);
+
+    if (!row) {
+      return;
+    }
+
+    integrationKeys.delete(rowId);
+    row.remove();
+
+    renumberRows();
+    refreshAddButtonPlacement();
+    updateLaunchButtonState();
+  };
+
   function addSubIdField() {
     subIdCount += 1;
     const rowId = `row-${subIdCount}`;
@@ -157,6 +214,12 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
     integrationButton.addEventListener('click', () => openIntegrationModal(rowId));
 
     inputGroup.append(domainSelect, input, integrationButton);
+
+    if (fieldsContainer.children.length > 0) {
+      const removeButton = createRemoveButton(() => removeSubIdField(rowId));
+      inputGroup.appendChild(removeButton);
+    }
+
     row.append(label, inputGroup);
 
     const integrationKeyValue = document.createElement('p');
@@ -169,17 +232,8 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
     input.addEventListener('input', updateLaunchButtonState);
     input.addEventListener('blur', updateLaunchButtonState);
 
-    const existingButton = fieldsContainer.querySelector('.add-subid-btn');
-
-    if (existingButton) {
-      existingButton.removeEventListener('click', handleAddSubId);
-      existingButton.remove();
-    }
-
-    const addButton = createAddButton(handleAddSubId);
-
-    inputGroup.appendChild(addButton);
-
+    renumberRows();
+    refreshAddButtonPlacement();
     updateLaunchButtonState();
   }
 
