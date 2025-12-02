@@ -225,69 +225,68 @@ const buildValueLookup = () => {
   return lookup;
 };
 
-const buildSheet = (rows, fallbackMessage) => {
+const appendWorksheetFromRows = (workbook, rows, fallbackMessage, label, sheetNames, formatWorksheet) => {
+  const worksheet = workbook.addWorksheet(sanitizeSheetName(label, sheetNames));
+
   if (!rows.length) {
     logXlsx('info', 'Building fallback deep-dive sheet because no rows were available', fallbackMessage);
-    const fallbackSheet = window.XLSX.utils.json_to_sheet([{ Note: fallbackMessage }]);
-    applyHeaderFormatting(fallbackSheet);
-    return fallbackSheet;
+    worksheet.addRow(['Note']);
+    worksheet.addRow([fallbackMessage]);
+    applyHeaderFormatting(worksheet);
+    if (typeof formatWorksheet === 'function') {
+      formatWorksheet(worksheet);
+    }
+    return worksheet;
   }
 
-  logXlsx('debug', `Building deep-dive sheet with ${rows.length} row(s)`);
-  const sheet = window.XLSX.utils.json_to_sheet(rows);
-  applyHeaderFormatting(sheet);
-  return sheet;
+  const headers = Object.keys(rows[0]);
+  worksheet.addRow(headers);
+  rows.forEach((row) => worksheet.addRow(headers.map((header) => row[header] ?? '')));
+
+  applyHeaderFormatting(worksheet);
+  if (typeof formatWorksheet === 'function') {
+    formatWorksheet(worksheet);
+  }
+
+  logXlsx('debug', `Built worksheet ${label} with ${rows.length} row(s)`);
+  return worksheet;
 };
 
-const applyOverviewFormatting = (sheet) => {
-  if (!sheet || !sheet['!ref']) {
-    logXlsx('warn', 'applyOverviewFormatting skipped because the overview sheet is missing range metadata');
+const applyOverviewFormatting = (worksheet) => {
+  if (!worksheet) {
+    logXlsx('warn', 'applyOverviewFormatting skipped because the overview worksheet is missing');
     return;
   }
 
-  const range = window.XLSX.utils.decode_range(sheet['!ref']);
-  const headerRow = range.s.r;
-  const firstColumn = range.s.c;
+  const headerRow = worksheet.getRow(1);
+  if (!headerRow || headerRow.cellCount === 0) {
+    logXlsx('warn', 'applyOverviewFormatting skipped because the header row is empty');
+    return;
+  }
 
-  const maxHeaderColumn = Math.min(range.e.c, range.s.c + 6);
-  const headerCells = Array.from({ length: maxHeaderColumn - range.s.c + 1 }, (_, index) => ({
-    r: headerRow,
-    c: range.s.c + index,
-  }));
+  const styleCell = (cell) => {
+    cell.font = {
+      ...(cell.font || {}),
+      bold: true,
+      size: 16,
+      color: { argb: 'FFFFFFFF' },
+    };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE83E8C' },
+    };
+  };
 
-  const firstColumnCells = Array.from(
-    { length: Math.min(3, range.e.r - range.s.r + 1) },
-    (_, index) => ({
-      r: range.s.r + index,
-      c: firstColumn,
-    })
-  );
+  headerRow.eachCell(styleCell);
 
-  const styledAddresses = [...headerCells, ...firstColumnCells];
+  const maxRows = Math.min(3, worksheet.rowCount);
+  for (let rowIndex = 1; rowIndex <= maxRows; rowIndex += 1) {
+    const cell = worksheet.getRow(rowIndex).getCell(1);
+    styleCell(cell);
+  }
 
-  styledAddresses.forEach((address) => {
-    const cellAddress = window.XLSX.utils.encode_cell(address);
-    const cell = sheet[cellAddress];
-
-    if (cell) {
-      cell.s = {
-        ...(cell.s || {}),
-        font: {
-          ...(cell.s?.font || {}),
-          bold: true,
-          sz: 16,
-          color: { rgb: 'FFFFFF' },
-        },
-        fill: {
-          ...(cell.s?.fill || {}),
-          patternType: 'solid',
-          fgColor: { rgb: 'E83E8C' },
-        },
-      };
-    }
-  });
-
-  logXlsx('debug', `Applied overview formatting to ${styledAddresses.length} cell(s)`);
+  logXlsx('debug', `Applied overview formatting to ${headerRow.cellCount + maxRows} cell(s)`);
 };
 
 const buildLookbackIndex = (records) => {
@@ -362,7 +361,7 @@ const buildLookbackIndex = (records) => {
 };
 
 const buildWorkbook = (formatSelections, metadataRecords) => {
-  const workbook = window.XLSX.utils.book_new();
+  const workbook = new window.ExcelJS.Workbook();
   const sheetNames = new Set();
   const {
     index,
@@ -418,9 +417,14 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     },
   ];
 
-  const summarySheet = buildSheet(summaryRows, 'No deep dive metadata was available to summarize.');
-  applyOverviewFormatting(summarySheet);
-  window.XLSX.utils.book_append_sheet(workbook, summarySheet, sanitizeSheetName('Overview', sheetNames));
+  appendWorksheetFromRows(
+    workbook,
+    summaryRows,
+    'No deep dive metadata was available to summarize.',
+    'Overview',
+    sheetNames,
+    applyOverviewFormatting,
+  );
 
   const groupedSelections = formatSelections.reduce((acc, selection) => {
     if (!selection?.appId) {
@@ -482,13 +486,14 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       };
     });
 
-    const sheet = buildSheet(rows, 'No deep dive metadata was available for this app.');
     const sheetLabel = appName || appSelection.appId || 'app';
 
-    window.XLSX.utils.book_append_sheet(
+    appendWorksheetFromRows(
       workbook,
-      sheet,
-      sanitizeSheetName(sheetLabel, sheetNames),
+      rows,
+      'No deep dive metadata was available for this app.',
+      sheetLabel,
+      sheetNames,
     );
   });
 
@@ -496,15 +501,12 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     (first, second) => (parseCount(second['Total occurrences']) || 0) - (parseCount(first['Total occurrences']) || 0),
   );
 
-  const fieldAnalysisSheet = buildSheet(
+  appendWorksheetFromRows(
+    workbook,
     fieldAnalysisRows,
     'No field-level analytics were available to export.',
-  );
-
-  window.XLSX.utils.book_append_sheet(
-    workbook,
-    fieldAnalysisSheet,
-    sanitizeSheetName('Field analysis', sheetNames),
+    'Field analysis',
+    sheetNames,
   );
 
   return workbook;
@@ -535,10 +537,10 @@ export const exportDeepDiveXlsx = async () => {
   }
 
   try {
-    logXlsx('debug', 'Ensuring XLSX and FileSaver libraries are available');
+    logXlsx('debug', 'Ensuring ExcelJS and FileSaver libraries are available');
     await ensureWorkbookLibraries();
   } catch (error) {
-    reportDeepDiveError('Unable to load XLSX dependencies for export', error);
+    reportDeepDiveError('Unable to load ExcelJS dependencies for export', error);
     return;
   }
 
@@ -554,5 +556,5 @@ export const exportDeepDiveXlsx = async () => {
 
   logXlsx('info', 'Deep-dive workbook assembled; starting download');
 
-  downloadWorkbook(workbook, desiredName || defaultFileName);
+  await downloadWorkbook(workbook, desiredName || defaultFileName);
 };

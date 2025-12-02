@@ -61,8 +61,8 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - Clear `localStorage` between runs to avoid stale SubID or manual naming data.
 - Keep secrets out of exports; integration keys and cookies are never written to disk.
 - `npm test` is available for future Node-based checks but no automated suites are currently defined.
-- XLSX downloads use the SheetJS community build from the CDN, which cannot write cell styles; header styling applied in-browser
-  will not persist in the saved workbook.
+- XLSX downloads use the open-source ExcelJS build from the CDN so header styling applied in-browser persists in the saved workbook. Keep
+  export tooling open-source unless otherwise directed.
 
 ## What’s still missing
 - **API request/response examples**: Add JSON samples for payload builders in `src/services/requests.js` (e.g., app listing, metadata field lookups, examples) and the typical success/failure responses returned via `proxy.php`.

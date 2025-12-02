@@ -1,7 +1,7 @@
 # AGENTS Instructions
 
 ## Project overview
-- Front-end stack: HTML, CSS, and vanilla JavaScript. CDN dependencies include `xlsx` and `file-saver`.
+- Front-end stack: HTML, CSS, and vanilla JavaScript. CDN dependencies include `exceljs` and `file-saver`.
 - Hosting: Runs on GitHub Pages for the integration workflow. Cookie-based requests rely on `proxy.php` (PHP + cURL) when exercised locally.
 
 ## Repository conventions
@@ -11,6 +11,7 @@
 - Temporary features may be added during the build; ensure they are easy to remove cleanly.
 - Clear/delete `localStorage` and any residual data after runs complete.
 - Never expose API keys or secrets in exports or code.
+- Favor open-source client libraries; avoid proprietary SDKs without explicit human approval.
 - Agents should **not create or update tests** unless explicitly directed by a human user.
 - New libraries or imports require human approval. When proposing one, offer alternatives with pros/cons before coding.
 - Preserve browser responsiveness when handling large datasets: use async patterns to avoid blocking the UI.

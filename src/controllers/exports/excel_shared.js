@@ -1,22 +1,9 @@
 const XLSX_LIBRARIES = {
-  xlsx: 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  exceljs: 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
   fileSaver: 'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
 };
 
 let workbookLibsPromise;
-let hasLoggedStyleLimitation = false;
-
-const logStyleLimitation = () => {
-  if (hasLoggedStyleLimitation) {
-    return;
-  }
-
-  hasLoggedStyleLimitation = true;
-  logXlsx(
-    'warn',
-    'The bundled SheetJS community build does not support writing cell styles, so exported XLSX files will not include header formatting.',
-  );
-};
 
 export const logXlsx = (level, ...messages) => {
   const normalizedLevel = level === 'error' || level === 'warn' || level === 'debug' ? level : 'info';
@@ -56,7 +43,7 @@ const ensureScript = (key, url) =>
 export const ensureWorkbookLibraries = () => {
   if (!workbookLibsPromise) {
     workbookLibsPromise = Promise.all([
-      ensureScript('XLSX', XLSX_LIBRARIES.xlsx),
+      ensureScript('ExcelJS', XLSX_LIBRARIES.exceljs),
       ensureScript('saveAs', XLSX_LIBRARIES.fileSaver),
     ]);
   }
@@ -147,16 +134,20 @@ export const openNamingModal = (buildDefaultFileName, sanitizeName = sanitizeFil
   });
 
 export const downloadWorkbook = (workbook, filename) => {
-  logStyleLimitation();
-  const workbookArray = window.XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
-  window.saveAs(
-    new Blob([
-      workbookArray,
-    ], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    }),
-    `${filename}.xlsx`,
-  );
+  return workbook.xlsx
+    .writeBuffer()
+    .then((buffer) =>
+      window.saveAs(
+        new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+        `${filename}.xlsx`,
+      ),
+    )
+    .catch((error) => {
+      logXlsx('error', 'Workbook download failed.', error);
+      throw error;
+    });
 };
 
 export const sanitizeSheetName = (name, existingNames = new Set()) => {
@@ -177,38 +168,28 @@ export const sanitizeSheetName = (name, existingNames = new Set()) => {
 const HEADER_STYLE = {
   font: {
     bold: true,
-    sz: 14,
-    color: { rgb: 'E83E8C' },
+    size: 14,
+    color: { argb: 'FFE83E8C' },
   },
 };
 
-export const applyHeaderFormatting = (sheet) => {
-  if (!sheet || !sheet['!ref']) {
-    logXlsx('warn', 'applyHeaderFormatting skipped because the sheet is missing data or range metadata');
+export const applyHeaderFormatting = (worksheet) => {
+  if (!worksheet) {
+    logXlsx('warn', 'applyHeaderFormatting skipped because the worksheet is missing');
     return;
   }
 
-  logStyleLimitation();
-
-  const range = window.XLSX.utils.decode_range(sheet['!ref']);
-  if (range.s.c > range.e.c) {
-    logXlsx('warn', 'applyHeaderFormatting skipped because the sheet range is empty', sheet['!ref']);
+  const headerRow = worksheet.getRow(1);
+  if (!headerRow || headerRow.cellCount === 0) {
+    logXlsx('warn', 'applyHeaderFormatting skipped because the header row is empty');
     return;
   }
 
-  for (let columnIndex = range.s.c; columnIndex <= range.e.c; columnIndex += 1) {
-    const cellAddress = window.XLSX.utils.encode_cell({ r: range.s.r, c: columnIndex });
-    const cell = sheet[cellAddress];
+  headerRow.eachCell((cell) => {
+    cell.font = { ...(cell.font || {}), ...HEADER_STYLE.font };
+  });
 
-    if (cell) {
-      cell.s = {
-        ...(cell.s || {}),
-        font: { ...(cell.s?.font || {}), ...HEADER_STYLE.font },
-      };
-    }
-  }
-
-  logXlsx('debug', `Applied header formatting to ${range.e.c - range.s.c + 1} column(s)`);
+  logXlsx('debug', `Applied header formatting to ${headerRow.cellCount} column(s)`);
 };
 
 const fetchStaticDocument = async (path) => {

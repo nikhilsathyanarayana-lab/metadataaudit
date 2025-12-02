@@ -270,12 +270,28 @@ export const initWorkbookUi = () => {
   const ensureWorkbookLibs = () => {
     if (!workbookLibsPromise) {
       workbookLibsPromise = Promise.all([
-        loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js', 'XLSX'),
+        loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', 'ExcelJS'),
         loadScript('https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js', 'saveAs'),
       ]);
     }
 
     return workbookLibsPromise;
+  };
+
+  const applyHeaderFormatting = (worksheet) => {
+    const headerRow = worksheet.getRow(1);
+    if (!headerRow || headerRow.cellCount === 0) {
+      return;
+    }
+
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        ...(cell.font || {}),
+        bold: true,
+        size: 14,
+        color: { argb: 'FFE83E8C' },
+      };
+    });
   };
 
 const summarizeError = (error) => {
@@ -448,29 +464,36 @@ const summarizeError = (error) => {
       setStatus('excel', 'running', 'Building workbook…');
       await ensureWorkbookLibs();
 
-      const workbook = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
+      const addSheet = (label, rows, fallbackMessage) => {
+        const worksheet = workbook.addWorksheet(label);
+        const effectiveRows = rows.length ? rows : [{ Note: fallbackMessage }];
 
-      const fieldsSheet = XLSX.utils.json_to_sheet(
-        fieldsRows.length ? fieldsRows : [{ Note: 'No metadata fields returned from the Aggregations API.' }],
-      );
-      XLSX.utils.book_append_sheet(workbook, fieldsSheet, 'Fields');
+        const headers = Object.keys(effectiveRows[0]);
+        worksheet.addRow(headers);
+        effectiveRows.forEach((row) => worksheet.addRow(headers.map((header) => row[header] ?? '')));
+        applyHeaderFormatting(worksheet);
+      };
 
-      const examplesSheet = XLSX.utils.json_to_sheet(
-        includeExamples
-          ? examplesRows.length
-            ? examplesRows
-            : [{ Note: 'Examples were requested but no values were parsed.' }]
-          : [{ Note: 'Examples were skipped per settings.' }],
-      );
-      XLSX.utils.book_append_sheet(workbook, examplesSheet, 'Examples');
+      addSheet('Fields', fieldsRows, 'No metadata fields returned from the Aggregations API.');
+
+      const examplesRowsToWrite = includeExamples
+        ? examplesRows.length
+          ? examplesRows
+          : [{ Note: 'Examples were requested but no values were parsed.' }]
+        : [{ Note: 'Examples were skipped per settings.' }];
+      addSheet('Examples', examplesRowsToWrite, 'Examples were skipped per settings.');
 
       const workbookLabel = getWorkbookName();
-      const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const normalizedWorkbookLabel = workbookLabel.toLowerCase().endsWith('.xlsx')
+        ? workbookLabel
+        : `${workbookLabel}.xlsx`;
+      const buffer = await workbook.xlsx.writeBuffer();
       saveAs(
-        new Blob([workbookArray], {
+        new Blob([buffer], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         }),
-        workbookLabel,
+        normalizedWorkbookLabel,
       );
 
       setStatus('excel', 'success', `Workbook ready: ${workbookLabel}`);
