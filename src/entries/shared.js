@@ -3,7 +3,7 @@ import { exportMetadataPdf } from '../controllers/exports/metadata_pdf.js';
 import { exportMetadataXlsx } from '../controllers/exports/metadata_xlsx.js';
 
 const initExportModal = (options = {}) => {
-  const { enableJsonExport = false, additionalFormats = {} } = options;
+  const { enableJsonExport = false, additionalFormats = {}, pdfHandler = exportMetadataPdf } = options;
   const exportButton = document.getElementById('export-button');
   const modal = document.getElementById('export-modal');
   const backdrop = document.getElementById('export-backdrop');
@@ -26,7 +26,7 @@ const initExportModal = (options = {}) => {
   const formatButtons = modal.querySelectorAll('[data-format]');
 
   const formatHandlers = {
-    pdf: exportMetadataPdf,
+    pdf: pdfHandler,
     xlsx: exportMetadataXlsx,
     ...additionalFormats,
   };
