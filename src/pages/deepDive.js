@@ -242,7 +242,7 @@ export const initDeepDive = async () => {
     const startButton = document.getElementById('deep-dive-start');
 
     const manualAppNames = loadManualAppNames();
-    let metadataRecords = loadMetadataRecords(reportDeepDiveError);
+    let metadataRecords = loadMetadataRecords();
     const deepDiveRecords = loadDeepDiveRecords();
     const rows = [];
     const renderedRows = [];
@@ -274,7 +274,7 @@ export const initDeepDive = async () => {
         });
 
         const nextRows = applyManualAppNames(
-          buildRowsForLookback(metadataRecords, selectedLookback, reportDeepDiveError),
+          buildRowsForLookback(metadataRecords, selectedLookback),
           manualAppNames,
         );
 

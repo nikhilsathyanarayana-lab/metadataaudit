@@ -517,7 +517,7 @@ export const exportDeepDiveXlsx = async () => {
   const visitorTable = document.getElementById('visitor-deep-dive-table');
   const accountTable = document.getElementById('account-deep-dive-table');
   const metadataRecords = dedupeMetadataRecords(
-    loadMetadataRecords(reportDeepDiveError),
+    loadMetadataRecords(),
     loadDeepDiveRecords(),
   );
 
