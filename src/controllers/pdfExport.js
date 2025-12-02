@@ -317,20 +317,27 @@ const renderPdf = async (filename) => {
 
   const printable = buildPrintableDocument();
   const wideLayout = shouldUseWideLayout(printable);
-  const renderWidth = wideLayout ? 1200 : 1000;
   const margin = wideLayout ? 20 : 18;
+  const pdf = new window.jspdf.jsPDF(wideLayout ? 'l' : 'p', 'pt', 'a4');
+  const pageWidthPt = pdf.internal.pageSize.getWidth();
+  const ptToPx = (points) => (points * 96) / 72;
+  const availableWidthPx = ptToPx(pageWidthPt - margin * 2);
+  const renderWidth = Math.floor(availableWidthPx);
+  const baseScale = wideLayout ? 1.4 : 1.5;
+  const widthRatio = renderWidth / (wideLayout ? 1200 : 1000);
+  const canvasScale = Math.min(2, Math.max(1.2, baseScale * widthRatio));
+
   printable.style.position = 'fixed';
   printable.style.top = '0';
   printable.style.left = '-9999px';
   printable.style.width = `${renderWidth}px`;
   printable.style.maxWidth = 'none';
   printable.style.background = '#ffffff';
-  printable.style.padding = `${margin}px`;
+  printable.style.padding = `${ptToPx(margin)}px`;
+  printable.style.boxSizing = 'border-box';
   printable.style.overflowX = 'auto';
 
   document.body.appendChild(printable);
-
-  const pdf = new window.jspdf.jsPDF(wideLayout ? 'l' : 'p', 'pt', 'a4');
   const sections = Array.from(printable.children);
   const pageDecorations = [];
 
@@ -340,7 +347,7 @@ const renderPdf = async (filename) => {
     await pdf.html(section, {
       margin,
       autoPaging: 'text',
-      html2canvas: { scale: wideLayout ? 1.4 : 1.5, useCORS: true, backgroundColor: '#ffffff' },
+      html2canvas: { scale: canvasScale, useCORS: true, backgroundColor: '#ffffff' },
       windowWidth: renderWidth,
       x: margin,
       y: margin,
