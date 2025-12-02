@@ -47,9 +47,11 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
    - `bootstrapShared()` injects export and naming modals.
    - `initDeepDiveNavigation()` binds the Deep Dive button for follow-on scans.
    - `initMetadataFields()` loads `appSelectionResponses`, requests metadata for each selected app across 180/30/7-day windows, tracks API progress, and saves results plus manual app name overrides to `metadataFieldRecords`.
+   - Metadata fields now render as selectable chips per app/window so you can flag which visitor/account fields should flow into the Deep Dive tables.
 4. **deep_dive.html**
    - `bootstrapShared()` keeps export modals available.
    - `initDeepDive()` reuses `appSelectionResponses` and `metadataFieldRecords`, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and aligns results with manual app naming before enabling exports.
+   - Only the fields flagged on `metadata_fields.html` are rendered in the tables for each lookback window.
    - JSON exports (`metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`) nest Sub ID → App ID and summarize each metadata field as value/count pairs. App names persist separately in `localStorage` under `manualAppNames`.
 
 ## Cookie workbook workflow
