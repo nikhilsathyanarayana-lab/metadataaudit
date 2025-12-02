@@ -148,6 +148,10 @@ const buildCoverPage = (subscriptions) => {
   const cover = document.createElement('section');
   cover.className = 'pdf-cover-page';
 
+  const heading = document.createElement('p');
+  heading.className = 'pdf-cover-title';
+  heading.textContent = 'Metadata export';
+
   const brand = document.createElement('div');
   brand.className = 'pdf-cover-brand';
   brand.textContent = 'Pendo';
@@ -177,7 +181,11 @@ const buildCoverPage = (subscriptions) => {
   });
 
   copy.append(title, subtitle, listHeading, list);
-  cover.append(brand, copy);
+  const date = document.createElement('p');
+  date.className = 'pdf-cover-date';
+  date.textContent = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+
+  cover.append(heading, brand, copy, date);
   return cover;
 };
 

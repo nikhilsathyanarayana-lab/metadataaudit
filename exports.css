@@ -48,6 +48,15 @@
   box-shadow: 0 14px 42px rgba(224, 0, 108, 0.25);
 }
 
+.pdf-cover-title {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .pdf-cover-brand {
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -83,6 +92,14 @@
   color: rgba(255, 255, 255, 0.92);
   display: grid;
   gap: 0.2rem;
+}
+
+.pdf-cover-date {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0 0;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: right;
 }
 
 .pdf-export-header {
