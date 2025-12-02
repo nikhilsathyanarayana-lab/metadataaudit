@@ -310,7 +310,7 @@ export const initDeepDive = async () => {
         });
 
         const totalEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length;
-        progressHandlers.updateProcessingProgress(rows.length, totalEntries);
+        progressHandlers.updateProcessingProgress(0, totalEntries);
         progressHandlers.updateApiProgress(0, totalEntries);
         updateExportAvailability();
       } catch (error) {
