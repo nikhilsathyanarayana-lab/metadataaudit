@@ -245,7 +245,8 @@ const applyOverviewFormatting = (sheet) => {
   const headerRow = range.s.r;
   const firstColumn = range.s.c;
 
-  const headerCells = Array.from({ length: range.e.c - range.s.c + 1 }, (_, index) => ({
+  const maxHeaderColumn = Math.min(range.e.c, range.s.c + 6);
+  const headerCells = Array.from({ length: maxHeaderColumn - range.s.c + 1 }, (_, index) => ({
     r: headerRow,
     c: range.s.c + index,
   }));
