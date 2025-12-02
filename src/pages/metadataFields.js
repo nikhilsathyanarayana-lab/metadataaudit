@@ -122,6 +122,64 @@ const updateMetadataSnapshotEntry = (
   persistMetadataSnapshot();
 };
 
+const updateAppSelectionMetadataFields = (
+  appId,
+  windowDays,
+  visitorFields = [],
+  accountFields = [],
+) => {
+  if (!appId || windowDays !== 7) {
+    return;
+  }
+
+  try {
+    const raw = localStorage.getItem(storageKey);
+
+    if (!raw) {
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const normalizedVisitorFields = Array.isArray(visitorFields) ? visitorFields : [];
+    const normalizedAccountFields = Array.isArray(accountFields) ? accountFields : [];
+
+    const updatedSelections = parsed.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+
+      const appIds = extractAppIds(entry.response);
+
+      if (!appIds.includes(appId)) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        metadataFields: {
+          ...(entry.metadataFields || {}),
+          [appId]: {
+            windowDays,
+            visitorFields: normalizedVisitorFields,
+            accountFields: normalizedAccountFields,
+            updatedAt,
+          },
+        },
+      };
+    });
+
+    localStorage.setItem(storageKey, JSON.stringify(updatedSelections));
+  } catch (error) {
+    console.error('Unable to update stored app selections with metadata fields:', error);
+  }
+};
+
 const syncMetadataSnapshotAppName = (appId, appName) => {
   if (!appId) {
     return;
@@ -515,6 +573,7 @@ const fetchAndPopulate = async (
         updateCellContent(accountCells[windowDays], accountFields, 'account');
 
         updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
+        updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
 
         visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
         accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
@@ -558,6 +617,7 @@ const fetchAndPopulate = async (
             updateCellContent(accountCells[windowDays], accountFields, 'account');
 
             updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
+            updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
 
             visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
