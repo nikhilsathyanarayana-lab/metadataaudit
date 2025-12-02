@@ -398,6 +398,32 @@ textarea:focus {
   transform: translateY(1px);
 }
 
+.remove-subid-btn {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(61, 61, 61, 0.2);
+  background: #fff;
+  color: #5d5d5d;
+  font-size: 1.4rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.remove-subid-btn:hover {
+  border-color: var(--pendo-pink);
+  box-shadow: 0 6px 18px rgba(224, 0, 108, 0.18);
+  background: #fff7fb;
+}
+
+.remove-subid-btn:active {
+  transform: translateY(1px);
+}
+
 .launch-btn {
   align-self: flex-start;
   padding: 0.75rem 1.25rem;
