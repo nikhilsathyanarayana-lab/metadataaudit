@@ -77,24 +77,6 @@ const normalizeAppSelections = (selections) =>
       metadataFields: normalizeSelectionMetadata(entry.metadataFields),
     }));
 
-export const loadAppSelectionsFromStorage = (reportError = () => {}) => {
-  try {
-    const raw = localStorage.getItem(appSelectionGlobalKey);
-
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    const records = Array.isArray(parsed) ? parsed : parsed?.records;
-
-    return normalizeAppSelections(records);
-  } catch (error) {
-    reportError('Unable to read stored app selection data.', error);
-    return [];
-  }
-};
-
 export const getGlobalCollection = (key) => {
   if (!key) {
     return [];
@@ -115,12 +97,10 @@ export const getGlobalCollection = (key) => {
   return [];
 };
 
-export const loadAppSelections = (reportError) => {
+export const loadAppSelections = () => {
   const selections = normalizeAppSelections(getGlobalCollection(appSelectionGlobalKey));
-  const storedSelections = loadAppSelectionsFromStorage(reportError);
-  const mergedSelections = [...selections, ...storedSelections];
 
-  return mergedSelections.flatMap((entry) => {
+  return selections.flatMap((entry) => {
     const appIds = extractAppIds(entry.response);
 
     if (!appIds.length) {
@@ -142,27 +122,6 @@ export const normalizeMetadataRecords = (records) =>
     (record) => record?.appId && Number.isFinite(record?.windowDays),
   );
 
-export const loadMetadataRecordsFromStorage = (reportError = () => {}) => {
-  try {
-    const raw = localStorage.getItem(metadataFieldGlobalKey);
-
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-
-    if (Array.isArray(parsed)) {
-      return normalizeMetadataRecords(parsed);
-    }
-
-    return normalizeMetadataRecords(parsed?.records);
-  } catch (error) {
-    reportError('Unable to parse stored metadata fields. Cached values were ignored.', error);
-    return [];
-  }
-};
-
 export const dedupeMetadataRecords = (...recordSets) => {
   const deduped = new Map();
 
@@ -177,11 +136,8 @@ export const dedupeMetadataRecords = (...recordSets) => {
   return Array.from(deduped.values());
 };
 
-export const loadMetadataRecords = (reportError) =>
-  dedupeMetadataRecords(
-    normalizeMetadataRecords(getGlobalCollection(metadataFieldGlobalKey)),
-    loadMetadataRecordsFromStorage(reportError),
-  );
+export const loadMetadataRecords = () =>
+  dedupeMetadataRecords(normalizeMetadataRecords(getGlobalCollection(metadataFieldGlobalKey)));
 
 const deepDiveRecords = [];
 
@@ -312,14 +268,14 @@ export const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) =>
   return Array.from(grouped.values());
 };
 
-export const buildRowsForLookback = (metadataRecords, lookback, reportError) => {
+export const buildRowsForLookback = (metadataRecords, lookback) => {
   const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
 
   if (groupedRecords.length) {
     return groupedRecords;
   }
 
-  const selections = loadAppSelections(reportError);
+  const selections = loadAppSelections();
   return selections.map((entry) => ({
     appId: entry.appId,
     subId: entry.subId,
