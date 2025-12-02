@@ -273,8 +273,13 @@ const buildLookbackIndex = (records) => {
     appEntry.appName = record.appName || appEntry.appName;
     appEntry.subId = record.subId || appEntry.subId;
 
-    const recordLookup = appEntry[record.type];
+    const recordLookup = record?.type ? appEntry[record.type] : null;
     const key = record.fieldName || record.field;
+
+    if (!recordLookup || !key) {
+      index.set(record.appId, appEntry);
+      return;
+    }
 
     if (!recordLookup.has(key)) {
       recordLookup.set(key, new Map());
@@ -300,7 +305,9 @@ const buildSubscriptionTotals = (metadataRecords) => {
   const subscriptions = new Map();
 
   metadataRecords.forEach((record) => {
-    if (!record?.subId) {
+    const recordType = record?.type;
+
+    if (!record?.subId || (recordType !== 'visitor' && recordType !== 'account')) {
       return;
     }
 
@@ -316,7 +323,7 @@ const buildSubscriptionTotals = (metadataRecords) => {
     subEntry.appIds.add(record.appId);
 
     if (LOOKBACK_WINDOWS.includes(record.windowDays) && Number.isFinite(record.count)) {
-      subEntry.totals[record.type][record.windowDays] += record.count;
+      subEntry.totals[recordType][record.windowDays] += record.count;
     }
 
     if (Array.isArray(record.visitorFields)) {
