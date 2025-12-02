@@ -308,7 +308,7 @@ const shouldUseWideLayout = (container) => {
       0,
     );
 
-    return columnCount >= 7 || longestHeader >= 22 || longestCell >= 160;
+    return columnCount >= 9 || longestHeader >= 26 || longestCell >= 200;
   });
 };
 
@@ -317,15 +317,15 @@ const renderPdf = async (filename) => {
 
   const printable = buildPrintableDocument();
   const wideLayout = shouldUseWideLayout(printable);
-  const renderWidth = wideLayout ? 1400 : 1200;
-  const margin = wideLayout ? 24 : 32;
+  const renderWidth = wideLayout ? 1200 : 1000;
+  const margin = wideLayout ? 20 : 18;
   printable.style.position = 'fixed';
   printable.style.top = '0';
   printable.style.left = '-9999px';
   printable.style.width = `${renderWidth}px`;
   printable.style.maxWidth = 'none';
   printable.style.background = '#ffffff';
-  printable.style.padding = '32px';
+  printable.style.padding = `${margin}px`;
   printable.style.overflowX = 'auto';
 
   document.body.appendChild(printable);
