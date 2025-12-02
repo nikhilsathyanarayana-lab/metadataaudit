@@ -251,8 +251,20 @@ export const showMessage = (region, message, tone = 'info') => {
 
 export const reportDeepDiveError = (message, error, region = null) => {
   console.error(message, error);
-  const targetRegion = region || ensureMessageRegion();
-  showMessage(targetRegion, message, 'error');
+
+  if (region) {
+    showMessage(region, message, 'error');
+    return;
+  }
+
+  const processingProgressText = document.getElementById('deep-dive-processing-progress');
+  const apiProgressText = document.getElementById('deep-dive-api-progress');
+  const fallbackTarget = processingProgressText || apiProgressText;
+
+  if (fallbackTarget) {
+    fallbackTarget.textContent = message;
+    fallbackTarget.setAttribute('role', 'alert');
+  }
 };
 
 let deepDiveGlobalErrorHandlersInstalled = false;
@@ -294,38 +306,68 @@ export const setupProgressTracker = () => {
   const apiProgressText = document.getElementById('deep-dive-api-progress');
   const processingProgressText = document.getElementById('deep-dive-processing-progress');
 
-  const updateApiProgress = (completed = 0, total = 0) => {
+  const setTone = (target, tone = 'info') => {
+    if (!target) {
+      return;
+    }
+
+    target.classList.toggle('is-error', tone === 'error');
+    target.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  };
+
+  const setApiStatus = (message, tone = 'info') => {
     if (!apiProgressText) {
       return;
     }
 
-    if (!total) {
-      apiProgressText.textContent = 'No API calls queued.';
-      return;
-    }
-
-    const boundedCompleted = Math.min(completed, total);
-    const remaining = Math.max(total - boundedCompleted, 0);
-    apiProgressText.textContent = `API calls: ${boundedCompleted}/${total} (${remaining} left)`;
+    apiProgressText.textContent = message;
+    setTone(apiProgressText, tone);
   };
 
-  const updateProcessingProgress = (completed = 0, total = 0) => {
+  const setProcessingStatus = (message, tone = 'info') => {
     if (!processingProgressText) {
       return;
     }
 
+    processingProgressText.textContent = message;
+    setTone(processingProgressText, tone);
+  };
+
+  const updateApiProgress = (completed = 0, total = 0) => {
     if (!total) {
-      processingProgressText.textContent = 'Processing queue idle.';
+      setApiStatus('No API calls queued.');
       return;
     }
 
     const boundedCompleted = Math.min(completed, total);
     const remaining = Math.max(total - boundedCompleted, 0);
-    processingProgressText.textContent = `Processing results: ${boundedCompleted}/${total} (${remaining} remaining)`;
+    setApiStatus(`API calls: ${boundedCompleted}/${total} (${remaining} left)`);
+  };
+
+  const updateProcessingProgress = (completed = 0, total = 0) => {
+    if (!total) {
+      setProcessingStatus('Processing queue idle.');
+      return;
+    }
+
+    const boundedCompleted = Math.min(completed, total);
+    const remaining = Math.max(total - boundedCompleted, 0);
+    setProcessingStatus(`Processing results: ${boundedCompleted}/${total} (${remaining} remaining)`);
   };
 
   updateApiProgress(0, 0);
   updateProcessingProgress(0, 0);
 
-  return { updateApiProgress, updateProcessingProgress };
+  const setApiError = (message) => setApiStatus(message || 'API call failed.', 'error');
+  const setProcessingError = (message) =>
+    setProcessingStatus(message || 'Processing failed.', 'error');
+
+  return {
+    updateApiProgress,
+    updateProcessingProgress,
+    setApiStatus,
+    setProcessingStatus,
+    setApiError,
+    setProcessingError,
+  };
 };
