@@ -16,7 +16,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
      ```bash
      php -S localhost:8000
      ```
-  3. Open `http://localhost:8000/index.html` for Integration API testing or `http://localhost:8000/workbook_ui.html` for the cookie workbook.
+  3. Open `http://localhost:8000/index.html` for Integration API testing or `http://localhost:8000/cookie_method.html` for the cookie workbook.
 - **Auth inputs**: Provide either an integration key with read access or a `pendo.sess.jwt2` cookie (only needed for the cookie flow). Use any modern browser that supports the Fetch API.
 
 ## Project structure
@@ -24,7 +24,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - `app_selection.html`: Lists discovered apps for the chosen SubIDs so users can decide which to audit.
 - `metadata_fields.html`: Retrieves metadata for the selected apps, tracks progress, and exposes export actions.
 - `deep_dive.html`: Drill-down view for refining expected field formats and requesting deeper scans.
-- `workbook_ui.html`: Cookie-only staging UI that assembles Aggregations requests and downloads workbook-friendly CSVs.
+- `cookie_method.html`: Cookie-only staging UI that assembles Aggregations requests and downloads workbook-friendly CSVs.
 - `Aggregations/`: Standalone scripts and sample payloads for Aggregations and workbook generation.
 - `Modals/`: Shared dialog templates (app naming, export options, XLSX naming guidance) injected at runtime.
 - `src/entries/`: Page bootstraps that import only the controllers and services each HTML view needs; `shared.js` wires common modal and export behaviors.
@@ -53,7 +53,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
    - JSON exports (`metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`) nest Sub ID → App ID and summarize each metadata field as value/count pairs. App names persist separately in `localStorage` under `manualAppNames`.
 
 ## Cookie workbook workflow
-- `workbook_ui.html` uses `initWorkbookUi()` to collect SubID, environment, cookie, and optional examples settings.
+- `cookie_method.html` uses `initWorkbookUi()` to collect SubID, environment, cookie, and optional examples settings.
 - Aggregations requests are assembled with helpers in `src/services/requests.js` and posted through `proxy.php` using a `cookie` header built by `buildCookieHeaderValue()`.
 - Responses are parsed into CSV-ready rows with `parseExamples()` before triggering downloads for downstream Excel processing.
 
