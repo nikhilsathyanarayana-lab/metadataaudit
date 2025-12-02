@@ -320,8 +320,10 @@ export const exportMetadataXlsx = async () => {
     setStatus('Preparing XLSX export…', { pending: true });
     await ensureWorkbookLibraries();
 
-    setStatus('Loading metadata for export…', { pending: true });
-    await waitForMetadataFields();
+    setStatus('Loading available metadata for export…', { pending: true });
+    waitForMetadataFields().catch((error) =>
+      console.error('Metadata fields may not finish loading before export completes.', error),
+    );
 
     setStatus('Building XLSX workbook…', { pending: true });
     const metadataDoc = await ensurePageDocument('metadata_fields.html');

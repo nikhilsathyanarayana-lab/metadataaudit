@@ -832,7 +832,6 @@ export const initDeepDive = async () => {
     const manualAppNames = loadManualAppNames();
     let metadataRecords = loadMetadataRecords(reportDeepDiveError);
     const deepDiveRecords = loadDeepDiveRecords();
-    let hasSuccessfulScan = deepDiveRecords.some((record) => !record.error);
     const rows = [];
     const renderedRows = [];
     const getRenderedRows = () => renderedRows;
@@ -850,7 +849,7 @@ export const initDeepDive = async () => {
     let selectedLookback = TARGET_LOOKBACK;
 
     const updateExportAvailability = () => {
-      setExportAvailability(hasSuccessfulScan && (rows.length > 0 || deepDiveRecords.length > 0));
+      setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
     };
 
     const refreshTables = (lookback = selectedLookback) => {
@@ -922,7 +921,6 @@ export const initDeepDive = async () => {
             messageRegion,
             rows,
             () => {
-              hasSuccessfulScan = true;
               updateExportAvailability();
             },
             updateExportAvailability,
