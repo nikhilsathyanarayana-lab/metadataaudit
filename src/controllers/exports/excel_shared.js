@@ -4,6 +4,19 @@ const XLSX_LIBRARIES = {
 };
 
 let workbookLibsPromise;
+let hasLoggedStyleLimitation = false;
+
+const logStyleLimitation = () => {
+  if (hasLoggedStyleLimitation) {
+    return;
+  }
+
+  hasLoggedStyleLimitation = true;
+  logXlsx(
+    'warn',
+    'The bundled SheetJS community build does not support writing cell styles, so exported XLSX files will not include header formatting.',
+  );
+};
 
 export const logXlsx = (level, ...messages) => {
   const normalizedLevel = level === 'error' || level === 'warn' || level === 'debug' ? level : 'info';
@@ -134,6 +147,7 @@ export const openNamingModal = (buildDefaultFileName, sanitizeName = sanitizeFil
   });
 
 export const downloadWorkbook = (workbook, filename) => {
+  logStyleLimitation();
   const workbookArray = window.XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
   window.saveAs(
     new Blob([
@@ -173,6 +187,8 @@ export const applyHeaderFormatting = (sheet) => {
     logXlsx('warn', 'applyHeaderFormatting skipped because the sheet is missing data or range metadata');
     return;
   }
+
+  logStyleLimitation();
 
   const range = window.XLSX.utils.decode_range(sheet['!ref']);
   if (range.s.c > range.e.c) {
