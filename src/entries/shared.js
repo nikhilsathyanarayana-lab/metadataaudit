@@ -1,9 +1,8 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
-import { exportMetadataPdf } from '../controllers/exports/metadata_pdf.js';
 import { exportMetadataXlsx } from '../controllers/exports/metadata_xlsx.js';
 
 const initExportModal = (options = {}) => {
-  const { enableJsonExport = false, additionalFormats = {}, pdfHandler = exportMetadataPdf } = options;
+  const { enableJsonExport = false, additionalFormats = {} } = options;
   const exportButton = document.getElementById('export-button');
   const modal = document.getElementById('export-modal');
   const backdrop = document.getElementById('export-backdrop');
@@ -25,11 +24,7 @@ const initExportModal = (options = {}) => {
 
   const formatButtons = modal.querySelectorAll('[data-format]');
 
-  const formatHandlers = {
-    pdf: pdfHandler,
-    xlsx: exportMetadataXlsx,
-    ...additionalFormats,
-  };
+  const formatHandlers = { xlsx: exportMetadataXlsx, ...additionalFormats };
 
   const openModal = () => {
     modal.hidden = false;
