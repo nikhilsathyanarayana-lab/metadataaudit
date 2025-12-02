@@ -99,6 +99,19 @@ const aggregateBySubscription = (visitorRows, accountRows) => {
   return Array.from(subscriptions.values());
 };
 
+const deriveColumnWidthClass = (headerText) => {
+  const length = headerText.trim().length;
+  if (length <= 8) {
+    return 'col-tight';
+  }
+
+  if (length >= 20) {
+    return 'col-wide';
+  }
+
+  return 'col-medium';
+};
+
 const createTableElement = ({ title, hint, headers, rows }) => {
   const section = document.createElement('section');
   section.className = 'pdf-section';
@@ -119,9 +132,12 @@ const createTableElement = ({ title, hint, headers, rows }) => {
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
-  headers.forEach((headerText) => {
+  const columnWidths = headers.map((headerText) => deriveColumnWidthClass(headerText));
+
+  headers.forEach((headerText, headerIndex) => {
     const th = document.createElement('th');
     th.textContent = headerText;
+    th.classList.add(columnWidths[headerIndex]);
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -132,10 +148,10 @@ const createTableElement = ({ title, hint, headers, rows }) => {
     const tr = document.createElement('tr');
     tr.style.breakInside = 'avoid';
     tr.style.pageBreakInside = 'avoid';
-    cells.forEach((value) => {
+    cells.forEach((value, cellIndex) => {
       const td = document.createElement('td');
       td.textContent = value;
-      td.style.whiteSpace = 'pre-line';
+      td.classList.add(columnWidths[cellIndex] || 'col-medium');
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -281,14 +297,32 @@ const buildPrintableDocument = () => {
   return container;
 };
 
+const shouldUseWideLayout = (container) => {
+  const tables = Array.from(container.querySelectorAll('.pdf-table'));
+  return tables.some((table) => {
+    const headers = Array.from(table.querySelectorAll('thead th'));
+    const columnCount = headers.length;
+    const longestHeader = headers.reduce((max, th) => Math.max(max, th.textContent.trim().length), 0);
+    const longestCell = Array.from(table.querySelectorAll('tbody td')).reduce(
+      (max, td) => Math.max(max, td.textContent.trim().length),
+      0,
+    );
+
+    return columnCount >= 7 || longestHeader >= 22 || longestCell >= 160;
+  });
+};
+
 const renderPdf = async (filename) => {
   await loadLibraries();
 
   const printable = buildPrintableDocument();
+  const wideLayout = shouldUseWideLayout(printable);
+  const renderWidth = wideLayout ? 1400 : 1200;
+  const margin = wideLayout ? 24 : 32;
   printable.style.position = 'fixed';
   printable.style.top = '0';
   printable.style.left = '-9999px';
-  printable.style.width = '1200px';
+  printable.style.width = `${renderWidth}px`;
   printable.style.maxWidth = 'none';
   printable.style.background = '#ffffff';
   printable.style.padding = '32px';
@@ -296,8 +330,7 @@ const renderPdf = async (filename) => {
 
   document.body.appendChild(printable);
 
-  const pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
-  const margin = 32;
+  const pdf = new window.jspdf.jsPDF(wideLayout ? 'l' : 'p', 'pt', 'a4');
   const sections = Array.from(printable.children);
   const pageDecorations = [];
 
@@ -307,8 +340,8 @@ const renderPdf = async (filename) => {
     await pdf.html(section, {
       margin,
       autoPaging: 'text',
-      html2canvas: { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' },
-      windowWidth: 1200,
+      html2canvas: { scale: wideLayout ? 1.4 : 1.5, useCORS: true, backgroundColor: '#ffffff' },
+      windowWidth: renderWidth,
       x: margin,
       y: margin,
       pagebreak: { mode: ['css', 'legacy'] },

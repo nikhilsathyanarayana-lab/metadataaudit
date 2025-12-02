@@ -223,7 +223,9 @@
   color: #3d3d3d;
   padding: 0.65rem 0.75rem;
   border-bottom: 2px solid #f04e98;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .pdf-table td {
@@ -231,8 +233,30 @@
   border-bottom: 1px solid #f3d6e3;
   vertical-align: top;
   word-break: break-word;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .pdf-table tr:nth-child(even) td {
   background: #fff7fb;
+}
+
+.pdf-table th,
+.pdf-table td {
+  min-width: 120px;
+}
+
+.pdf-table th.col-tight,
+.pdf-table td.col-tight {
+  min-width: 90px;
+}
+
+.pdf-table th.col-medium,
+.pdf-table td.col-medium {
+  min-width: 130px;
+}
+
+.pdf-table th.col-wide,
+.pdf-table td.col-wide {
+  min-width: 190px;
 }
