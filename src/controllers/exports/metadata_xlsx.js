@@ -107,22 +107,19 @@ const collectTableAoA = (table) => {
   return [headers, ...rows];
 };
 
-const buildSheetFromAoA = (aoa, fallbackMessage) => {
+const appendTableSheet = (workbook, table, label, sheetNames) => {
+  const aoa = collectTableAoA(table);
+  const worksheet = workbook.addWorksheet(sanitizeSheetName(label, sheetNames));
+
   if (!aoa || !aoa.length || !aoa[0]?.length) {
-    const sheet = window.XLSX.utils.json_to_sheet([{ Note: fallbackMessage }]);
-    applyHeaderFormatting(sheet);
-    return sheet;
+    worksheet.addRow(['Note']);
+    worksheet.addRow([`${label} data was not available to export.`]);
+    applyHeaderFormatting(worksheet);
+    return;
   }
 
-  const sheet = window.XLSX.utils.aoa_to_sheet(aoa);
-  applyHeaderFormatting(sheet);
-  return sheet;
-};
-
-const addTableSheet = (workbook, table, label, sheetNames) => {
-  const aoa = collectTableAoA(table);
-  const sheet = buildSheetFromAoA(aoa, `${label} data was not available to export.`);
-  window.XLSX.utils.book_append_sheet(workbook, sheet, sanitizeSheetName(label, sheetNames));
+  aoa.forEach((row) => worksheet.addRow(row));
+  applyHeaderFormatting(worksheet);
 };
 
 export const exportMetadataXlsx = async () => {
@@ -149,13 +146,13 @@ export const exportMetadataXlsx = async () => {
     const visitorTable = metadataDoc?.getElementById('visitor-metadata-table');
     const accountTable = metadataDoc?.getElementById('account-metadata-table');
 
-    const workbook = window.XLSX.utils.book_new();
+    const workbook = new window.ExcelJS.Workbook();
     const sheetNames = new Set();
 
-    addTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
-    addTableSheet(workbook, accountTable, 'Account', sheetNames);
+    appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
+    appendTableSheet(workbook, accountTable, 'Account', sheetNames);
 
-    downloadWorkbook(workbook, desiredName || buildDefaultFileName());
+    await downloadWorkbook(workbook, desiredName || buildDefaultFileName());
     setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
   } catch (error) {
     console.error('Unable to export metadata XLSX.', error);
