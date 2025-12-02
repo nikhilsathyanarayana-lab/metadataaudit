@@ -23,11 +23,11 @@ export const setupRegexFormatModal = async () => {
   const backdrop = document.getElementById('regex-format-backdrop');
   const form = document.getElementById('regex-format-modal-form');
   const regexInput = document.getElementById('regex-format-input');
-  const appIdTarget = document.getElementById('regex-modal-app-id');
-  const appNameTarget = document.getElementById('regex-modal-app-name');
-  const fieldTarget = document.getElementById('regex-modal-field-name');
-  const subIdTarget = document.getElementById('regex-modal-sub-id');
-  const closeButtons = modal?.querySelectorAll('[data-close-regex-modal]') || [];
+  const appIdTarget = document.getElementById('regex-format-app-id');
+  const appNameTarget = document.getElementById('regex-format-app-name');
+  const fieldTarget = document.getElementById('regex-format-field');
+  const subIdTarget = document.getElementById('regex-format-sub-id');
+  const closeButtons = modal?.querySelectorAll('[data-close-regex-format-modal]') || [];
 
   if (!modal || !backdrop || !form || !regexInput || !appIdTarget || !fieldTarget) {
     return () => {};
