@@ -1,6 +1,7 @@
 import { bootstrapShared } from './shared.js';
 import {
   exportDeepDiveJson,
+  exportDeepDivePdf,
   exportDeepDiveXlsx,
   initDeepDive,
   installDeepDiveGlobalErrorHandlers,
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await bootstrapShared({
       enableJsonExport: true,
+      pdfHandler: exportDeepDivePdf,
       additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },
     });
     await initDeepDive();
