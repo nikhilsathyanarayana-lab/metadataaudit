@@ -330,10 +330,12 @@ const renderPdf = async (filename) => {
   printable.style.position = 'fixed';
   printable.style.top = '0';
   printable.style.left = '-9999px';
-  printable.style.width = `${renderWidth}px`;
-  printable.style.maxWidth = 'none';
+  printable.style.setProperty('--pdf-render-width', `${renderWidth}px`);
+  printable.style.setProperty('--pdf-render-padding', `${ptToPx(margin)}px`);
+  printable.style.width = '100%';
+  printable.style.maxWidth = 'var(--pdf-render-width)';
   printable.style.background = '#ffffff';
-  printable.style.padding = `${ptToPx(margin)}px`;
+  printable.style.padding = 'var(--pdf-render-padding)';
   printable.style.boxSizing = 'border-box';
   printable.style.overflowX = 'auto';
 
