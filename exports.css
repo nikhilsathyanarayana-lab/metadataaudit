@@ -214,14 +214,14 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.95rem;
-  table-layout: auto;
+  table-layout: fixed;
 }
 
 .pdf-table th {
   text-align: left;
   background: #ffe5f0;
   color: #3d3d3d;
-  padding: 0.65rem 0.75rem;
+  padding: 0.55rem 0.65rem;
   border-bottom: 2px solid #f04e98;
   white-space: normal;
   line-height: 1.35;
@@ -229,7 +229,7 @@
 }
 
 .pdf-table td {
-  padding: 0.55rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   border-bottom: 1px solid #f3d6e3;
   vertical-align: top;
   word-break: break-word;
@@ -243,20 +243,23 @@
 
 .pdf-table th,
 .pdf-table td {
-  min-width: 120px;
+  min-width: 80px;
 }
 
 .pdf-table th.col-tight,
 .pdf-table td.col-tight {
-  min-width: 90px;
+  width: 70px;
+  min-width: 70px;
 }
 
 .pdf-table th.col-medium,
 .pdf-table td.col-medium {
-  min-width: 130px;
+  width: 100px;
+  min-width: 90px;
 }
 
 .pdf-table th.col-wide,
 .pdf-table td.col-wide {
-  min-width: 190px;
+  width: 120px;
+  min-width: 110px;
 }
