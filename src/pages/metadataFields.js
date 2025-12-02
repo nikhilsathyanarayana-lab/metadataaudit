@@ -11,7 +11,7 @@ import {
   setManualAppName,
 } from '../services/appNames.js';
 
-const LOOKBACK_WINDOWS = [180, 30, 7];
+const LOOKBACK_WINDOWS = [7, 30, 180];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
