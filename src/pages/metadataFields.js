@@ -19,44 +19,11 @@ const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
 let metadataFieldsReadyPromise = Promise.resolve();
 let metadataSnapshot = new Map();
-const metadataSelections = new Map();
 
 const buildMetadataRecordKey = (appId, windowDays) => `${appId}::${windowDays}`;
 
-const buildSelectionRecord = (record) => {
-  const visitorFields = Array.isArray(record?.selectedVisitorFields)
-    ? record.selectedVisitorFields
-    : record?.visitorFields;
-  const accountFields = Array.isArray(record?.selectedAccountFields)
-    ? record.selectedAccountFields
-    : record?.accountFields;
-
-  return {
-    visitorFields: new Set(Array.isArray(visitorFields) ? visitorFields : []),
-    accountFields: new Set(Array.isArray(accountFields) ? accountFields : []),
-  };
-};
-
-const syncSelectionForRecord = (recordKey, visitorFields, accountFields) => {
-  const existing = metadataSelections.get(recordKey) || { visitorFields: new Set(), accountFields: new Set() };
-
-  const normalizeSelection = (availableFields, selectionSet) => {
-    const selected = selectionSet instanceof Set ? selectionSet : new Set(availableFields);
-    return new Set((availableFields || []).filter((field) => selected.has(field)));
-  };
-
-  const nextSelection = {
-    visitorFields: normalizeSelection(visitorFields, existing.visitorFields),
-    accountFields: normalizeSelection(accountFields, existing.accountFields),
-  };
-
-  metadataSelections.set(recordKey, nextSelection);
-  return nextSelection;
-};
-
 const loadMetadataSnapshot = () => {
   metadataSnapshot = new Map();
-  metadataSelections.clear();
 
   try {
     const raw = localStorage.getItem(metadataFieldStorageKey);
@@ -79,7 +46,6 @@ const loadMetadataSnapshot = () => {
 
       const key = buildMetadataRecordKey(record.appId, record.windowDays);
       metadataSnapshot.set(key, record);
-      metadataSelections.set(key, buildSelectionRecord(record));
     });
   } catch (error) {
     console.error('Unable to load stored metadata fields:', error);
@@ -134,18 +100,10 @@ const updateMetadataSnapshotEntry = (
   visitorFields,
   accountFields,
   manualAppNames,
-  selectedVisitorFields,
-  selectedAccountFields,
 ) => {
   if (!entry?.appId || !Number.isFinite(windowDays)) {
     return;
   }
-
-  const key = buildMetadataRecordKey(entry.appId, windowDays);
-  const selection =
-    selectedVisitorFields && selectedAccountFields
-      ? { visitorFields: selectedVisitorFields, accountFields: selectedAccountFields }
-      : syncSelectionForRecord(key, visitorFields, accountFields);
 
   const record = {
     version: metadataFieldStorageVersion,
@@ -158,12 +116,9 @@ const updateMetadataSnapshotEntry = (
     windowDays,
     visitorFields,
     accountFields,
-    selectedVisitorFields: Array.from(selection?.visitorFields || []),
-    selectedAccountFields: Array.from(selection?.accountFields || []),
   };
 
-  metadataSnapshot.set(key, record);
-  metadataSelections.set(key, selection);
+  metadataSnapshot.set(buildMetadataRecordKey(entry.appId, windowDays), record);
   persistMetadataSnapshot();
 };
 
@@ -509,90 +464,17 @@ const parseMetadataFields = (apiResponse) => {
   };
 };
 
-const persistSelectionForKey = (recordKey) => {
-  const record = metadataSnapshot.get(recordKey);
-  const selection = metadataSelections.get(recordKey);
-
-  if (!record || !selection) {
-    return;
-  }
-
-  updateMetadataSnapshotEntry(
-    record,
-    record.windowDays,
-    record.visitorFields,
-    record.accountFields,
-    new Map(),
-    selection.visitorFields,
-    selection.accountFields,
-  );
-};
-
-const renderFieldSelectors = (cell, fields, label, recordKey, fieldType) => {
+const updateCellContent = (cell, fields, label) => {
   if (!cell) {
     return;
   }
-
-  cell.innerHTML = '';
 
   if (!fields?.length) {
     cell.textContent = `No ${label} metadata`;
     return;
   }
 
-  const selection = metadataSelections.get(recordKey);
-  const selectedFields = fieldType === 'visitor' ? selection?.visitorFields : selection?.accountFields;
-
-  const list = document.createElement('div');
-  list.className = 'field-selection-list';
-
-  fields.forEach((field) => {
-    const item = document.createElement('label');
-    item.className = 'field-selection';
-    item.title = `Include ${field} in the deep dive table`;
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = selectedFields?.has(field);
-    checkbox.setAttribute('aria-label', `Toggle ${field} for ${label} deep dive results`);
-
-    checkbox.addEventListener('change', () => {
-      const currentSelection = metadataSelections.get(recordKey);
-
-      if (!currentSelection) {
-        return;
-      }
-
-      const targetSet = fieldType === 'visitor' ? currentSelection.visitorFields : currentSelection.accountFields;
-
-      if (checkbox.checked) {
-        targetSet.add(field);
-      } else {
-        targetSet.delete(field);
-      }
-
-      metadataSelections.set(recordKey, currentSelection);
-      persistSelectionForKey(recordKey);
-    });
-
-    const labelText = document.createElement('span');
-    labelText.textContent = field;
-
-    item.append(checkbox, labelText);
-    list.appendChild(item);
-  });
-
-  cell.appendChild(list);
-};
-
-const updateCellMessage = (cell, label, message) => {
-  if (!cell) {
-    return;
-  }
-
-  cell.classList.remove(OVER_LIMIT_CLASS);
-  cell.innerHTML = '';
-  cell.textContent = message || `No ${label} metadata`;
+  cell.textContent = fields.join(', ');
 };
 
 const fetchAndPopulate = async (
@@ -622,27 +504,17 @@ const fetchAndPopulate = async (
       }
 
       let baseRequestAttempted = false;
-      const recordKey = buildMetadataRecordKey(entry.appId, windowDays);
 
       try {
         const payload = buildMetadataFieldsForAppPayload(entry.appId, windowDays);
         const response = await postAggregationWithIntegrationKey(entry, payload);
         const { visitorFields, accountFields } = parseMetadataFields(response);
-        const selection = syncSelectionForRecord(recordKey, visitorFields, accountFields);
 
         baseRequestAttempted = true;
-        updateMetadataSnapshotEntry(
-          entry,
-          windowDays,
-          visitorFields,
-          accountFields,
-          manualAppNames,
-          selection.visitorFields,
-          selection.accountFields,
-        );
+        updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
+        updateCellContent(accountCells[windowDays], accountFields, 'account');
 
-        renderFieldSelectors(visitorCells[windowDays], visitorFields, 'visitor', recordKey, 'visitor');
-        renderFieldSelectors(accountCells[windowDays], accountFields, 'account', recordKey, 'account');
+        updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
 
         visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
         accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
@@ -681,32 +553,11 @@ const fetchAndPopulate = async (
             }
 
             const { visitorFields, accountFields } = parseMetadataFields(aggregatedResults);
-            const selection = syncSelectionForRecord(recordKey, visitorFields, accountFields);
 
-            renderFieldSelectors(
-              visitorCells[windowDays],
-              visitorFields,
-              'visitor',
-              recordKey,
-              'visitor',
-            );
-            renderFieldSelectors(
-              accountCells[windowDays],
-              accountFields,
-              'account',
-              recordKey,
-              'account',
-            );
+            updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
+            updateCellContent(accountCells[windowDays], accountFields, 'account');
 
-            updateMetadataSnapshotEntry(
-              entry,
-              windowDays,
-              visitorFields,
-              accountFields,
-              manualAppNames,
-              selection.visitorFields,
-              selection.accountFields,
-            );
+            updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
 
             visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
@@ -732,8 +583,10 @@ const fetchAndPopulate = async (
             );
           }
 
-          updateCellMessage(visitorCells[windowDays], 'visitor', cellMessage);
-          updateCellMessage(accountCells[windowDays], 'account', cellMessage);
+          updateCellContent(visitorCells[windowDays], [], 'visitor');
+          updateCellContent(accountCells[windowDays], [], 'account');
+          visitorCells[windowDays].textContent = cellMessage;
+          accountCells[windowDays].textContent = cellMessage;
           visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
           accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
         }

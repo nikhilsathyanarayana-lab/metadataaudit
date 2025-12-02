@@ -262,17 +262,13 @@ export const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) =>
     existing.appName = existing.appName || record.appName || '';
     existing.subId = existing.subId || record.subId || '';
 
-    const selectedVisitorFields =
-      Array.isArray(record.selectedVisitorFields) && record.selectedVisitorFields.length
-        ? record.selectedVisitorFields
-        : record.visitorFields;
-    const selectedAccountFields =
-      Array.isArray(record.selectedAccountFields) && record.selectedAccountFields.length
-        ? record.selectedAccountFields
-        : record.accountFields;
+    if (Array.isArray(record.visitorFields)) {
+      existing.visitorFields = record.visitorFields;
+    }
 
-    existing.visitorFields = dedupeAndSortFields(selectedVisitorFields);
-    existing.accountFields = dedupeAndSortFields(selectedAccountFields);
+    if (Array.isArray(record.accountFields)) {
+      existing.accountFields = record.accountFields;
+    }
 
     grouped.set(appId, existing);
   });
