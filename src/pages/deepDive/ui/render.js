@@ -138,7 +138,13 @@ export const renderTable = (tableBody, rows, type, openModal, openRegexModal, lo
 
       if (hasFields) {
         formatCell.appendChild(
-          buildFormatSelect(appId, subId, appName, fieldName, openRegexModal),
+          buildFormatSelect(
+            rowData.appId,
+            rowData.subId,
+            rowData.appName,
+            fieldName,
+            openRegexModal,
+          ),
         );
       } else {
         formatCell.textContent = index === 0 ? 'N/A' : '';
