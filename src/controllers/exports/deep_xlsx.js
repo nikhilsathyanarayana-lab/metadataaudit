@@ -8,7 +8,7 @@ import {
   sanitizeSheetName,
 } from './excel_shared.js';
 import { dedupeMetadataRecords, loadDeepDiveRecords, loadMetadataRecords } from '../../pages/deepDive/dataHelpers.js';
-import { metadata_accounts, metadata_visitors } from '../../pages/deepDive/aggregation.js';
+import { metadata_accounts, metadata_api_calls, metadata_visitors } from '../../pages/deepDive/aggregation.js';
 import { reportDeepDiveError } from '../../pages/deepDive/ui/render.js';
 
 const LOOKBACK_WINDOWS = [180, 30, 7];
@@ -110,6 +110,30 @@ const isNullishValue = (value) => {
 
   const normalized = String(value).trim().toLowerCase();
   return normalized === '' || normalized === 'null' || normalized === 'undefined';
+};
+
+const buildDatasetCountLookup = (calls = []) => {
+  const totalsBySub = new Map();
+  const totalsByApp = new Map();
+  let total = 0;
+
+  calls.forEach((call) => {
+    const datasetCount = parseCount(call?.datasetCount);
+
+    if (datasetCount <= 0 || !call?.appId) {
+      return;
+    }
+
+    totalsByApp.set(call.appId, (totalsByApp.get(call.appId) || 0) + datasetCount);
+
+    if (call.subId) {
+      totalsBySub.set(call.subId, (totalsBySub.get(call.subId) || 0) + datasetCount);
+    }
+
+    total += datasetCount;
+  });
+
+  return { totalsBySub, totalsByApp, total };
 };
 
 const getFormatEvaluator = (format, regexPattern) => {
@@ -294,9 +318,10 @@ const buildLookbackIndex = (records) => {
   const totals = { visitor: { 180: 0, 30: 0, 7: 0 }, account: { 180: 0, 30: 0, 7: 0 } };
   const subIds = new Set();
   const appIds = new Set();
-  const datasetTotals = new Map();
-  const datasetTotalsByApp = new Map();
-  let totalDatasets = 0;
+  const datasetCountsFromCalls = buildDatasetCountLookup(metadata_api_calls);
+  const datasetTotals = new Map(datasetCountsFromCalls.totalsBySub);
+  const datasetTotalsByApp = new Map(datasetCountsFromCalls.totalsByApp);
+  let totalDatasets = datasetCountsFromCalls.total;
 
   records.forEach((record) => {
     if (!record?.appId || !LOOKBACK_WINDOWS.includes(record.windowDays)) {
@@ -311,14 +336,19 @@ const buildLookbackIndex = (records) => {
     const datasetCount = parseCount(
       record.datasetCount ?? record.dataset_total ?? record.dataset_count ?? record.datasets,
     );
+    const datasetCountForTotals =
+      datasetCount > 0 && !datasetCountsFromCalls.totalsByApp.has(record.appId) ? datasetCount : 0;
 
-    if (datasetCount > 0) {
+    if (datasetCountForTotals > 0) {
       if (record.subId) {
-        datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + datasetCount);
+        datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + datasetCountForTotals);
       }
 
-      datasetTotalsByApp.set(record.appId, (datasetTotalsByApp.get(record.appId) || 0) + datasetCount);
-      totalDatasets += datasetCount;
+      datasetTotalsByApp.set(
+        record.appId,
+        (datasetTotalsByApp.get(record.appId) || 0) + datasetCountForTotals,
+      );
+      totalDatasets += datasetCountForTotals;
     }
 
     const appEntry = index.get(record.appId) || {

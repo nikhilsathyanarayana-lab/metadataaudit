@@ -144,8 +144,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         entry,
       );
 
+      const datasetCount = Number.isFinite(normalizedFields?.datasetCount)
+        ? normalizedFields.datasetCount
+        : 0;
+
       upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
-      updateMetadataApiCalls(entry, 'success', '');
+      updateMetadataApiCalls(entry, 'success', '', datasetCount);
       await updateMetadataCollections(response, entry);
       response = null;
       successCount += 1;
