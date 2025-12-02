@@ -5,6 +5,9 @@ import {
   metadataFieldGlobalKey,
   TARGET_LOOKBACK,
 } from './constants.js';
+import { extractAppIds } from '../../services/appUtils.js';
+
+export { extractAppIds };
 
 export const dedupeAndSortFields = (fields) => {
   if (fields instanceof Set) {
@@ -27,36 +30,6 @@ export const scheduleDomUpdate = (callback) => {
   }
 
   setTimeout(() => callback(), 0);
-};
-
-export const extractAppIds = (apiResponse) => {
-  if (!apiResponse) {
-    return [];
-  }
-
-  const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
-
-  if (Array.isArray(apiResponse)) {
-    candidateLists.push(apiResponse);
-  }
-
-  const flattened = candidateLists.filter(Array.isArray).flat();
-
-  const appIds = flattened
-    .map((entry) => {
-      if (typeof entry === 'string' || typeof entry === 'number') {
-        return entry;
-      }
-
-      if (entry?.appId) {
-        return entry.appId;
-      }
-
-      return null;
-    })
-    .filter(Boolean);
-
-  return Array.from(new Set(appIds));
 };
 
 const normalizeAppSelections = (selections) =>

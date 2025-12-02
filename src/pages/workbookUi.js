@@ -6,6 +6,7 @@ import {
   buildMetadataFieldsPayload,
   fetchAggregation,
 } from '../services/requests.js';
+import { extractAppIds } from '../services/appUtils.js';
 
 export const parseExamples = (response, subId) => {
   if (!response?.results) {
@@ -226,36 +227,6 @@ export const initWorkbookUi = () => {
   const updatePreviews = () => {
     clearTimeout(previewTimeout);
     previewTimeout = setTimeout(() => applyPreviews(), 200);
-  };
-
-  const extractAppIds = (apiResponse) => {
-    if (!apiResponse) {
-      return [];
-    }
-
-    const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
-
-    if (Array.isArray(apiResponse)) {
-      candidateLists.push(apiResponse);
-    }
-
-    const flattened = candidateLists.filter(Array.isArray).flat();
-
-    const appIds = flattened
-      .map((entry) => {
-        if (typeof entry === 'string') {
-          return entry;
-        }
-
-        if (entry?.appId) {
-          return entry.appId;
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-
-    return Array.from(new Set(appIds));
   };
 
   const parseMetadataFields = (response, subId, windowDays) => {
