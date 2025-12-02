@@ -59,6 +59,34 @@ export const extractAppIds = (apiResponse) => {
   return Array.from(new Set(appIds));
 };
 
+const normalizeAppSelections = (selections) =>
+  (Array.isArray(selections) ? selections : [])
+    .filter((entry) => entry?.subId && entry?.response)
+    .map((entry) => ({
+      subId: entry.subId,
+      response: entry.response,
+      domain: entry.domain || '',
+      integrationKey: entry.integrationKey || '',
+    }));
+
+export const loadAppSelectionsFromStorage = (reportError = () => {}) => {
+  try {
+    const raw = localStorage.getItem(appSelectionGlobalKey);
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    const records = Array.isArray(parsed) ? parsed : parsed?.records;
+
+    return normalizeAppSelections(records);
+  } catch (error) {
+    reportError('Unable to read stored app selection data.', error);
+    return [];
+  }
+};
+
 export const getGlobalCollection = (key) => {
   if (!key) {
     return [];
@@ -79,18 +107,26 @@ export const getGlobalCollection = (key) => {
   return [];
 };
 
-export const loadAppSelections = () =>
-  getGlobalCollection(appSelectionGlobalKey)
-    .filter((entry) => entry?.subId)
-    .flatMap((entry) => {
-      const appIds = extractAppIds(entry.response);
+export const loadAppSelections = (reportError) => {
+  const selections = normalizeAppSelections(getGlobalCollection(appSelectionGlobalKey));
+  const storedSelections = loadAppSelectionsFromStorage(reportError);
+  const mergedSelections = [...selections, ...storedSelections];
 
-      if (!appIds.length) {
-        return [];
-      }
+  return mergedSelections.flatMap((entry) => {
+    const appIds = extractAppIds(entry.response);
 
-      return appIds.map((appId) => ({ subId: entry.subId, appId }));
-    });
+    if (!appIds.length) {
+      return [];
+    }
+
+    return appIds.map((appId) => ({
+      subId: entry.subId,
+      appId,
+      domain: entry.domain,
+      integrationKey: entry.integrationKey,
+    }));
+  });
+};
 
 export const normalizeMetadataRecords = (records) =>
   (Array.isArray(records) ? records : []).filter(
@@ -263,14 +299,14 @@ export const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) =>
   return Array.from(grouped.values());
 };
 
-export const buildRowsForLookback = (metadataRecords, lookback) => {
+export const buildRowsForLookback = (metadataRecords, lookback, reportError) => {
   const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
 
   if (groupedRecords.length) {
     return groupedRecords;
   }
 
-  const selections = loadAppSelections();
+  const selections = loadAppSelections(reportError);
   return selections.map((entry) => ({
     appId: entry.appId,
     subId: entry.subId,

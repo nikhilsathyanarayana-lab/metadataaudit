@@ -863,7 +863,7 @@ export const initDeepDive = async () => {
         });
 
         const nextRows = applyManualAppNames(
-          buildRowsForLookback(metadataRecords, selectedLookback),
+          buildRowsForLookback(metadataRecords, selectedLookback, reportDeepDiveError),
           manualAppNames,
         );
 

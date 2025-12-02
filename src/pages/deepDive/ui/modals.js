@@ -1,6 +1,6 @@
 // Modal setup for app-name editing and regex format validation within the deep dive UI.
-import { loadTemplate } from '../../controllers/modalLoader.js';
-import { setManualAppName } from '../../services/appNames.js';
+import { loadTemplate } from '../../../controllers/modalLoader.js';
+import { setManualAppName } from '../../../services/appNames.js';
 
 const updateRegexFeedback = (tone, message) => {
   const feedback = document.getElementById('regex-format-modal-feedback');
