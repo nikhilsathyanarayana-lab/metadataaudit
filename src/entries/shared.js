@@ -1,6 +1,6 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
-import { exportMetadataPdf } from '../controllers/pdfExport.js';
-import { exportMetadataXlsx } from '../controllers/xlsxExport.js';
+import { exportMetadataPdf } from '../controllers/exports/metadata_pdf.js';
+import { exportMetadataXlsx } from '../controllers/exports/metadata_xlsx.js';
 
 const initExportModal = (options = {}) => {
   const { enableJsonExport = false, additionalFormats = {} } = options;
