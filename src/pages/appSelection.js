@@ -14,6 +14,7 @@ export const initAppSelection = () => {
 
   const storageKey = 'subidLaunchData';
   const responseStorageKey = 'appSelectionResponses';
+  let cachedResponses = [];
 
   const showError = (message) => {
     if (!messageRegion) {
@@ -76,6 +77,48 @@ export const initAppSelection = () => {
   };
 
   const getBodyCheckboxes = () => tableBody.querySelectorAll('input[type="checkbox"]');
+
+  const normalizeAppId = (value) => (value === undefined || value === null ? '' : String(value));
+
+  const filterResponseList = (list, allowedAppIds) => {
+    if (!Array.isArray(list)) {
+      return [];
+    }
+
+    return list.filter((entry) => {
+      if (typeof entry === 'string' || typeof entry === 'number') {
+        return allowedAppIds.has(normalizeAppId(entry));
+      }
+
+      if (entry?.appId !== undefined) {
+        return allowedAppIds.has(normalizeAppId(entry.appId));
+      }
+
+      return false;
+    });
+  };
+
+  const filterResponseByAppIds = (response, appIds) => {
+    if (!response || !appIds?.size) {
+      return null;
+    }
+
+    if (Array.isArray(response)) {
+      const filteredList = filterResponseList(response, appIds);
+      return filteredList.length ? filteredList : null;
+    }
+
+    const filtered = { ...response };
+    ['results', 'data', 'apps'].forEach((key) => {
+      if (key in filtered) {
+        const pruned = filterResponseList(filtered[key], appIds);
+        filtered[key] = pruned;
+      }
+    });
+
+    const filteredAppIds = extractAppIds(filtered);
+    return filteredAppIds.length ? filtered : null;
+  };
 
   const updateHeaderCheckboxState = (checkboxes) => {
     if (!headerCheckbox) {
@@ -236,6 +279,8 @@ export const initAppSelection = () => {
 
     const successfulResponses = responses.filter(({ response }) => Boolean(response));
 
+    cachedResponses = successfulResponses;
+
     if (successfulResponses.length) {
       localStorage.setItem(responseStorageKey, JSON.stringify(successfulResponses));
     } else {
@@ -246,6 +291,41 @@ export const initAppSelection = () => {
   };
 
   proceedButton.addEventListener('click', () => {
+    const selectedRows = Array.from(getBodyCheckboxes()).filter((box) => box.checked);
+
+    if (!selectedRows.length) {
+      showError('Select at least one app to continue.');
+      return;
+    }
+
+    const selections = [];
+    selectedRows.forEach((box) => {
+      const row = box.closest('tr');
+      const subIdCell = row?.querySelector('td[data-label="Sub ID"]');
+      const appIdCell = row?.querySelector('td[data-label="App ID"]');
+
+      const subId = subIdCell?.textContent?.trim();
+      const appId = appIdCell?.textContent?.trim();
+
+      if (!subId || !appId) {
+        return;
+      }
+
+      const sourceEntry = cachedResponses.find((entry) => entry.subId === subId);
+      const filteredResponse = filterResponseByAppIds(sourceEntry?.response, new Set([appId]));
+
+      if (sourceEntry && filteredResponse) {
+        selections.push({ ...sourceEntry, response: filteredResponse });
+      }
+    });
+
+    if (!selections.length) {
+      showError('Unable to load the selected app data. Please try again.');
+      return;
+    }
+
+    localStorage.setItem(responseStorageKey, JSON.stringify(selections));
+    clearError();
     window.location.href = 'metadata_fields.html';
   });
 
