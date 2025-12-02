@@ -14,8 +14,9 @@
       <a class="nav-link" href="workbook_ui.html">Cookie</a>
     </div>
   </nav>
-  <div class="status-banner" id="deep-dive-progress" role="status" aria-live="polite">
-    <span id="deep-dive-progress-text">Scan not started.</span>
+  <div class="status-banner" id="deep-dive-progress" role="status" aria-live="polite" aria-atomic="false">
+    <span id="deep-dive-api-progress" aria-live="polite">API calls not started.</span>
+    <span id="deep-dive-processing-progress" aria-live="polite">Processing not started.</span>
   </div>
   <header class="page-header" id="metadata-deep-dive-header">
     <div class="header-row" id="metadata-deep-dive-header-row">
@@ -31,7 +32,6 @@
   </header>
 
   <main class="content" id="metadata-deep-dive-main" aria-labelledby="metadata-deep-dive-title">
-    <div class="page-messages" id="deep-dive-messages"></div>
     <section class="card" id="visitor-deep-dive-card" aria-label="Visitor metadata deep dive table">
       <div class="card-header" id="visitor-deep-dive-card-header">
         <div class="form-intro" id="visitor-deep-dive-form-intro">

@@ -48,13 +48,20 @@ export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandl
 const runDeepDiveScan = async (
   entries,
   lookback,
-  updateProgress,
+  progressHandlers,
   messageRegion,
   rows,
   onSuccessfulCall,
   onComplete,
 ) => {
   clearDeepDiveCollections();
+
+  const updateApiProgress =
+    typeof progressHandlers === 'function' ? progressHandlers : progressHandlers?.updateApiProgress;
+  const updateProcessingProgress =
+    typeof progressHandlers === 'object' && progressHandlers !== null
+      ? progressHandlers.updateProcessingProgress
+      : null;
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
   const queue = entries.slice();
@@ -65,9 +72,11 @@ const runDeepDiveScan = async (
 
   const updateProgressAsync = () =>
     scheduleDomUpdate(() => {
-      updateProgress?.(completedCalls, totalCalls);
+      updateApiProgress?.(completedCalls, totalCalls);
+      updateProcessingProgress?.(successCount, totalCalls);
       logDeepDive('info', 'Deep dive progress update', {
         completedCalls,
+        successCount,
         totalCalls,
       });
     });
@@ -212,7 +221,7 @@ export const initDeepDive = async () => {
     }
 
     const messageRegion = ensureMessageRegion();
-    const { updateText: updateProgress } = setupProgressTracker();
+    const { updateApiProgress, updateProcessingProgress } = setupProgressTracker();
     const startButton = document.getElementById('deep-dive-start');
 
     const manualAppNames = loadManualAppNames();
@@ -283,8 +292,10 @@ export const initDeepDive = async () => {
           renderedRowCount: renderedRows.length,
         });
 
+        const totalEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length;
+        updateProcessingProgress(rows.length, totalEntries);
+        updateApiProgress(0, totalEntries);
         updateExportAvailability();
-        updateProgress(0, buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length);
       } catch (error) {
         reportDeepDiveError('Unable to refresh deep dive tables.', error, messageRegion);
       }
@@ -303,7 +314,7 @@ export const initDeepDive = async () => {
           await runDeepDiveScan(
             buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
             selectedLookback,
-            updateProgress,
+            { updateApiProgress, updateProcessingProgress },
             messageRegion,
             rows,
             () => {

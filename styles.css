@@ -79,6 +79,8 @@ body {
   min-height: 2.25rem;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   font-weight: 600;
   color: #4a4a4a;
 }
