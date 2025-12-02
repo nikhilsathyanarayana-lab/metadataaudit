@@ -7,6 +7,71 @@ const XLSX_LIBRARIES = {
 
 let workbookLibsPromise;
 
+const getExportUi = () => {
+  const progressBanner = document.getElementById('metadata-fields-progress');
+  const progressText = document.getElementById('metadata-fields-progress-text');
+  const exportButton = document.getElementById('export-button');
+  const exportMarker = `export-${Date.now()}`;
+  let lastMessage = '';
+
+  const previousText = progressText?.textContent;
+  const previousBannerBusy = progressBanner?.getAttribute('aria-busy');
+  const previousButtonDisabled = exportButton?.disabled ?? false;
+
+  const setStatus = (message, { tone = 'info', pending = false } = {}) => {
+    if (progressText && message) {
+      progressText.textContent = message;
+      progressText.dataset.exportStatus = exportMarker;
+      lastMessage = message;
+    }
+
+    if (progressBanner) {
+      if (pending) {
+        progressBanner.setAttribute('aria-busy', 'true');
+      } else {
+        progressBanner.removeAttribute('aria-busy');
+      }
+
+      progressBanner.classList.toggle('is-error', tone === 'error');
+    }
+
+    if (exportButton) {
+      exportButton.disabled = pending;
+      exportButton.setAttribute('aria-disabled', String(pending));
+      exportButton.setAttribute('aria-busy', String(pending));
+    }
+  };
+
+  const restore = () => {
+    if (progressText?.dataset?.exportStatus !== exportMarker) {
+      return;
+    }
+
+    if (progressText && typeof previousText === 'string' && progressText.textContent === lastMessage) {
+      progressText.textContent = previousText;
+      delete progressText.dataset.exportStatus;
+    }
+
+    if (progressBanner) {
+      if (previousBannerBusy) {
+        progressBanner.setAttribute('aria-busy', previousBannerBusy);
+      } else {
+        progressBanner.removeAttribute('aria-busy');
+      }
+
+      progressBanner.classList.remove('is-error');
+    }
+
+    if (exportButton) {
+      exportButton.disabled = previousButtonDisabled;
+      exportButton.setAttribute('aria-disabled', String(previousButtonDisabled));
+      exportButton.removeAttribute('aria-busy');
+    }
+  };
+
+  return { setStatus, restore };
+};
+
 const ensureScript = (key, url) =>
   new Promise((resolve, reject) => {
     if (key && window[key]) {
@@ -249,18 +314,35 @@ export const exportMetadataXlsx = async () => {
     return;
   }
 
-  await ensureWorkbookLibraries();
-  await waitForMetadataFields();
+  const { setStatus, restore } = getExportUi();
 
-  const metadataDoc = await ensurePageDocument('metadata_fields.html');
-  const visitorTable = metadataDoc?.getElementById('visitor-metadata-table');
-  const accountTable = metadataDoc?.getElementById('account-metadata-table');
+  try {
+    setStatus('Preparing XLSX export…', { pending: true });
+    await ensureWorkbookLibraries();
 
-  const workbook = window.XLSX.utils.book_new();
-  const sheetNames = new Set();
+    setStatus('Loading metadata for export…', { pending: true });
+    await waitForMetadataFields();
 
-  addTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
-  addTableSheet(workbook, accountTable, 'Account', sheetNames);
+    setStatus('Building XLSX workbook…', { pending: true });
+    const metadataDoc = await ensurePageDocument('metadata_fields.html');
+    const visitorTable = metadataDoc?.getElementById('visitor-metadata-table');
+    const accountTable = metadataDoc?.getElementById('account-metadata-table');
 
-  downloadWorkbook(workbook, desiredName || buildDefaultFileName());
+    const workbook = window.XLSX.utils.book_new();
+    const sheetNames = new Set();
+
+    addTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
+    addTableSheet(workbook, accountTable, 'Account', sheetNames);
+
+    downloadWorkbook(workbook, desiredName || buildDefaultFileName());
+    setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
+  } catch (error) {
+    console.error('Unable to export metadata XLSX.', error);
+    setStatus('Unable to export metadata to XLSX. Please try again.', {
+      pending: false,
+      tone: 'error',
+    });
+  } finally {
+    setTimeout(() => restore(), 1500);
+  }
 };
