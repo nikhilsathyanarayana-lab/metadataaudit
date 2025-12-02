@@ -2,6 +2,7 @@ import {
   applyHeaderFormatting,
   downloadWorkbook,
   ensureWorkbookLibraries,
+  logXlsx,
   openNamingModal,
   sanitizeFileName,
   sanitizeSheetName,
@@ -226,11 +227,13 @@ const buildValueLookup = () => {
 
 const buildSheet = (rows, fallbackMessage) => {
   if (!rows.length) {
+    logXlsx('info', 'Building fallback deep-dive sheet because no rows were available', fallbackMessage);
     const fallbackSheet = window.XLSX.utils.json_to_sheet([{ Note: fallbackMessage }]);
     applyHeaderFormatting(fallbackSheet);
     return fallbackSheet;
   }
 
+  logXlsx('debug', `Building deep-dive sheet with ${rows.length} row(s)`);
   const sheet = window.XLSX.utils.json_to_sheet(rows);
   applyHeaderFormatting(sheet);
   return sheet;
@@ -238,6 +241,7 @@ const buildSheet = (rows, fallbackMessage) => {
 
 const applyOverviewFormatting = (sheet) => {
   if (!sheet || !sheet['!ref']) {
+    logXlsx('warn', 'applyOverviewFormatting skipped because the overview sheet is missing range metadata');
     return;
   }
 
@@ -282,6 +286,8 @@ const applyOverviewFormatting = (sheet) => {
       };
     }
   });
+
+  logXlsx('debug', `Applied overview formatting to ${styledAddresses.length} cell(s)`);
 };
 
 const buildLookbackIndex = (records) => {
@@ -505,6 +511,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
 };
 
 export const exportDeepDiveXlsx = async () => {
+  logXlsx('info', 'Starting deep-dive XLSX export flow');
   const visitorTable = document.getElementById('visitor-deep-dive-table');
   const accountTable = document.getElementById('account-deep-dive-table');
   const metadataRecords = dedupeMetadataRecords(
@@ -512,20 +519,40 @@ export const exportDeepDiveXlsx = async () => {
     loadDeepDiveRecords(),
   );
 
+  logXlsx('debug', 'Collected metadata records for export', {
+    metadataRecords: metadataRecords.length,
+    visitors: metadata_visitors.length,
+    accounts: metadata_accounts.length,
+  });
+
   const defaultFileName = buildDefaultFileName(metadataRecords);
   const desiredName = await openNamingModal(() => defaultFileName, (value) =>
     sanitizeFileName(value, defaultFileName),
   );
   if (desiredName === null) {
+    logXlsx('info', 'Deep-dive XLSX export cancelled before workbook creation');
     return;
   }
 
-  await ensureWorkbookLibraries();
+  try {
+    logXlsx('debug', 'Ensuring XLSX and FileSaver libraries are available');
+    await ensureWorkbookLibraries();
+  } catch (error) {
+    reportDeepDiveError('Unable to load XLSX dependencies for export', error);
+    return;
+  }
 
   const visitorSelections = collectFormatSelections(visitorTable, 'visitor');
   const accountSelections = collectFormatSelections(accountTable, 'account');
 
+  logXlsx('debug', 'Collected format selections from tables', {
+    visitorSelections: visitorSelections.length,
+    accountSelections: accountSelections.length,
+  });
+
   const workbook = buildWorkbook([...visitorSelections, ...accountSelections], metadataRecords);
+
+  logXlsx('info', 'Deep-dive workbook assembled; starting download');
 
   downloadWorkbook(workbook, desiredName || defaultFileName);
 };

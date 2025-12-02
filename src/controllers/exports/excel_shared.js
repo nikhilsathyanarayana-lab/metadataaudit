@@ -5,18 +5,38 @@ const XLSX_LIBRARIES = {
 
 let workbookLibsPromise;
 
+export const logXlsx = (level, ...messages) => {
+  const normalizedLevel = level === 'error' || level === 'warn' || level === 'debug' ? level : 'info';
+  const logger =
+    normalizedLevel === 'error' && typeof console?.error === 'function'
+      ? console.error
+      : typeof console?.[normalizedLevel] === 'function'
+        ? console[normalizedLevel]
+        : console.log;
+
+  logger('[XLSX Export]', ...messages);
+};
+
 const ensureScript = (key, url) =>
   new Promise((resolve, reject) => {
     if (key && window[key]) {
+      logXlsx('debug', `${key} already available for workbook export`);
       resolve(window[key]);
       return;
     }
 
+    logXlsx('debug', `Loading ${key} from CDN for workbook export (${url})`);
     const script = document.createElement('script');
     script.src = url;
     script.async = true;
-    script.onload = () => resolve(window[key]);
-    script.onerror = () => reject(new Error(`Failed to load ${key} library`));
+    script.onload = () => {
+      logXlsx('info', `${key} loaded for workbook export`);
+      resolve(window[key]);
+    };
+    script.onerror = () => {
+      logXlsx('error', `Failed to load ${key} library for workbook export`, url);
+      reject(new Error(`Failed to load ${key} library`));
+    };
     document.head.appendChild(script);
   });
 
@@ -150,10 +170,16 @@ const HEADER_STYLE = {
 
 export const applyHeaderFormatting = (sheet) => {
   if (!sheet || !sheet['!ref']) {
+    logXlsx('warn', 'applyHeaderFormatting skipped because the sheet is missing data or range metadata');
     return;
   }
 
   const range = window.XLSX.utils.decode_range(sheet['!ref']);
+  if (range.s.c > range.e.c) {
+    logXlsx('warn', 'applyHeaderFormatting skipped because the sheet range is empty', sheet['!ref']);
+    return;
+  }
+
   for (let columnIndex = range.s.c; columnIndex <= range.e.c; columnIndex += 1) {
     const cellAddress = window.XLSX.utils.encode_cell({ r: range.s.r, c: columnIndex });
     const cell = sheet[cellAddress];
@@ -165,6 +191,8 @@ export const applyHeaderFormatting = (sheet) => {
       };
     }
   }
+
+  logXlsx('debug', `Applied header formatting to ${range.e.c - range.s.c + 1} column(s)`);
 };
 
 const fetchStaticDocument = async (path) => {
