@@ -80,6 +80,29 @@ export const initAppSelection = () => {
 
   const normalizeAppId = (value) => (value === undefined || value === null ? '' : String(value));
 
+  const buildSelectionState = (responses) =>
+    responses.map((entry) => {
+      const appIds = extractAppIds(entry.response);
+      const existingSelection = entry.selectionState || {};
+      const selectionState = {};
+
+      appIds.forEach((appId) => {
+        const normalizedAppId = normalizeAppId(appId);
+        const previous = existingSelection[normalizedAppId];
+        selectionState[normalizedAppId] = {
+          appId: normalizedAppId,
+          appName: previous?.appName || normalizedAppId,
+          selected: previous?.selected === 1 ? 1 : 0,
+        };
+      });
+
+      return { ...entry, selectionState };
+    });
+
+  const persistResponses = (responses) => {
+    localStorage.setItem(responseStorageKey, JSON.stringify(responses));
+  };
+
   const filterResponseList = (list, allowedAppIds) => {
     if (!Array.isArray(list)) {
       return [];
@@ -150,7 +173,37 @@ export const initAppSelection = () => {
 
   const attachCheckboxListeners = () => {
     const checkboxes = getBodyCheckboxes();
-    checkboxes.forEach((box) => box.addEventListener('change', handleProceedState));
+    checkboxes.forEach((box) =>
+      box.addEventListener('change', (event) => {
+        const { appId, subId } = event.target.dataset;
+        handleProceedState();
+
+        if (appId && subId) {
+          const normalizedAppId = normalizeAppId(appId);
+          const isSelected = event.target.checked;
+
+          cachedResponses = cachedResponses.map((entry) => {
+            if (entry.subId !== subId) {
+              return entry;
+            }
+
+            const selectionState = {
+              ...(entry.selectionState || {}),
+              [normalizedAppId]: {
+                appId: normalizedAppId,
+                appName: entry.selectionState?.[normalizedAppId]?.appName || normalizedAppId,
+                selected: isSelected ? 1 : 0,
+              },
+            };
+
+            return { ...entry, selectionState };
+          });
+
+          persistResponses(cachedResponses);
+        }
+      }),
+    );
+
     handleProceedState();
   };
 
@@ -158,6 +211,7 @@ export const initAppSelection = () => {
     const checkboxes = getBodyCheckboxes();
     checkboxes.forEach((box) => {
       box.checked = headerCheckbox.checked;
+      box.dispatchEvent(new Event('change'));
     });
     handleProceedState();
   });
@@ -204,7 +258,15 @@ export const initAppSelection = () => {
 
       const checkboxCell = document.createElement('td');
       checkboxCell.className = 'checkbox-cell';
-      checkboxCell.appendChild(buildCheckbox(subId, index));
+      const checkbox = buildCheckbox(subId, index);
+      checkbox.dataset.appId = appId;
+      checkbox.dataset.subId = subId;
+
+      const matchingEntry = cachedResponses.find((entry) => entry.subId === subId);
+      const isSelected = matchingEntry?.selectionState?.[normalizeAppId(appId)]?.selected === 1;
+      checkbox.checked = isSelected;
+
+      checkboxCell.appendChild(checkbox);
 
       row.append(subIdCell, appIdCell, checkboxCell);
       tableBody.appendChild(row);
@@ -279,10 +341,10 @@ export const initAppSelection = () => {
 
     const successfulResponses = responses.filter(({ response }) => Boolean(response));
 
-    cachedResponses = successfulResponses;
+    cachedResponses = buildSelectionState(successfulResponses);
 
-    if (successfulResponses.length) {
-      localStorage.setItem(responseStorageKey, JSON.stringify(successfulResponses));
+    if (cachedResponses.length) {
+      persistResponses(cachedResponses);
     } else {
       localStorage.removeItem(responseStorageKey);
     }
@@ -313,9 +375,19 @@ export const initAppSelection = () => {
 
       const sourceEntry = cachedResponses.find((entry) => entry.subId === subId);
       const filteredResponse = filterResponseByAppIds(sourceEntry?.response, new Set([appId]));
+      const normalizedAppId = normalizeAppId(appId);
 
       if (sourceEntry && filteredResponse) {
-        selections.push({ ...sourceEntry, response: filteredResponse });
+        const updatedSelectionState = {
+          ...(sourceEntry.selectionState || {}),
+          [normalizedAppId]: {
+            appId: normalizedAppId,
+            appName: sourceEntry.selectionState?.[normalizedAppId]?.appName || normalizedAppId,
+            selected: 1,
+          },
+        };
+
+        selections.push({ ...sourceEntry, response: filteredResponse, selectionState: updatedSelectionState });
       }
     });
 
@@ -324,7 +396,7 @@ export const initAppSelection = () => {
       return;
     }
 
-    localStorage.setItem(responseStorageKey, JSON.stringify(selections));
+    persistResponses(selections);
     clearError();
     window.location.href = 'metadata_fields.html';
   });
