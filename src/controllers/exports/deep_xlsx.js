@@ -15,10 +15,12 @@ const TOP_VALUE_LIMIT = 3;
 const NULL_RATE_THRESHOLD = 0.2;
 const MATCH_RATE_THRESHOLD = 0.8;
 
-const buildDefaultFileName = () => {
-  const today = new Date();
-  const dateStamp = today.toISOString().slice(0, 10);
-  return `metadata_deep_dive-${dateStamp}`;
+const buildDefaultFileName = (metadataRecords = []) => {
+  const subId = metadataRecords.find((record) => record?.subId)?.subId || '';
+  return sanitizeFileName(
+    subId ? `${subId}_Metadata_Audit` : 'Metadata_Audit',
+    'Metadata_Audit',
+  );
 };
 
 const normalizeAppName = (value) => {
@@ -234,6 +236,32 @@ const buildSheet = (rows, fallbackMessage) => {
   return sheet;
 };
 
+const applyOverviewFormatting = (sheet) => {
+  if (!sheet || !sheet['!ref']) {
+    return;
+  }
+
+  const range = window.XLSX.utils.decode_range(sheet['!ref']);
+  const titleRow = range.s.r;
+
+  for (let columnIndex = range.s.c; columnIndex <= range.e.c; columnIndex += 1) {
+    const cellAddress = window.XLSX.utils.encode_cell({ r: titleRow, c: columnIndex });
+    const cell = sheet[cellAddress];
+
+    if (cell) {
+      cell.s = {
+        ...(cell.s || {}),
+        font: {
+          ...(cell.s?.font || {}),
+          bold: true,
+          sz: 16,
+          color: { rgb: 'E83E8C' },
+        },
+      };
+    }
+  }
+};
+
 const buildLookbackIndex = (records) => {
   const index = new Map();
   const totals = { visitor: { 180: 0, 30: 0, 7: 0 }, account: { 180: 0, 30: 0, 7: 0 } };
@@ -253,13 +281,17 @@ const buildLookbackIndex = (records) => {
     }
     appIds.add(record.appId);
 
-    if (Number.isFinite(record.datasetCount)) {
+    const datasetCount = parseCount(
+      record.datasetCount ?? record.dataset_total ?? record.dataset_count ?? record.datasets,
+    );
+
+    if (datasetCount > 0) {
       if (record.subId) {
-        datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + record.datasetCount);
+        datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + datasetCount);
       }
 
-      datasetTotalsByApp.set(record.appId, (datasetTotalsByApp.get(record.appId) || 0) + record.datasetCount);
-      totalDatasets += record.datasetCount;
+      datasetTotalsByApp.set(record.appId, (datasetTotalsByApp.get(record.appId) || 0) + datasetCount);
+      totalDatasets += datasetCount;
     }
 
     const appEntry = index.get(record.appId) || {
@@ -299,45 +331,6 @@ const buildLookbackIndex = (records) => {
     datasetTotalsByApp,
     totalDatasets,
   };
-};
-
-const buildSubscriptionTotals = (metadataRecords) => {
-  const subscriptions = new Map();
-
-  metadataRecords.forEach((record) => {
-    const recordType = record?.type;
-
-    if (!record?.subId || (recordType !== 'visitor' && recordType !== 'account')) {
-      return;
-    }
-
-    const subEntry = subscriptions.get(record.subId) || {
-      subId: record.subId,
-      appIds: new Set(),
-      totals: {
-        visitor: { 180: 0, 30: 0, 7: 0 },
-        account: { 180: 0, 30: 0, 7: 0 },
-      },
-    };
-
-    subEntry.appIds.add(record.appId);
-
-    if (LOOKBACK_WINDOWS.includes(record.windowDays) && Number.isFinite(record.count)) {
-      subEntry.totals[recordType][record.windowDays] += record.count;
-    }
-
-    if (Array.isArray(record.visitorFields)) {
-      subEntry.totals.visitor[record.windowDays] += record.visitorFields.length;
-    }
-
-    if (Array.isArray(record.accountFields)) {
-      subEntry.totals.account[record.windowDays] += record.accountFields.length;
-    }
-
-    subscriptions.set(record.subId, subEntry);
-  });
-
-  return Array.from(subscriptions.values());
 };
 
 const buildWorkbook = (formatSelections, metadataRecords) => {
@@ -385,9 +378,6 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       'Datasets tracked': totalDatasetCount,
       'Datasets by sub': datasetsBySub,
       'Datasets by app': datasetsByApp,
-      '180 days': parseCount(totals.visitor[180]),
-      '30 days': parseCount(totals.visitor[30]),
-      '7 days': parseCount(totals.visitor[7]),
     },
     {
       Type: 'Account',
@@ -397,39 +387,12 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       'Datasets tracked': totalDatasetCount,
       'Datasets by sub': datasetsBySub,
       'Datasets by app': datasetsByApp,
-      '180 days': parseCount(totals.account[180]),
-      '30 days': parseCount(totals.account[30]),
-      '7 days': parseCount(totals.account[7]),
     },
   ];
 
   const summarySheet = buildSheet(summaryRows, 'No deep dive metadata was available to summarize.');
+  applyOverviewFormatting(summarySheet);
   window.XLSX.utils.book_append_sheet(workbook, summarySheet, sanitizeSheetName('Overview', sheetNames));
-
-  const subscriptionRows = buildSubscriptionTotals(metadataRecords).flatMap((subscription) => [
-    {
-      'Sub ID': subscription.subId,
-      Type: 'Visitor',
-      'App count': subscription.appIds.size,
-      '180 days': parseCount(subscription.totals.visitor[180]),
-      '30 days': parseCount(subscription.totals.visitor[30]),
-      '7 days': parseCount(subscription.totals.visitor[7]),
-    },
-    {
-      'Sub ID': subscription.subId,
-      Type: 'Account',
-      'App count': subscription.appIds.size,
-      '180 days': parseCount(subscription.totals.account[180]),
-      '30 days': parseCount(subscription.totals.account[30]),
-      '7 days': parseCount(subscription.totals.account[7]),
-    },
-  ]);
-
-  const subscriptionSheet = buildSheet(
-    subscriptionRows,
-    'No subscription-level metadata was available to export.',
-  );
-  window.XLSX.utils.book_append_sheet(workbook, subscriptionSheet, sanitizeSheetName('Sub level', sheetNames));
 
   const groupedSelections = formatSelections.reduce((acc, selection) => {
     if (!selection?.appId) {
@@ -476,8 +439,6 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
 
       return {
         Sub: subId,
-        App: appName || lookup?.appId || selection.appId,
-        'App ID': selection.appId,
         Field: selection.fieldName,
         'Expected format': selection.format,
         'Regex pattern': selection.regexPattern,
@@ -494,7 +455,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     });
 
     const sheet = buildSheet(rows, 'No deep dive metadata was available for this app.');
-    const sheetLabel = `${subId || 'sub'}-${appName || appSelection.appId || 'app'} deep dive`;
+    const sheetLabel = appName || appSelection.appId || 'app';
 
     window.XLSX.utils.book_append_sheet(
       workbook,
@@ -522,15 +483,6 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
 };
 
 export const exportDeepDiveXlsx = async () => {
-  const desiredName = await openNamingModal(buildDefaultFileName, (value) =>
-    sanitizeFileName(value, buildDefaultFileName()),
-  );
-  if (desiredName === null) {
-    return;
-  }
-
-  await ensureWorkbookLibraries();
-
   const visitorTable = document.getElementById('visitor-deep-dive-table');
   const accountTable = document.getElementById('account-deep-dive-table');
   const metadataRecords = dedupeMetadataRecords(
@@ -538,10 +490,20 @@ export const exportDeepDiveXlsx = async () => {
     loadDeepDiveRecords(),
   );
 
+  const defaultFileName = buildDefaultFileName(metadataRecords);
+  const desiredName = await openNamingModal(() => defaultFileName, (value) =>
+    sanitizeFileName(value, defaultFileName),
+  );
+  if (desiredName === null) {
+    return;
+  }
+
+  await ensureWorkbookLibraries();
+
   const visitorSelections = collectFormatSelections(visitorTable, 'visitor');
   const accountSelections = collectFormatSelections(accountTable, 'account');
 
   const workbook = buildWorkbook([...visitorSelections, ...accountSelections], metadataRecords);
 
-  downloadWorkbook(workbook, desiredName || buildDefaultFileName());
+  downloadWorkbook(workbook, desiredName || defaultFileName);
 };
