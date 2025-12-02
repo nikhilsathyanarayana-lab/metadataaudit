@@ -130,6 +130,8 @@ const createTableElement = ({ title, hint, headers, rows }) => {
   const tbody = document.createElement('tbody');
   rows.forEach((cells) => {
     const tr = document.createElement('tr');
+    tr.style.breakInside = 'avoid';
+    tr.style.pageBreakInside = 'avoid';
     cells.forEach((value) => {
       const td = document.createElement('td');
       td.textContent = value;
@@ -250,6 +252,7 @@ const buildPrintableDocument = () => {
   subscriptions.forEach((subscription) => {
     const section = document.createElement('section');
     section.className = 'pdf-subscription-section';
+    section.dataset.subscriptionId = subscription.subId || 'Unknown';
 
     section.appendChild(buildSubscriptionHero(subscription.subId));
 
@@ -293,35 +296,53 @@ const renderPdf = async (filename) => {
 
   document.body.appendChild(printable);
 
-  const canvas = await window.html2canvas(printable, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#ffffff',
+  const pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
+  const margin = 32;
+  const sections = Array.from(printable.children);
+  const pageDecorations = [];
+
+  const renderSectionWithHeader = async (section, headerText) => {
+    const startPage = pdf.internal.getNumberOfPages();
+
+    await pdf.html(section, {
+      margin,
+      autoPaging: 'text',
+      html2canvas: { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' },
+      windowWidth: 1200,
+      x: margin,
+      y: margin,
+      pagebreak: { mode: ['css', 'legacy'] },
+    });
+
+    const endPage = pdf.internal.getNumberOfPages();
+    pageDecorations.push({ startPage, endPage, headerText });
+  };
+
+  // Render the cover page first without a subscription-specific header
+  const cover = sections.shift();
+  if (cover) {
+    await renderSectionWithHeader(cover, 'Metadata Fields Export');
+  }
+
+  for (const section of sections) {
+    const subId = section.dataset.subscriptionId || 'Unknown';
+    await renderSectionWithHeader(section, `Subscription ${subId}`);
+  }
+
+  const totalPages = pdf.internal.getNumberOfPages();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+
+  pageDecorations.forEach(({ startPage, endPage, headerText }) => {
+    for (let pageNumber = startPage; pageNumber <= endPage; pageNumber += 1) {
+      pdf.setPage(pageNumber);
+      pdf.setFontSize(10);
+      pdf.text(headerText, margin, 20);
+      pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin, pageHeight - 14, { align: 'right' });
+    }
   });
 
   printable.remove();
-
-  const imageData = canvas.toDataURL('image/png');
-  const pdf = new window.jspdf.jsPDF('p', 'pt', 'a4');
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 16;
-
-  const imgWidth = pageWidth - margin * 2;
-  const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-  let heightLeft = imgHeight;
-  let position = margin;
-
-  pdf.addImage(imageData, 'PNG', margin, position, imgWidth, imgHeight);
-  heightLeft -= pageHeight - margin * 2;
-
-  while (heightLeft > 0) {
-    pdf.addPage();
-    position = heightLeft - imgHeight + margin;
-    pdf.addImage(imageData, 'PNG', margin, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight - margin * 2;
-  }
 
   const finalName = `${filename || buildDefaultFileName()}.pdf`;
   pdf.save(finalName);
