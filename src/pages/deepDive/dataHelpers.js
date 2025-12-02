@@ -142,17 +142,21 @@ export const loadMetadataRecords = () =>
 const deepDiveRecords = [];
 
 export const loadDeepDiveRecords = () => {
-  deepDiveRecords.splice(
-    0,
-    deepDiveRecords.length,
-    ...getGlobalCollection(deepDiveGlobalKey)
-      .filter((record) => record?.appId)
-      .map((record) => ({
-        ...record,
-        visitorFields: Array.isArray(record.visitorFields) ? record.visitorFields : [],
-        accountFields: Array.isArray(record.accountFields) ? record.accountFields : [],
-      })),
-  );
+  const incomingRecords = getGlobalCollection(deepDiveGlobalKey)
+    .filter((record) => record?.appId)
+    .map((record) => ({
+      ...record,
+      visitorFields: Array.isArray(record.visitorFields) ? record.visitorFields : [],
+      accountFields: Array.isArray(record.accountFields) ? record.accountFields : [],
+    }));
+
+  if (!incomingRecords.length) {
+    return deepDiveRecords;
+  }
+
+  const mergedRecords = dedupeMetadataRecords(deepDiveRecords, incomingRecords);
+
+  deepDiveRecords.splice(0, deepDiveRecords.length, ...mergedRecords);
 
   return deepDiveRecords;
 };
