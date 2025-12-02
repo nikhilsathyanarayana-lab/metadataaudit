@@ -242,10 +242,27 @@ const applyOverviewFormatting = (sheet) => {
   }
 
   const range = window.XLSX.utils.decode_range(sheet['!ref']);
-  const titleRow = range.s.r;
+  const headerRow = range.s.r;
+  const firstColumn = range.s.c;
 
-  for (let columnIndex = range.s.c; columnIndex <= range.e.c; columnIndex += 1) {
-    const cellAddress = window.XLSX.utils.encode_cell({ r: titleRow, c: columnIndex });
+  const maxHeaderColumn = Math.min(range.e.c, range.s.c + 6);
+  const headerCells = Array.from({ length: maxHeaderColumn - range.s.c + 1 }, (_, index) => ({
+    r: headerRow,
+    c: range.s.c + index,
+  }));
+
+  const firstColumnCells = Array.from(
+    { length: Math.min(3, range.e.r - range.s.r + 1) },
+    (_, index) => ({
+      r: range.s.r + index,
+      c: firstColumn,
+    })
+  );
+
+  const styledAddresses = [...headerCells, ...firstColumnCells];
+
+  styledAddresses.forEach((address) => {
+    const cellAddress = window.XLSX.utils.encode_cell(address);
     const cell = sheet[cellAddress];
 
     if (cell) {
@@ -255,11 +272,16 @@ const applyOverviewFormatting = (sheet) => {
           ...(cell.s?.font || {}),
           bold: true,
           sz: 16,
-          color: { rgb: 'E83E8C' },
+          color: { rgb: 'FFFFFF' },
+        },
+        fill: {
+          ...(cell.s?.fill || {}),
+          patternType: 'solid',
+          fgColor: { rgb: 'E83E8C' },
         },
       };
     }
-  }
+  });
 };
 
 const buildLookbackIndex = (records) => {
