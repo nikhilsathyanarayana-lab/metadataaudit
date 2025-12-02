@@ -610,24 +610,6 @@ textarea:focus {
   accent-color: var(--pendo-pink);
 }
 
-.field-selection-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  align-items: center;
-}
-
-.field-selection {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 10px;
-  background: #fff7fb;
-  border: 1px solid rgba(224, 0, 108, 0.15);
-  font-size: 0.95rem;
-}
-
 .metadata-limit-exceeded {
   outline: 3px solid #b00020;
   outline-offset: 2px;
