@@ -94,7 +94,7 @@ export const processDeepDiveResponseItems = async (response, onItem) => {
   }
 };
 
-export const updateMetadataApiCalls = (entry, status, error = '') => {
+export const updateMetadataApiCalls = (entry, status, error = '', datasetCount = 0) => {
   if (!entry?.appId) {
     return;
   }
@@ -102,6 +102,7 @@ export const updateMetadataApiCalls = (entry, status, error = '') => {
   const callRecord = {
     appId: entry.appId,
     subId: entry.subId || '',
+    datasetCount: Number.isFinite(datasetCount) ? datasetCount : 0,
     status: status || 'unknown',
     error: error || '',
     recordedAt: new Date().toISOString(),
@@ -137,7 +138,7 @@ export const collectDeepDiveMetadataFields = async (response, accumulator, entry
     datasetCount += 1;
   });
 
-  target.datasetCount = (target.datasetCount || 0) + datasetCount;
+  target.datasetCount = datasetCount;
 
   return target;
 };
