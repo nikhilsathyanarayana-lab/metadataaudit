@@ -4,6 +4,7 @@ import {
   loadPdfLibraries,
   shouldUseWideLayout,
 } from './pdf_shared.js';
+import { loadDeepDiveRecords } from '../../pages/deepDive/dataHelpers.js';
 
 const buildDefaultFileName = () => {
   const today = new Date();
@@ -183,6 +184,172 @@ const buildCoverPage = (subscriptions) => {
   return cover;
 };
 
+const formatAppLabel = (app) => {
+  if (!app) {
+    return 'Unknown app';
+  }
+
+  const appId = app.appId || 'Unknown app';
+  const appName = (app.appName || '').trim();
+
+  if (appName) {
+    return `${appName} (${appId})`;
+  }
+
+  return appId;
+};
+
+const groupDeepDiveBySubscription = (records) => {
+  const grouped = new Map();
+
+  (Array.isArray(records) ? records : []).forEach((record) => {
+    if (!record?.appId) {
+      return;
+    }
+
+    const subId = record.subId || 'Unknown';
+    const existing = grouped.get(subId) || {
+      subId,
+      apps: new Map(),
+      visitorFields: new Set(),
+      accountFields: new Set(),
+    };
+
+    const appEntry = existing.apps.get(record.appId) || {
+      appId: record.appId,
+      appName: record.appName || '',
+      visitorFields: new Set(),
+      accountFields: new Set(),
+    };
+
+    (Array.isArray(record.visitorFields) ? record.visitorFields : []).forEach((field) => {
+      appEntry.visitorFields.add(field);
+      existing.visitorFields.add(field);
+    });
+
+    (Array.isArray(record.accountFields) ? record.accountFields : []).forEach((field) => {
+      appEntry.accountFields.add(field);
+      existing.accountFields.add(field);
+    });
+
+    existing.apps.set(record.appId, appEntry);
+    grouped.set(subId, existing);
+  });
+
+  return Array.from(grouped.values()).map((entry) => ({
+    subId: entry.subId,
+    visitorFields: Array.from(entry.visitorFields).sort(),
+    accountFields: Array.from(entry.accountFields).sort(),
+    apps: Array.from(entry.apps.values())
+      .map((app) => ({
+        ...app,
+        visitorFields: Array.from(app.visitorFields),
+        accountFields: Array.from(app.accountFields),
+      }))
+      .sort((first, second) => formatAppLabel(first).localeCompare(formatAppLabel(second))),
+  }));
+};
+
+const buildCategoryRows = (label, fields, apps, accessor) => {
+  const rows = [];
+  const categoryRow = document.createElement('tr');
+  const categoryCell = document.createElement('th');
+  categoryCell.className = 'pdf-summary-category';
+  categoryCell.colSpan = apps.length + 1;
+  categoryCell.scope = 'row';
+  categoryCell.textContent = label;
+  categoryRow.appendChild(categoryCell);
+  rows.push(categoryRow);
+
+  const fieldList = Array.isArray(fields) && fields.length ? fields : [`No ${label.toLowerCase()} captured`];
+
+  fieldList.forEach((field) => {
+    const row = document.createElement('tr');
+    const fieldCell = document.createElement('td');
+    fieldCell.className = 'pdf-summary-field';
+    fieldCell.textContent = field;
+    row.appendChild(fieldCell);
+
+    apps.forEach((app) => {
+      const cell = document.createElement('td');
+      const fieldSet = accessor(app);
+      const present = fieldSet.has(field) && fieldSet.size > 0;
+      cell.className = `pdf-summary-value${present ? '' : ' is-zero'}`;
+      cell.textContent = present ? '1' : '0';
+      row.appendChild(cell);
+    });
+
+    rows.push(row);
+  });
+
+  return rows;
+};
+
+const buildSubscriptionSummary = (subscription) => {
+  const section = document.createElement('section');
+  section.className = 'pdf-section pdf-subscription-summary';
+  section.dataset.summaryTitle = `Subscription ${subscription.subId || 'Unknown'}`;
+
+  const title = document.createElement('h2');
+  title.className = 'pdf-summary-title';
+  title.textContent = `Subscription ${subscription.subId || 'Unknown'}`;
+
+  const hint = document.createElement('p');
+  hint.className = 'pdf-summary-hint';
+  hint.textContent = 'Deep-dive metadata coverage by app. Zero values indicate missing fields for that app.';
+
+  section.append(title, hint);
+
+  if (!subscription.apps.length) {
+    const emptyState = document.createElement('p');
+    emptyState.className = 'pdf-summary-empty';
+    emptyState.textContent = 'No deep dive metadata captured for this subscription yet.';
+    section.appendChild(emptyState);
+    return section;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'pdf-table pdf-summary-table';
+
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  const metadataHeader = document.createElement('th');
+  metadataHeader.textContent = 'Metadata';
+  metadataHeader.className = 'pdf-summary-metadata-header';
+  headerRow.appendChild(metadataHeader);
+
+  subscription.apps.forEach((app) => {
+    const th = document.createElement('th');
+    th.textContent = formatAppLabel(app);
+    th.className = 'pdf-summary-app-header';
+    headerRow.appendChild(th);
+  });
+
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  const visitorRows = buildCategoryRows(
+    'Visitor Metadata',
+    subscription.visitorFields,
+    subscription.apps,
+    (app) => new Set(app.visitorFields || []),
+  );
+  const accountRows = buildCategoryRows(
+    'Account Metadata',
+    subscription.accountFields,
+    subscription.apps,
+    (app) => new Set(app.accountFields || []),
+  );
+
+  [...visitorRows, ...accountRows].forEach((row) => tbody.appendChild(row));
+
+  table.appendChild(tbody);
+  section.appendChild(table);
+
+  return section;
+};
+
 const buildSubscriptionHero = (subId) => {
   const header = document.createElement('header');
   header.className = 'pdf-subscription-hero';
@@ -276,8 +443,29 @@ const buildPrintableDocument = () => {
   const accountRows = collectMetadataRows(accountTable, 'account');
 
   const subscriptions = aggregateBySubscription(visitorRows, accountRows);
+  const deepDiveSubscriptions = groupDeepDiveBySubscription(loadDeepDiveRecords());
   const subscriptionIds = subscriptions.map((subscription) => subscription.subId);
   container.appendChild(buildCoverPage(subscriptionIds));
+
+  const summarySections = deepDiveSubscriptions.length
+    ? deepDiveSubscriptions.map((subscription) => buildSubscriptionSummary(subscription))
+    : [
+        (() => {
+          const fallback = document.createElement('section');
+          fallback.className = 'pdf-section pdf-subscription-summary';
+          fallback.dataset.summaryTitle = 'Subscription summary';
+          const title = document.createElement('h2');
+          title.className = 'pdf-summary-title';
+          title.textContent = 'Subscription summary';
+          const hint = document.createElement('p');
+          hint.className = 'pdf-summary-hint';
+          hint.textContent = 'No deep dive metadata is available yet for subscription-level summaries.';
+          fallback.append(title, hint);
+          return fallback;
+        })(),
+      ];
+
+  summarySections.forEach((section) => container.appendChild(section));
 
   subscriptions.forEach((subscription) => {
     const section = document.createElement('section');
@@ -365,8 +553,10 @@ const renderPdf = async (filename) => {
   }
 
   for (const section of sections) {
-    const subId = section.dataset.subscriptionId || 'Unknown';
-    await renderSectionWithHeader(section, `Subscription ${subId}`);
+    const subId = section.dataset.subscriptionId || '';
+    const summaryTitle = section.dataset.summaryTitle;
+    const headerText = summaryTitle || (subId ? `Subscription ${subId}` : 'Subscription details');
+    await renderSectionWithHeader(section, headerText);
   }
 
   const totalPages = pdf.internal.getNumberOfPages();

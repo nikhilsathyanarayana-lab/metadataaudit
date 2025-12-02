@@ -219,6 +219,78 @@
   background: #fff7fb;
 }
 
+.pdf-subscription-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.pdf-summary-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #d30066;
+  font-weight: 800;
+}
+
+.pdf-summary-hint {
+  margin: 0;
+  color: #4a4a4a;
+}
+
+.pdf-summary-empty {
+  margin: 0.35rem 0 0 0;
+  color: #6b6b6b;
+}
+
+.pdf-summary-table {
+  border: 1px solid rgba(224, 0, 108, 0.2);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pdf-summary-table thead th {
+  background: #ffe1ef;
+  color: #1f1f1f;
+  font-weight: 800;
+}
+
+.pdf-summary-table tbody th {
+  text-align: left;
+}
+
+.pdf-summary-metadata-header {
+  width: 180px;
+}
+
+.pdf-summary-app-header {
+  text-align: center;
+  font-weight: 700;
+}
+
+.pdf-summary-category {
+  background: #f8f8f8;
+  color: #303030;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.9rem;
+}
+
+.pdf-summary-field {
+  font-weight: 600;
+  color: #303030;
+}
+
+.pdf-summary-value {
+  text-align: center;
+  font-weight: 700;
+  color: #1f1f1f;
+}
+
+.pdf-summary-value.is-zero {
+  color: #c00034;
+  background: #ffe5ed;
+}
+
 .pdf-table th,
 .pdf-table td {
   min-width: 80px;
