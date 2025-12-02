@@ -588,6 +588,7 @@ const buildLookbackIndex = (records) => {
   const subIds = new Set();
   const appIds = new Set();
   const datasetTotals = new Map();
+  const datasetTotalsByApp = new Map();
   let totalDatasets = 0;
 
   records.forEach((record) => {
@@ -600,8 +601,15 @@ const buildLookbackIndex = (records) => {
     }
     appIds.add(record.appId);
 
-    if (record.subId && Number.isFinite(record.datasetCount)) {
-      datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + record.datasetCount);
+    if (Number.isFinite(record.datasetCount)) {
+      if (record.subId) {
+        datasetTotals.set(record.subId, (datasetTotals.get(record.subId) || 0) + record.datasetCount);
+      }
+
+      datasetTotalsByApp.set(
+        record.appId,
+        (datasetTotalsByApp.get(record.appId) || 0) + record.datasetCount,
+      );
       totalDatasets += record.datasetCount;
     }
 
@@ -646,6 +654,7 @@ const buildLookbackIndex = (records) => {
     distinctApps: appIds.size,
     subIds: Array.from(subIds).sort(),
     datasetTotals,
+    datasetTotalsByApp,
     totalDatasets,
   };
 };
@@ -683,14 +692,33 @@ const buildSubscriptionTotals = (records) => {
 const buildWorkbook = (formatSelections, metadataRecords) => {
   const workbook = window.XLSX.utils.book_new();
   const sheetNames = new Set();
-  const { index, totals, distinctSubs, distinctApps, subIds, datasetTotals, totalDatasets } =
-    buildLookbackIndex(metadataRecords);
+  const {
+    index,
+    totals,
+    distinctSubs,
+    distinctApps,
+    subIds,
+    datasetTotals,
+    datasetTotalsByApp,
+    totalDatasets,
+  } = buildLookbackIndex(metadataRecords);
   const scannedSubIds = subIds.length ? subIds.join(', ') : 'No Sub IDs captured';
   const datasetsBySub =
     datasetTotals.size > 0
       ? Array.from(datasetTotals.entries())
           .sort(([first], [second]) => String(first || '').localeCompare(String(second || '')))
           .map(([subId, count]) => `${subId}: ${count}`)
+          .join('; ')
+      : 'No datasets tracked';
+  const datasetsByApp =
+    datasetTotalsByApp.size > 0
+      ? Array.from(datasetTotalsByApp.entries())
+          .map(([appId, count]) => {
+            const lookup = index.get(appId);
+            const appName = normalizeAppName(lookup?.appName || '');
+            return `${appName ? `${appName} (${appId})` : appId}: ${count}`;
+          })
+          .sort((first, second) => String(first || '').localeCompare(String(second || '')))
           .join('; ')
       : 'No datasets tracked';
   const totalDatasetCount = totalDatasets || 0;
@@ -705,6 +733,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       'Sub IDs scanned': scannedSubIds,
       'Datasets tracked': totalDatasetCount,
       'Datasets by sub': datasetsBySub,
+      'Datasets by app': datasetsByApp,
       '180 days': parseCount(totals.visitor[180]),
       '30 days': parseCount(totals.visitor[30]),
       '7 days': parseCount(totals.visitor[7]),
@@ -716,6 +745,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
       'Sub IDs scanned': scannedSubIds,
       'Datasets tracked': totalDatasetCount,
       'Datasets by sub': datasetsBySub,
+      'Datasets by app': datasetsByApp,
       '180 days': parseCount(totals.account[180]),
       '30 days': parseCount(totals.account[30]),
       '7 days': parseCount(totals.account[7]),
