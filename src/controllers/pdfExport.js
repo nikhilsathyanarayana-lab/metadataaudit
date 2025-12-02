@@ -162,34 +162,90 @@ const createTableElement = ({ title, hint, headers, rows }) => {
   return section;
 };
 
+const applyInlineStyles = (element, styles = {}) => {
+  Object.entries(styles).forEach(([property, value]) => {
+    element.style[property] = value;
+  });
+};
+
 const buildCoverPage = (subscriptions) => {
   const cover = document.createElement('section');
   cover.className = 'pdf-cover-page';
+  applyInlineStyles(cover, {
+    background: 'linear-gradient(120deg, #f557a6 0%, #e0006c 100%)',
+    color: '#ffffff',
+    borderRadius: '18px',
+    boxShadow: '0 14px 42px rgba(224, 0, 108, 0.25)',
+    padding: '1.75rem 1.5rem',
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr',
+    alignItems: 'center',
+    gap: '1.5rem',
+  });
 
   const heading = document.createElement('p');
   heading.className = 'pdf-cover-title';
   heading.textContent = 'Metadata export';
+  applyInlineStyles(heading, {
+    margin: '0',
+    fontSize: '0.95rem',
+    fontWeight: '700',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+  });
 
   const brand = document.createElement('div');
   brand.className = 'pdf-cover-brand';
   brand.textContent = 'Pendo';
+  applyInlineStyles(brand, {
+    fontWeight: '800',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    padding: '0.75rem 1rem',
+    border: '2px solid rgba(255, 255, 255, 0.75)',
+    borderRadius: '16px',
+    textAlign: 'center',
+    minWidth: '96px',
+  });
 
   const copy = document.createElement('div');
   copy.className = 'pdf-cover-copy';
 
   const title = document.createElement('h1');
   title.textContent = 'Metadata Fields Export';
+  applyInlineStyles(title, {
+    margin: '0 0 0.35rem 0',
+    fontSize: '1.9rem',
+    color: '#ffffff',
+  });
 
   const subtitle = document.createElement('p');
   subtitle.className = 'pdf-cover-subtitle';
   subtitle.textContent = 'Visitor and account metadata pulled directly from your selections.';
+  applyInlineStyles(subtitle, {
+    margin: '0 0 0.9rem 0',
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: '1rem',
+  });
 
   const listHeading = document.createElement('p');
   listHeading.className = 'pdf-cover-list-heading';
   listHeading.textContent = 'Subscriptions included';
+  applyInlineStyles(listHeading, {
+    margin: '0 0 0.35rem 0',
+    fontWeight: '700',
+    letterSpacing: '0.02em',
+  });
 
   const list = document.createElement('ul');
   list.className = 'pdf-cover-sub-list';
+  applyInlineStyles(list, {
+    margin: '0',
+    paddingLeft: '1.2rem',
+    color: 'rgba(255, 255, 255, 0.92)',
+    display: 'grid',
+    gap: '0.2rem',
+  });
 
   const uniqueSubs = subscriptions.length ? subscriptions : ['None provided'];
   uniqueSubs.forEach((subId) => {
@@ -202,6 +258,13 @@ const buildCoverPage = (subscriptions) => {
   const date = document.createElement('p');
   date.className = 'pdf-cover-date';
   date.textContent = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date());
+  applyInlineStyles(date, {
+    margin: '0.25rem 0 0 0',
+    fontWeight: '700',
+    letterSpacing: '0.04em',
+    textAlign: 'right',
+    gridColumn: '1 / -1',
+  });
 
   cover.append(heading, brand, copy, date);
   return cover;
@@ -210,10 +273,31 @@ const buildCoverPage = (subscriptions) => {
 const buildSubscriptionHero = (subId) => {
   const header = document.createElement('header');
   header.className = 'pdf-subscription-hero';
+  applyInlineStyles(header, {
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr',
+    gap: '1rem',
+    alignItems: 'center',
+    padding: '1.2rem 1.4rem',
+    background: 'linear-gradient(135deg, #f557a6 0%, #e0006c 100%)',
+    color: '#ffffff',
+    borderRadius: '14px',
+    boxShadow: '0 12px 40px rgba(224, 0, 108, 0.22)',
+    marginBottom: '1rem',
+  });
 
   const brand = document.createElement('div');
   brand.className = 'pdf-hero-brand';
   brand.textContent = 'Pendo';
+  applyInlineStyles(brand, {
+    fontWeight: '800',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    padding: '0.6rem 0.9rem',
+    border: '2px solid rgba(255, 255, 255, 0.65)',
+    borderRadius: '12px',
+    textAlign: 'center',
+  });
 
   const copy = document.createElement('div');
   copy.className = 'pdf-hero-copy';
@@ -221,13 +305,30 @@ const buildSubscriptionHero = (subId) => {
   const eyebrow = document.createElement('p');
   eyebrow.className = 'pdf-hero-eyebrow';
   eyebrow.textContent = 'Metadata Audit Export';
+  applyInlineStyles(eyebrow, {
+    margin: '0 0 0.25rem 0',
+    fontSize: '0.85rem',
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.9)',
+  });
 
   const title = document.createElement('h2');
   title.textContent = `Metadata Fields — Subscription ${subId || 'Unknown'}`;
+  applyInlineStyles(title, {
+    margin: '0',
+    fontSize: '1.35rem',
+    color: '#ffffff',
+  });
 
   const subtitle = document.createElement('p');
   subtitle.className = 'pdf-hero-subtitle';
   subtitle.textContent = 'Visitor and account metadata with deep-dive details';
+  applyInlineStyles(subtitle, {
+    margin: '0.2rem 0 0 0',
+    color: 'rgba(255, 255, 255, 0.9)',
+  });
 
   copy.append(eyebrow, title, subtitle);
   header.append(brand, copy);
