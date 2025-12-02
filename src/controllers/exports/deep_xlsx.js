@@ -426,26 +426,21 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
   const valueLookup = buildValueLookup();
   const aggregatedRows = [];
 
-  const summaryRows = [
-    {
-      Type: 'Visitor',
+  const summaryRows = (subIds.length ? subIds : ['No Sub ID captured']).map((subId) => {
+    const datasetsForSub = datasetTotals.get(subId) || 0;
+    const resolvedSubId = subId || 'No Sub ID captured';
+    const datasetsBySubLabel = datasetTotals.size > 0 ? `${resolvedSubId}: ${datasetsForSub}` : datasetsBySub;
+
+    return {
+      'Sub ID': resolvedSubId,
       'Distinct subs': distinctSubs,
       'Distinct apps': distinctApps,
       'Sub IDs scanned': scannedSubIds,
-      'Datasets tracked': totalDatasetCount,
-      'Datasets by sub': datasetsBySub,
+      'Datasets tracked': datasetTotals.size > 0 ? datasetsForSub : totalDatasetCount,
+      'Datasets by sub': datasetsBySubLabel,
       'Datasets by app': datasetsByApp,
-    },
-    {
-      Type: 'Account',
-      'Distinct subs': distinctSubs,
-      'Distinct apps': distinctApps,
-      'Sub IDs scanned': scannedSubIds,
-      'Datasets tracked': totalDatasetCount,
-      'Datasets by sub': datasetsBySub,
-      'Datasets by app': datasetsByApp,
-    },
-  ];
+    };
+  });
 
   appendWorksheetFromRows(
     workbook,
