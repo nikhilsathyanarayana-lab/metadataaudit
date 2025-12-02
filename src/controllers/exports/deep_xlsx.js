@@ -304,13 +304,12 @@ const applyOverviewFormatting = (worksheet) => {
 
   headerRow.eachCell(styleCell);
 
-  const maxRows = Math.min(3, worksheet.rowCount);
-  for (let rowIndex = 1; rowIndex <= maxRows; rowIndex += 1) {
-    const cell = worksheet.getRow(rowIndex).getCell(1);
-    styleCell(cell);
+  const subIdColumn = worksheet.getColumn(1);
+  if (subIdColumn) {
+    subIdColumn.width = subIdColumn.width ? subIdColumn.width * 3 : 30;
   }
 
-  logXlsx('debug', `Applied overview formatting to ${headerRow.cellCount + maxRows} cell(s)`);
+  logXlsx('debug', `Applied overview formatting to ${headerRow.cellCount} header cell(s)`);
 };
 
 const buildLookbackIndex = (records) => {
