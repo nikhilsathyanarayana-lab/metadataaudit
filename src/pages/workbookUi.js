@@ -465,7 +465,7 @@ const summarizeError = (error) => {
       XLSX.utils.book_append_sheet(workbook, examplesSheet, 'Examples');
 
       const workbookLabel = getWorkbookName();
-      const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const workbookArray = XLSX.write(workbook, { bookType: 'xlsx', type: 'array', cellStyles: true });
       saveAs(
         new Blob([workbookArray], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
