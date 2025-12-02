@@ -32,6 +32,40 @@ export const scheduleDomUpdate = (callback) => {
   setTimeout(() => callback(), 0);
 };
 
+const normalizeSelectionMetadata = (metadataFields) => {
+  if (!metadataFields || typeof metadataFields !== 'object') {
+    return {};
+  }
+
+  return Object.entries(metadataFields).reduce((acc, [appId, fields]) => {
+    if (!appId || !fields || typeof fields !== 'object') {
+      return acc;
+    }
+
+    acc[appId] = {
+      windowDays: Number.isFinite(fields.windowDays) ? fields.windowDays : undefined,
+      visitorFields: Array.isArray(fields.visitorFields) ? fields.visitorFields : [],
+      accountFields: Array.isArray(fields.accountFields) ? fields.accountFields : [],
+      updatedAt: typeof fields.updatedAt === 'string' ? fields.updatedAt : undefined,
+    };
+
+    return acc;
+  }, {});
+};
+
+const extractMetadataFieldsForApp = (metadataFields, appId) => {
+  const fields = metadataFields?.[appId];
+
+  if (!fields || fields.windowDays !== TARGET_LOOKBACK) {
+    return { visitorFields: [], accountFields: [] };
+  }
+
+  return {
+    visitorFields: dedupeAndSortFields(fields.visitorFields),
+    accountFields: dedupeAndSortFields(fields.accountFields),
+  };
+};
+
 const normalizeAppSelections = (selections) =>
   (Array.isArray(selections) ? selections : [])
     .filter((entry) => entry?.subId && entry?.response)
@@ -40,6 +74,7 @@ const normalizeAppSelections = (selections) =>
       response: entry.response,
       domain: entry.domain || '',
       integrationKey: entry.integrationKey || '',
+      metadataFields: normalizeSelectionMetadata(entry.metadataFields),
     }));
 
 export const loadAppSelectionsFromStorage = (reportError = () => {}) => {
@@ -97,6 +132,7 @@ export const loadAppSelections = (reportError) => {
       appId,
       domain: entry.domain,
       integrationKey: entry.integrationKey,
+      ...extractMetadataFieldsForApp(entry.metadataFields, appId),
     }));
   });
 };
