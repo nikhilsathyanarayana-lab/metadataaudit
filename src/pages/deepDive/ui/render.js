@@ -291,22 +291,41 @@ export const setExportAvailability = (enabled) => {
 };
 
 export const setupProgressTracker = () => {
-  const progressText = document.getElementById('deep-dive-progress-text');
+  const apiProgressText = document.getElementById('deep-dive-api-progress');
+  const processingProgressText = document.getElementById('deep-dive-processing-progress');
 
-  const updateText = (completed, total) => {
-    if (!progressText) {
+  const updateApiProgress = (completed = 0, total = 0) => {
+    if (!apiProgressText) {
       return;
     }
 
     if (!total) {
-      progressText.textContent = 'No API calls queued.';
+      apiProgressText.textContent = 'No API calls queued.';
       return;
     }
 
     const boundedCompleted = Math.min(completed, total);
     const remaining = Math.max(total - boundedCompleted, 0);
-    progressText.textContent = `API calls: ${boundedCompleted}/${total} (${remaining} left)`;
+    apiProgressText.textContent = `API calls: ${boundedCompleted}/${total} (${remaining} left)`;
   };
 
-  return { updateText };
+  const updateProcessingProgress = (completed = 0, total = 0) => {
+    if (!processingProgressText) {
+      return;
+    }
+
+    if (!total) {
+      processingProgressText.textContent = 'Processing queue idle.';
+      return;
+    }
+
+    const boundedCompleted = Math.min(completed, total);
+    const remaining = Math.max(total - boundedCompleted, 0);
+    processingProgressText.textContent = `Processing results: ${boundedCompleted}/${total} (${remaining} remaining)`;
+  };
+
+  updateApiProgress(0, 0);
+  updateProcessingProgress(0, 0);
+
+  return { updateApiProgress, updateProcessingProgress };
 };
