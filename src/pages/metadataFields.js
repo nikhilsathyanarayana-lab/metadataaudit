@@ -549,7 +549,7 @@ const updateCellContent = (cell, fields, label) => {
   cell.textContent = fields.join(', ');
 };
 
-const fetchAndPopulate = async (
+const fetchAndPopulate = (
   entries,
   visitorRows,
   accountRows,
@@ -559,126 +559,242 @@ const fetchAndPopulate = async (
   manualAppNames,
 ) => {
   let completedCalls = 0;
+  let queueIntervalId = null;
+  const workQueue = [];
+  const inFlight = new Set();
+  const abortedEntries = new Set();
+  const chunkGroups = new Map();
 
-  for (const entry of entries) {
-    const visitorCells = visitorRows.find((row) => row.entry === entry)?.cells;
-    const accountCells = accountRows.find((row) => row.entry === entry)?.cells;
+  const entryKey = (entry) => `${entry.subId || ''}::${entry.domain || ''}::${entry.integrationKey || ''}`;
+  const recordKey = (entry, windowDays) => `${entryKey(entry)}::${windowDays}`;
 
-    if (!visitorCells || !accountCells) {
-      continue;
+  const getCells = (entry) => ({
+    visitorCells: visitorRows.find((row) => row.entry === entry)?.cells,
+    accountCells: accountRows.find((row) => row.entry === entry)?.cells,
+  });
+
+  const incrementProgress = () => {
+    completedCalls += 1;
+    updateProgress(completedCalls);
+  };
+
+  const isAborted = (entry) => abortedEntries.has(entryKey(entry));
+
+  const removePendingForEntry = (entry) => {
+    const key = entryKey(entry);
+    for (let i = workQueue.length - 1; i >= 0; i -= 1) {
+      if (entryKey(workQueue[i].entry) === key) {
+        workQueue.splice(i, 1);
+      }
+    }
+  };
+
+  const enqueueWorkItem = (item) => {
+    workQueue.push(item);
+  };
+
+  const finalizeChunkGroup = (groupKey, entry, windowDays, manualAppNames) => {
+    const group = chunkGroups.get(groupKey);
+    const { visitorCells, accountCells } = getCells(entry);
+
+    if (!group || !visitorCells || !accountCells) {
+      return;
     }
 
-    let abortRemainingWindows = false;
+    chunkGroups.delete(groupKey);
 
-    for (const windowDays of LOOKBACK_WINDOWS) {
-      if (abortRemainingWindows) {
-        break;
+    if (group.failed && !group.aggregatedResults.length) {
+      const cellMessage = 'Error fetching data';
+      updateCellContent(visitorCells[windowDays], [], 'visitor');
+      updateCellContent(accountCells[windowDays], [], 'account');
+      visitorCells[windowDays].textContent = cellMessage;
+      accountCells[windowDays].textContent = cellMessage;
+      visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+      accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+      return;
+    }
+
+    const { visitorFields, accountFields } = parseMetadataFields(group.aggregatedResults);
+
+    updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
+    updateCellContent(accountCells[windowDays], accountFields, 'account');
+
+    updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
+    updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
+
+    visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+    accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+  };
+
+  const handleChunkResponse = async (item) => {
+    const { entry, windowDays, payload, groupKey } = item;
+    const { visitorCells, accountCells } = getCells(entry);
+
+    if (!visitorCells || !accountCells || isAborted(entry)) {
+      incrementProgress();
+      return;
+    }
+
+    try {
+      const chunkResponse = await postAggregationWithIntegrationKey(entry, payload);
+      const group = chunkGroups.get(groupKey);
+
+      if (!group) {
+        incrementProgress();
+        return;
       }
 
-      let baseRequestAttempted = false;
+      if (Array.isArray(chunkResponse?.results)) {
+        group.aggregatedResults.push(...chunkResponse.results);
+      } else if (Array.isArray(chunkResponse?.data)) {
+        group.aggregatedResults.push(...chunkResponse.data);
+      } else if (Array.isArray(chunkResponse)) {
+        group.aggregatedResults.push(...chunkResponse);
+      }
 
-      try {
-        const payload = buildMetadataFieldsForAppPayload(entry.appId, windowDays);
-        const response = await postAggregationWithIntegrationKey(entry, payload);
-        const { visitorFields, accountFields } = parseMetadataFields(response);
+      group.remaining -= 1;
+      incrementProgress();
 
-        baseRequestAttempted = true;
-        updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
-        updateCellContent(accountCells[windowDays], accountFields, 'account');
+      if (group.remaining <= 0) {
+        finalizeChunkGroup(groupKey, entry, windowDays, manualAppNames);
+      }
+    } catch (chunkError) {
+      await logMetadataRequestError(chunkError, 'Chunked metadata field request failed');
+      const group = chunkGroups.get(groupKey);
 
-        updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
-        updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
-
-        visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-        accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-      } catch (error) {
-        await logMetadataRequestError(error, 'Metadata field request failed');
-        baseRequestAttempted = true;
-        const errorMessage = error?.message || 'Unable to fetch metadata fields.';
-        const statusMatch = errorMessage.match(/\((\d{3})\)/);
-        const statusCode = Number(statusMatch?.[1]) || null;
-        const tooMuchData = statusCode === 413 || RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
-        const clientErrorWithoutRecovery = !tooMuchData && statusCode >= 400 && statusCode < 500;
-        const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
-        let handledByChunks = false;
-
-        if (tooMuchData) {
-          console.info(
-            `Metadata request too large for app ${entry.appId} (${windowDays}d); retrying with split payloads.`,
-          );
-          const chunkedPayloads = buildChunkedMetadataFieldPayloads(entry.appId, windowDays);
-          const aggregatedResults = [];
-
-          addTotalCalls(chunkedPayloads.length);
-          updateProgress(completedCalls);
-
-          try {
-            for (const chunkedPayload of chunkedPayloads) {
-              const chunkResponse = await postAggregationWithIntegrationKey(entry, chunkedPayload);
-
-              if (Array.isArray(chunkResponse?.results)) {
-                aggregatedResults.push(...chunkResponse.results);
-              } else if (Array.isArray(chunkResponse?.data)) {
-                aggregatedResults.push(...chunkResponse.data);
-              } else if (Array.isArray(chunkResponse)) {
-                aggregatedResults.push(...chunkResponse);
-              }
-
-              completedCalls += 1;
-              updateProgress(completedCalls);
-            }
-
-            const { visitorFields, accountFields } = parseMetadataFields(aggregatedResults);
-
-            updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
-            updateCellContent(accountCells[windowDays], accountFields, 'account');
-
-            updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
-            updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
-
-            visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-            accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
-            handledByChunks = true;
-          } catch (chunkError) {
-            await logMetadataRequestError(chunkError, 'Chunked metadata field request failed');
-          }
+      if (group) {
+        group.remaining -= 1;
+        group.failed = true;
+        if (group.remaining <= 0) {
+          finalizeChunkGroup(groupKey, entry, windowDays, manualAppNames);
         }
+      }
 
-        if (!handledByChunks) {
-          if (tooMuchData) {
-            showMessage(
-              messageRegion,
-              `Metadata request too large for app ${entry.appId} (${windowDays}d). Try a smaller window.`,
-              'error',
-            );
-          } else {
-            const generalMessage = errorMessage?.trim() || 'Unable to fetch metadata fields.';
-            showMessage(
-              messageRegion,
-              `Metadata request failed for app ${entry.appId} (${windowDays}d): ${generalMessage}`,
-              'error',
-            );
-          }
+      incrementProgress();
+    }
+  };
 
+  const handleBaseRequest = async (item) => {
+    const { entry, windowDays } = item;
+    const { visitorCells, accountCells } = getCells(entry);
+
+    if (!visitorCells || !accountCells || isAborted(entry)) {
+      incrementProgress();
+      return;
+    }
+
+    let clientErrorWithoutRecovery = false;
+
+    try {
+      const payload = buildMetadataFieldsForAppPayload(entry.appId, windowDays);
+      const response = await postAggregationWithIntegrationKey(entry, payload);
+      const { visitorFields, accountFields } = parseMetadataFields(response);
+
+      updateCellContent(visitorCells[windowDays], visitorFields, 'visitor');
+      updateCellContent(accountCells[windowDays], accountFields, 'account');
+
+      updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
+      updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
+
+      visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+      accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
+    } catch (error) {
+      await logMetadataRequestError(error, 'Metadata field request failed');
+      const errorMessage = error?.message || 'Unable to fetch metadata fields.';
+      const statusMatch = errorMessage.match(/\((\d{3})\)/);
+      const statusCode = Number(statusMatch?.[1]) || null;
+      const tooMuchData = statusCode === 413 || RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '');
+      clientErrorWithoutRecovery = !tooMuchData && statusCode >= 400 && statusCode < 500;
+      const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
+
+      if (tooMuchData) {
+        try {
+          const chunkPayloads = buildChunkedMetadataFieldPayloads(entry.appId, windowDays, 10);
+          addTotalCalls(chunkPayloads.length);
+          const groupKey = recordKey(entry, windowDays);
+          chunkGroups.set(groupKey, { remaining: chunkPayloads.length, aggregatedResults: [], failed: false });
+
+          chunkPayloads.forEach((payload) => {
+            enqueueWorkItem({ entry, windowDays, payloadType: 'chunk', payload, groupKey });
+          });
+        } catch (buildError) {
+          await logMetadataRequestError(buildError, 'Unable to build chunked metadata payloads');
+          showMessage(
+            messageRegion,
+            `Metadata request too large for app ${entry.appId} (${windowDays}d). Try a smaller window.`,
+            'error',
+          );
           updateCellContent(visitorCells[windowDays], [], 'visitor');
           updateCellContent(accountCells[windowDays], [], 'account');
           visitorCells[windowDays].textContent = cellMessage;
           accountCells[windowDays].textContent = cellMessage;
-          visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
-          accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+          visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, true);
+          accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, true);
         }
+      } else {
+        const generalMessage = errorMessage?.trim() || 'Unable to fetch metadata fields.';
+        showMessage(
+          messageRegion,
+          `Metadata request failed for app ${entry.appId} (${windowDays}d): ${generalMessage}`,
+          'error',
+        );
 
-        if (clientErrorWithoutRecovery) {
-          abortRemainingWindows = true;
-        }
+        updateCellContent(visitorCells[windowDays], [], 'visitor');
+        updateCellContent(accountCells[windowDays], [], 'account');
+        visitorCells[windowDays].textContent = cellMessage;
+        accountCells[windowDays].textContent = cellMessage;
+        visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+        accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
+      }
+    } finally {
+      if (clientErrorWithoutRecovery) {
+        abortedEntries.add(entryKey(entry));
+        removePendingForEntry(entry);
       }
 
-      if (baseRequestAttempted) {
-        completedCalls += 1;
-        updateProgress(completedCalls);
-      }
+      incrementProgress();
     }
-  }
+  };
+
+  const executeWorkItem = async (item) => {
+    if (item.payloadType === 'chunk') {
+      await handleChunkResponse(item);
+    } else {
+      await handleBaseRequest(item);
+    }
+  };
+
+  const dispatchNext = () => {
+    if (!workQueue.length) {
+      if (!inFlight.size && queueIntervalId) {
+        clearInterval(queueIntervalId);
+        queueIntervalId = null;
+      }
+      return;
+    }
+
+    const nextItem = workQueue.shift();
+    const promise = executeWorkItem(nextItem);
+    inFlight.add(promise);
+    promise.finally(() => inFlight.delete(promise));
+  };
+
+  const startScheduler = () => {
+    if (queueIntervalId) {
+      return;
+    }
+
+    queueIntervalId = setInterval(dispatchNext, 3000);
+    setTimeout(dispatchNext, 0);
+  };
+
+  entries.forEach((entry) => {
+    LOOKBACK_WINDOWS.forEach((windowDays) => {
+      enqueueWorkItem({ entry, windowDays, payloadType: 'base' });
+    });
+  });
+
+  startScheduler();
 };
 
 export const initMetadataFields = () => {
