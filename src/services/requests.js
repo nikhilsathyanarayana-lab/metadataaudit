@@ -1,3 +1,5 @@
+import { extractAppIds } from './appUtils.js';
+
 /**
  * @typedef {Object} AppAggregationEntry
  * @property {string} domain The base domain for the aggregation request.
@@ -12,6 +14,7 @@
  */
 
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
+const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 
 const createAggregationError = (message, status, body) => {
   const error = new Error(message);
@@ -81,7 +84,7 @@ export const buildCookieHeaderValue = (rawCookie) => {
   return `pendo.sess.jwt2=${withoutLabel}`;
 };
 
-export const buildAppListingPayload = (requestId = 'app-discovery') => ({
+export const buildAppListingPayload = (windowDays = 7, requestId = 'app-discovery') => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
     requestId,
@@ -89,7 +92,7 @@ export const buildAppListingPayload = (requestId = 'app-discovery') => ({
       {
         source: {
           singleEvents: { appId: 'expandAppIds("*")' },
-          timeSeries: { first: 'now()', count: -7, period: 'dayRange' },
+          timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
         },
       },
       { group: { group: ['appId'] } },
@@ -97,6 +100,40 @@ export const buildAppListingPayload = (requestId = 'app-discovery') => ({
     ],
   },
 });
+
+export const buildChunkedAppListingPayloads = (
+  windowDays,
+  chunkSize = 30,
+  requestIdPrefix = 'app-discovery',
+) => {
+  const normalizedWindow = Number(windowDays);
+
+  if (!normalizedWindow || chunkSize <= 0) {
+    return [];
+  }
+
+  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
+  const payloads = [];
+
+  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
+    const startOffset = (chunkIndex - 1) * chunkSize;
+    const remaining = normalizedWindow - startOffset;
+    const chunkDays = Math.min(chunkSize, remaining);
+    const first = `dateAdd(now(), -${startOffset}, "days")`;
+    const payload = buildAppListingPayload(chunkDays, `${requestIdPrefix}-chunk-${chunkIndex}`);
+    const timeSeries = payload?.request?.pipeline?.[0]?.source?.timeSeries;
+
+    if (timeSeries) {
+      timeSeries.first = first;
+      timeSeries.count = -chunkDays;
+      timeSeries.period = 'dayRange';
+    }
+
+    payloads.push(payload);
+  }
+
+  return payloads;
+};
 
 export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
   response: { mimeType: 'application/json' },
@@ -260,23 +297,95 @@ export const buildRequestHeaders = (integrationKey) => ({
  * @param {typeof fetch} fetchImpl
  * @returns {Promise<object|null>}
  */
-export const fetchAppsForEntry = async (entry, fetchImpl = fetch) => {
+export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch) => {
+  const requestIdPrefix = 'apps-list';
+
+  const logAggregationResponseDetails = (error) => {
+    const { responseStatus, responseBody, details } = error || {};
+    const status = responseStatus ?? details?.status;
+    const body = responseBody ?? details?.body;
+
+    if (status !== undefined || body !== undefined) {
+      console.error('Aggregation response details:', {
+        status: status ?? 'unknown status',
+        body: body ?? '',
+      });
+    }
+  };
+
+  const isTooMuchDataError = (error) => {
+    const { responseStatus, responseBody, details, message } = error || {};
+    const status = responseStatus ?? details?.status;
+    const bodyText = typeof (responseBody ?? details?.body) === 'string' ? responseBody ?? details?.body : '';
+    return status === 413 || RESPONSE_TOO_LARGE_MESSAGE.test(message || '') || RESPONSE_TOO_LARGE_MESSAGE.test(bodyText || '');
+  };
+
+  const tryChunkedRequest = async (chunkSize) => {
+    const payloads = buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix);
+
+    if (!payloads.length) {
+      return null;
+    }
+
+    const aggregatedAppIds = [];
+
+    for (const payload of payloads) {
+      try {
+        const chunkResponse = await postAggregationWithIntegrationKey(entry, payload, fetchImpl);
+        aggregatedAppIds.push(...extractAppIds(chunkResponse));
+      } catch (chunkError) {
+        console.error(`Chunked aggregation (${chunkSize}d) encountered an error:`, chunkError);
+        logAggregationResponseDetails(chunkError);
+
+        if (isTooMuchDataError(chunkError)) {
+          return null;
+        }
+
+        throw chunkError;
+      }
+    }
+
+    const uniqueAppIds = Array.from(new Set(aggregatedAppIds));
+
+    return { results: uniqueAppIds.map((appId) => ({ appId })) };
+  };
+
   try {
     return await postAggregationWithIntegrationKey(
       entry,
-      buildAppListingPayload('apps-list'),
+      buildAppListingPayload(windowDays, requestIdPrefix),
       fetchImpl,
     );
   } catch (error) {
     console.error('Aggregation request encountered an error:', error);
+    logAggregationResponseDetails(error);
 
-    const { responseStatus, responseBody } = error || {};
+    if (!isTooMuchDataError(error)) {
+      return null;
+    }
 
-    if (responseStatus !== undefined || responseBody !== undefined) {
-      console.error('Aggregation response details:', {
-        status: responseStatus ?? 'unknown status',
-        body: responseBody ?? '',
-      });
+    try {
+      const chunkedResponse = await tryChunkedRequest(30);
+
+      if (chunkedResponse) {
+        return chunkedResponse;
+      }
+    } catch (chunkError) {
+      if (!isTooMuchDataError(chunkError)) {
+        return null;
+      }
+    }
+
+    try {
+      const chunkedResponse = await tryChunkedRequest(10);
+
+      if (chunkedResponse) {
+        return chunkedResponse;
+      }
+    } catch (chunkError) {
+      if (!isTooMuchDataError(chunkError)) {
+        return null;
+      }
     }
 
     return null;
@@ -457,6 +566,7 @@ export const fetchAggregation = async (
 
 export default {
   buildAggregationUrl,
+  buildChunkedAppListingPayloads,
   buildMetadataFieldsForAppPayload,
   buildAppListingPayload,
   buildMetaEventsPayload,

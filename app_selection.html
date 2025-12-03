@@ -27,6 +27,14 @@
           <h2 class="section-title" id="app-selection-section-title">Available Apps</h2>
           <p class="section-hint" id="app-selection-section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
         </div>
+        <div class="form-field" id="app-selection-window-wrapper">
+          <label for="app-selection-window">Lookback window</label>
+          <select id="app-selection-window" name="app-selection-window" class="format-select">
+            <option value="7" selected>Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="180">Last 180 days</option>
+          </select>
+        </div>
         <button id="app-selection-continue" class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
       </div>
 

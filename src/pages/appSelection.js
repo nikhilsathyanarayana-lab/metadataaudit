@@ -8,6 +8,10 @@ export const initAppSelection = () => {
   let headerCheckbox = null;
   const messageRegion = document.getElementById('app-selection-messages');
   const progressBanner = document.getElementById('app-selection-progress');
+  const windowSelect = document.getElementById('app-selection-window');
+  const defaultWindowDays = 7;
+  let currentWindowDays = Number(windowSelect?.value) || defaultWindowDays;
+  let isFetching = false;
 
   if (!proceedButton || !tableBody) {
     return;
@@ -16,6 +20,11 @@ export const initAppSelection = () => {
   const storageKey = 'subidLaunchData';
   const responseStorageKey = 'appSelectionResponses';
   let cachedResponses = [];
+
+  const resetCachedResponses = () => {
+    cachedResponses = [];
+    localStorage.removeItem(responseStorageKey);
+  };
 
   const showError = (message) => {
     if (!messageRegion) {
@@ -46,7 +55,9 @@ export const initAppSelection = () => {
     }
 
     const isComplete = completed >= total;
-    progressBanner.textContent = isComplete ? 'Fetched' : `Fetching ${completed} / ${total}`;
+    progressBanner.textContent = isComplete
+      ? `Fetched appIds for the last ${currentWindowDays} days.`
+      : `Fetching ${completed} / ${total} (last ${currentWindowDays} days)…`;
   };
 
   const parseStoredLaunchData = () => {
@@ -304,6 +315,11 @@ export const initAppSelection = () => {
   const renderLaunchDataRows = (rows) => {
     tableBody.innerHTML = '';
 
+    if (headerCheckbox) {
+      headerCheckbox.checked = false;
+      headerCheckbox.disabled = true;
+    }
+
     if (!rows.length) {
       updateHeaderCheckboxState();
       proceedButton.disabled = true;
@@ -335,63 +351,80 @@ export const initAppSelection = () => {
     updateHeaderCheckboxState();
   };
 
-  const fetchAndPopulate = async () => {
-    const storedRows = parseStoredLaunchData();
-
-    renderLaunchDataRows(storedRows);
-
-    if (!storedRows.length) {
-      showError('API information not found.');
-      if (progressBanner) {
-        progressBanner.textContent = 'Unable to load apps: missing SubID launch data.';
-      }
-      proceedButton.disabled = true;
-      proceedButton.setAttribute('aria-disabled', 'true');
-      updateProgress(0, 0);
+  const fetchAndPopulate = async (windowDays = currentWindowDays) => {
+    if (isFetching) {
       return;
     }
 
-    clearError();
-    updateProgress(0, storedRows.length);
+    isFetching = true;
 
-    let completed = 0;
-    const responses = [];
-    const failedSubIds = [];
+    try {
+      resetCachedResponses();
+      currentWindowDays = Number(windowDays) || defaultWindowDays;
 
-    for (const entry of storedRows) {
-      const response = await fetchAppsForEntry(entry);
-      completed += 1;
-      updateProgress(completed, storedRows.length);
-
-      if (!response) {
-        failedSubIds.push(entry?.subId || 'unknown SubID');
-        continue;
+      if (windowSelect && windowSelect.value !== String(currentWindowDays)) {
+        windowSelect.value = String(currentWindowDays);
       }
 
-      responses.push({ ...entry, response });
-    }
+      const storedRows = parseStoredLaunchData();
 
-    const successfulResponses = responses.filter(({ response }) => Boolean(response));
+      renderLaunchDataRows(storedRows);
 
-    cachedResponses = buildSelectionState(successfulResponses);
+      if (!storedRows.length) {
+        showError('API information not found.');
+        if (progressBanner) {
+          progressBanner.textContent = 'Unable to load apps: missing SubID launch data.';
+        }
+        proceedButton.disabled = true;
+        proceedButton.setAttribute('aria-disabled', 'true');
+        updateProgress(0, 0);
+        return;
+      }
 
-    if (cachedResponses.length) {
-      persistResponses(cachedResponses);
-    } else {
-      localStorage.removeItem(responseStorageKey);
-    }
+      clearError();
+      updateProgress(0, storedRows.length);
 
-    if (failedSubIds.length && progressBanner) {
-      const uniqueSubIds = Array.from(new Set(failedSubIds));
-      const errorList = uniqueSubIds.join(', ');
-      progressBanner.textContent = `Unable to load apps for ${errorList}. Check your integration key or retry.`;
-    }
+      let completed = 0;
+      const responses = [];
+      const failedSubIds = [];
 
-    populateTableFromResponses(successfulResponses);
+      for (const entry of storedRows) {
+        const response = await fetchAppsForEntry(entry, currentWindowDays);
+        completed += 1;
+        updateProgress(completed, storedRows.length);
 
-    if (progressBanner?.textContent === 'Fetched') {
-      renderHeaderCheckbox();
-      updateHeaderCheckboxState();
+        if (!response) {
+          failedSubIds.push(entry?.subId || 'unknown SubID');
+          continue;
+        }
+
+        responses.push({ ...entry, response, windowDays: currentWindowDays });
+      }
+
+      const successfulResponses = responses.filter(({ response }) => Boolean(response));
+
+      cachedResponses = buildSelectionState(successfulResponses);
+
+      if (cachedResponses.length) {
+        persistResponses(cachedResponses);
+      } else {
+        localStorage.removeItem(responseStorageKey);
+      }
+
+      if (failedSubIds.length && progressBanner) {
+        const uniqueSubIds = Array.from(new Set(failedSubIds));
+        const errorList = uniqueSubIds.join(', ');
+        progressBanner.textContent = `Unable to load apps for ${errorList}. Check your integration key or retry.`;
+      }
+
+      populateTableFromResponses(successfulResponses);
+
+      if (successfulResponses.length) {
+        renderHeaderCheckbox();
+        updateHeaderCheckboxState();
+      }
+    } finally {
+      isFetching = false;
     }
   };
 
@@ -444,6 +477,12 @@ export const initAppSelection = () => {
     window.location.href = 'metadata_fields.html';
   });
 
+  if (windowSelect) {
+    windowSelect.addEventListener('change', () => {
+      fetchAndPopulate(Number(windowSelect.value) || defaultWindowDays);
+    });
+  }
+
   attachCheckboxListeners();
-  fetchAndPopulate();
+  fetchAndPopulate(currentWindowDays);
 };
