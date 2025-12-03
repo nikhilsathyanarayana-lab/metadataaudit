@@ -11,13 +11,13 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 ## Quick start
 - **Hosted use**: The Integration API flow can run from any static host (e.g., GitHub Pages) because all requests go straight to the Engage API.
 - **Local development**:
-  1. Ensure PHP with cURL is available so the cookie workflow can call `proxy.php`.
+  1. Ensure PHP with cURL is available so the cookie workbook can call `proxy.php`.
   2. Serve the project from the repo root:
      ```bash
      php -S localhost:8000
      ```
   3. Open `http://localhost:8000/index.html` for Integration API testing or `http://localhost:8000/cookie_method.html` for the cookie workbook.
-- **Auth inputs**: Provide either an integration key with read access or a `pendo.sess.jwt2` cookie (only needed for the cookie flow). Use any modern browser that supports the Fetch API.
+- **Auth inputs**: Provide an integration key with read access for the Integration API flow or a `pendo.sess.jwt2` cookie when using the cookie workbook. Use any modern browser that supports the Fetch API.
 
 ## Integration API workflow
 1. **index.html**
@@ -40,14 +40,123 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - Aggregations requests are assembled with helpers in `src/services/requests.js` and posted through `proxy.php` using a `cookie` header built by `buildCookieHeaderValue()`.
 - Responses are parsed into CSV-ready rows with `parseExamples()` before triggering downloads for downstream Excel processing.
 
+### Aggregations API request examples by stage
+- **App discovery (index → app selection)**: `buildAppListingPayload()` POSTs to `{domain}/api/v1/aggregation` with an `X-Pendo-Integration-Key` header. The request asks the pipeline to expand app IDs seen in the past week and return the distinct list.
+
+  ```json
+  {
+    "response": { "location": "request", "mimeType": "application/json" },
+    "request": {
+      "requestId": "apps-list",
+      "pipeline": [
+        {
+          "source": {
+            "singleEvents": { "appId": "expandAppIds(\"*\")" },
+            "timeSeries": { "first": "now()", "count": -7, "period": "dayRange" }
+          }
+        },
+        { "group": { "group": ["appId"] } },
+        { "select": { "appId": "appId" } }
+      ]
+    }
+  }
+  ```
+
+- **Metadata window scan (metadata_fields.html)**: `buildMetadataFieldsPayload(windowDays)` posts a single request covering all apps for a selected Sub ID. The pipeline targets the requested lookback window, pulling visitor and account keys for each app.
+
+  ```json
+  {
+    "response": { "location": "request", "mimeType": "application/json" },
+    "request": {
+      "requestId": "metadata-fields-180",
+      "pipeline": [
+        {
+          "source": {
+            "singleEvents": { "appId": "expandAppIds(\"*\")" },
+            "metadata": { "account": true, "visitor": true },
+            "timeSeries": { "first": "now()", "count": -180, "period": "dayRange" }
+          }
+        },
+        {
+          "select": {
+            "appId": "appId",
+            "visitorFields": "keys(metadata.visitor)",
+            "accountFields": "keys(metadata.account)"
+          }
+        }
+      ]
+    }
+  }
+  ```
+
+- **Deep dive metadata fields (deep_dive.html)**: `buildMetadataFieldsForAppPayload(appId, windowDays)` uses two `spawn` branches to return visitor and account field lists for the selected app and window. The UI retries chunked variants when large windows fail.
+
+  ```json
+  {
+    "response": { "mimeType": "application/json" },
+    "request": {
+      "name": "metadata-fields-for-app",
+      "pipeline": [
+        {
+          "spawn": [
+            [
+              { "source": { "singleEvents": { "appId": "<APP_ID>" }, "timeSeries": { "first": "now()", "count": -30, "period": "dayRange" } } },
+              { "filter": "contains(type,`meta`)" },
+              { "unmarshal": { "metadata": "title" } },
+              { "filter": "!isNil(metadata.visitor)" },
+              { "eval": { "visitorMetadata": "keys(metadata.visitor)" } },
+              { "unwind": { "field": "visitorMetadata" } },
+              { "group": { "group": ["appId", "visitorMetadata"] } },
+              { "group": { "group": ["appId"], "fields": { "visitorMetadata": { "list": "visitorMetadata" } } } }
+            ],
+            [
+              { "source": { "singleEvents": { "appId": "<APP_ID>" }, "timeSeries": { "first": "now()", "count": -30, "period": "dayRange" } } },
+              { "filter": "contains(type,`meta`)" },
+              { "unmarshal": { "metadata": "title" } },
+              { "filter": "!isNil(metadata.account)" },
+              { "eval": { "accountMetadata": "keys(metadata.account)" } },
+              { "unwind": { "field": "accountMetadata" } },
+              { "group": { "group": ["appId", "accountMetadata"] } },
+              { "group": { "group": ["appId"], "fields": { "accountMetadata": { "list": "accountMetadata" } } } }
+            ]
+          ]
+        },
+        { "join": { "fields": ["appId"] } }
+      ]
+    }
+  }
+  ```
+
+- **Metadata examples export (deep_dive.html)**: `buildMetaEventsPayload(appId, windowDays)` requests a smaller window (defaults to 7 days) of meta events for visitors and accounts. The deep dive export stitches these results into JSON files.
+
+  ```json
+  {
+    "response": { "location": "request", "mimeType": "application/json" },
+    "request": {
+      "name": "account-visitor-only",
+      "pipeline": [
+        {
+          "source": {
+            "singleEvents": { "appId": "<APP_ID>" },
+            "timeSeries": { "first": "now()", "count": -7, "period": "dayRange" }
+          }
+        },
+        { "filter": "contains(type,`meta`)" },
+        { "unmarshal": { "metadata": "title" } },
+        { "select": { "visitor": "metadata.visitor", "account": "metadata.account", "visitorId": "visitorId", "accountId": "accountId", "appId": "appId" } }
+      ]
+    }
+  }
+  ```
+
 ## Maintenance notes
 - Clear `localStorage` between runs to avoid stale SubID or manual naming data.
-- Keep secrets out of exports; integration keys and cookies are never written to disk.
+- Keep secrets out of exports; integration keys are never written to disk.
 - `npm test` is available for future Node-based checks but no automated suites are currently defined.
 - XLSX downloads use the open-source ExcelJS build from the CDN so header styling applied in-browser persists in the saved workbook. Keep
   export tooling open-source unless otherwise directed.
 
 ## What’s still missing
-- **API request/response examples**: Add JSON samples for payload builders in `src/services/requests.js` (e.g., app listing, metadata field lookups, examples) and the typical success/failure responses returned via `proxy.php`.
-- **Authentication guidance**: Document when to choose integration keys versus `pendo.sess.jwt2` cookies, how cookie masking/validation works in the UI, and expected 401/403 behaviors for direct and proxied requests.
+- **Authentication guidance**: Document how integration keys are validated in the UI, when to choose the cookie workbook, and expected 401/403 behaviors for direct and proxied Aggregations requests.
+- **Cookie workbook status**: Capture the current limitations and add proxied request samples once the workflow is stable.
 - **Testing strategy**: Outline a lightweight plan that covers service helpers, page orchestrators, and a manual workbook runbook with stubbed fetch examples.
