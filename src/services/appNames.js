@@ -1,6 +1,7 @@
 const MANUAL_APP_NAME_STORAGE_KEY = 'manualAppNames';
 let manualAppNameCache = null;
 
+// Retrieves stored manual app name overrides from localStorage, caching results for reuse.
 export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => {
   if (manualAppNameCache instanceof Map) {
     return manualAppNameCache;
@@ -25,6 +26,7 @@ export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => 
   return manualAppNameCache;
 };
 
+// Writes manual app name overrides to localStorage and updates the in-memory cache.
 export const persistManualAppNames = (appNameMap, storageKey = MANUAL_APP_NAME_STORAGE_KEY) => {
   if (!(appNameMap instanceof Map)) {
     return;
@@ -41,6 +43,7 @@ export const persistManualAppNames = (appNameMap, storageKey = MANUAL_APP_NAME_S
   manualAppNameCache = appNameMap;
 };
 
+// Adds or updates a single manual app name override and persists it.
 export const setManualAppName = (
   appNames,
   appId,
@@ -57,6 +60,7 @@ export const setManualAppName = (
   return map;
 };
 
+// Applies manual app name overrides to a result set, filling gaps left by API data.
 export const applyManualAppNames = (rows, manualAppNames = loadManualAppNames()) => {
   if (!Array.isArray(rows)) {
     return [];

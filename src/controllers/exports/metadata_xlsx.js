@@ -9,6 +9,7 @@ import {
   sanitizeSheetName,
 } from './excel_shared.js';
 
+// Captures the export banner elements and helpers for updating status messaging.
 const getExportUi = () => {
   const progressBanner = document.getElementById('metadata-fields-progress');
   const progressText = document.getElementById('metadata-fields-progress-text');
@@ -74,12 +75,14 @@ const getExportUi = () => {
   return { setStatus, restore };
 };
 
+// Generates a date-stamped default file name for metadata exports.
 const buildDefaultFileName = () => {
   const today = new Date();
   const dateStamp = today.toISOString().slice(0, 10);
   return `metadata_fields-${dateStamp}`;
 };
 
+// Normalizes a cell value from text or dropdown selections for XLSX output.
 const extractCellValue = (cell) => {
   if (!cell) {
     return '';
@@ -94,6 +97,7 @@ const extractCellValue = (cell) => {
   return cell.textContent.trim();
 };
 
+// Converts a metadata table into an array-of-arrays structure for worksheet hydration.
 const collectTableAoA = (table) => {
   if (!table) {
     return null;
@@ -107,6 +111,7 @@ const collectTableAoA = (table) => {
   return [headers, ...rows];
 };
 
+// Adds a worksheet to the export workbook from a metadata table, handling empty states gracefully.
 const appendTableSheet = (workbook, table, label, sheetNames) => {
   const aoa = collectTableAoA(table);
   const worksheet = workbook.addWorksheet(sanitizeSheetName(label, sheetNames));
@@ -122,6 +127,7 @@ const appendTableSheet = (workbook, table, label, sheetNames) => {
   applyHeaderFormatting(worksheet);
 };
 
+// Orchestrates the metadata XLSX export flow from modal prompt to download delivery.
 export const exportMetadataXlsx = async () => {
   const desiredName = await openNamingModal(buildDefaultFileName, (value) =>
     sanitizeFileName(value, buildDefaultFileName()),
