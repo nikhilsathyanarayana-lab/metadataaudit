@@ -19,23 +19,6 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   3. Open `http://localhost:8000/index.html` for Integration API testing or `http://localhost:8000/cookie_method.html` for the cookie workbook.
 - **Auth inputs**: Provide either an integration key with read access or a `pendo.sess.jwt2` cookie (only needed for the cookie flow). Use any modern browser that supports the Fetch API.
 
-## Project structure
-- `index.html`: Landing view where auditors enter SubIDs, choose a Pendo domain, and link integration keys before dispatching aggregation discovery.
-- `app_selection.html`: Lists discovered apps for the chosen SubIDs so users can decide which to audit.
-- `metadata_fields.html`: Retrieves metadata for the selected apps, tracks progress, and exposes export actions.
-- `deep_dive.html`: Drill-down view for refining expected field formats and requesting deeper scans.
-- `cookie_method.html`: Cookie-only staging UI that assembles Aggregations requests and downloads workbook-friendly CSVs.
-- `Aggregations/`: Standalone scripts and sample payloads for Aggregations and workbook generation.
-- `Modals/`: Shared dialog templates (app naming, export options, XLSX naming guidance) injected at runtime.
-- `src/entries/`: Page bootstraps that import only the controllers and services each HTML view needs; `shared.js` wires common modal and export behaviors.
-- `src/controllers/`: Discrete UI behaviors such as SubID form wiring and modal/template injection.
-- `src/pages/`: Orchestrators that combine controllers and services for each page.
-- `src/services/`: API helpers and payload builders used by both flows.
-- `src/ui/`: UI utilities shared across multiple views.
-- `styles.css` / `exports.css`: Global styling plus export-specific tweaks.
-- `proxy.php`: PHP proxy for cookie-based Aggregations calls.
-- `package.json`: Node metadata and a minimal `npm test` script (no runtime dependencies).
-
 ## Integration API workflow
 1. **index.html**
    - `bootstrapShared()` injects shared modal templates.
