@@ -37,7 +37,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 
 ## Cookie workbook workflow
 - `cookie_method.html` uses `initWorkbookUi()` to collect SubID, environment, cookie, and optional examples settings.
-- Aggregations requests are assembled with helpers in `src/services/requests.js` and posted through `proxy.php` using a `cookie` header built by `buildCookieHeaderValue()`.
+- Aggregation requests are assembled with helpers in `src/services/requests.js` and posted through `proxy.php` using a `cookie` header built by `buildCookieHeaderValue()`.
 - Responses are parsed into CSV-ready rows with `parseExamples()` before triggering downloads for downstream Excel processing.
 
 ## Maintenance notes
