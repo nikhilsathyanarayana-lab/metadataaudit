@@ -4,7 +4,8 @@ import { fetchAppsForEntry } from '../services/requests.js';
 export const initAppSelection = () => {
   const proceedButton = document.getElementById('app-selection-continue');
   const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
-  const headerCheckbox = document.getElementById('app-selection-header-checkbox');
+  const headerCheckboxCell = document.getElementById('app-selection-header-checkbox-cell');
+  let headerCheckbox = null;
   const messageRegion = document.getElementById('app-selection-messages');
   const progressBanner = document.getElementById('app-selection-progress');
 
@@ -207,14 +208,35 @@ export const initAppSelection = () => {
     handleProceedState();
   };
 
-  headerCheckbox?.addEventListener('change', () => {
-    const checkboxes = getBodyCheckboxes();
-    checkboxes.forEach((box) => {
-      box.checked = headerCheckbox.checked;
-      box.dispatchEvent(new Event('change'));
+  const attachHeaderCheckboxListener = () => {
+    if (!headerCheckbox) {
+      return;
+    }
+
+    headerCheckbox.addEventListener('change', () => {
+      const checkboxes = getBodyCheckboxes();
+      checkboxes.forEach((box) => {
+        box.checked = headerCheckbox.checked;
+        box.dispatchEvent(new Event('change'));
+      });
+      handleProceedState();
     });
-    handleProceedState();
-  });
+  };
+
+  const renderHeaderCheckbox = () => {
+    if (headerCheckbox || !headerCheckboxCell) {
+      return;
+    }
+
+    headerCheckbox = document.createElement('input');
+    headerCheckbox.type = 'checkbox';
+    headerCheckbox.id = 'app-selection-header-checkbox';
+    headerCheckbox.setAttribute('aria-label', 'Select all apps for the listed SubIDs');
+    headerCheckbox.disabled = true;
+
+    headerCheckboxCell.appendChild(headerCheckbox);
+    attachHeaderCheckboxListener();
+  };
 
   const populateTableFromResponses = (responses) => {
     tableBody.innerHTML = '';
@@ -354,6 +376,11 @@ export const initAppSelection = () => {
     }
 
     populateTableFromResponses(successfulResponses);
+
+    if (progressBanner?.textContent === 'Fetched') {
+      renderHeaderCheckbox();
+      updateHeaderCheckboxState();
+    }
   };
 
   proceedButton.addEventListener('click', () => {
