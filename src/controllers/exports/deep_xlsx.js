@@ -57,7 +57,7 @@ const collectTableData = (table) => {
       const select = cell.querySelector('select');
       if (select) {
         const selected = select.options[select.selectedIndex];
-        return selected?.textContent?.trim() || select.value || '';
+        return selected?.value?.trim() || select.value || selected?.textContent?.trim() || '';
       }
       return cell.textContent.trim();
     });
