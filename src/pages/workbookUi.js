@@ -19,6 +19,14 @@ export const parseExamples = (response, subId) => {
     candidateLists.push(response.data);
   }
 
+  if (Array.isArray(response)) {
+    candidateLists.push(response);
+  }
+
+  if (Array.isArray(response?.apps)) {
+    candidateLists.push(response.apps);
+  }
+
   if (!candidateLists.length) {
     return [];
   }
