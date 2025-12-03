@@ -4,12 +4,14 @@ import { fetchAppsForEntry } from '../services/requests.js';
 export const initAppSelection = () => {
   const proceedButton = document.getElementById('app-selection-continue');
   const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
+  const headerCheckbox = document.getElementById('app-selection-toggle-all');
   const messageRegion = document.getElementById('app-selection-messages');
   const progressBanner = document.getElementById('app-selection-progress');
   const windowSelect = document.getElementById('app-selection-window');
   const defaultWindowDays = 7;
   let currentWindowDays = Number(windowSelect?.value) || defaultWindowDays;
   let isFetching = false;
+  let headerToggleBound = false;
 
   if (!proceedButton || !tableBody) {
     return;
@@ -90,6 +92,31 @@ export const initAppSelection = () => {
 
   const normalizeAppId = (value) => (value === undefined || value === null ? '' : String(value));
 
+  const updateCachedSelectionState = (subId, appId, isSelected) => {
+    if (!subId || appId === undefined) {
+      return;
+    }
+
+    const normalizedAppId = normalizeAppId(appId);
+
+    cachedResponses = cachedResponses.map((entry) => {
+      if (entry.subId !== subId) {
+        return entry;
+      }
+
+      const selectionState = {
+        ...(entry.selectionState || {}),
+        [normalizedAppId]: {
+          appId: normalizedAppId,
+          appName: entry.selectionState?.[normalizedAppId]?.appName || normalizedAppId,
+          selected: isSelected ? 1 : 0,
+        },
+      };
+
+      return { ...entry, selectionState };
+    });
+  };
+
   const buildSelectionState = (responses) =>
     responses.map((entry) => {
       const appIds = extractAppIds(entry.response);
@@ -160,40 +187,55 @@ export const initAppSelection = () => {
     proceedButton.setAttribute('aria-disabled', String(!hasSelection));
   };
 
+  const syncSelectAllState = () => {
+    if (!headerCheckbox) {
+      return;
+    }
+
+    const bodyCheckboxes = Array.from(getBodyCheckboxes());
+    const allChecked = bodyCheckboxes.length > 0 && bodyCheckboxes.every((box) => box.checked);
+    const someChecked = bodyCheckboxes.some((box) => box.checked);
+
+    headerCheckbox.checked = allChecked;
+    headerCheckbox.indeterminate = !allChecked && someChecked;
+  };
+
+  const handleHeaderToggle = (event) => {
+    const bodyCheckboxes = getBodyCheckboxes();
+    const shouldSelectAll = event.target.checked;
+
+    bodyCheckboxes.forEach((box) => {
+      box.checked = shouldSelectAll;
+      const { appId, subId } = box.dataset;
+      updateCachedSelectionState(subId, appId, shouldSelectAll);
+    });
+
+    persistResponses(cachedResponses);
+    handleProceedState();
+    syncSelectAllState();
+  };
+
   const attachCheckboxListeners = () => {
     const checkboxes = getBodyCheckboxes();
     checkboxes.forEach((box) =>
       box.addEventListener('change', (event) => {
         const { appId, subId } = event.target.dataset;
+        const isSelected = event.target.checked;
+
+        updateCachedSelectionState(subId, appId, isSelected);
+        persistResponses(cachedResponses);
         handleProceedState();
-
-        if (appId && subId) {
-          const normalizedAppId = normalizeAppId(appId);
-          const isSelected = event.target.checked;
-
-          cachedResponses = cachedResponses.map((entry) => {
-            if (entry.subId !== subId) {
-              return entry;
-            }
-
-            const selectionState = {
-              ...(entry.selectionState || {}),
-              [normalizedAppId]: {
-                appId: normalizedAppId,
-                appName: entry.selectionState?.[normalizedAppId]?.appName || normalizedAppId,
-                selected: isSelected ? 1 : 0,
-              },
-            };
-
-            return { ...entry, selectionState };
-          });
-
-          persistResponses(cachedResponses);
-        }
+        syncSelectAllState();
       }),
     );
 
+    if (headerCheckbox && !headerToggleBound) {
+      headerCheckbox.addEventListener('change', handleHeaderToggle);
+      headerToggleBound = true;
+    }
+
     handleProceedState();
+    syncSelectAllState();
   };
 
   const populateTableFromResponses = (responses) => {
@@ -252,6 +294,7 @@ export const initAppSelection = () => {
     });
 
     attachCheckboxListeners();
+    syncSelectAllState();
   };
 
   const renderLaunchDataRows = (rows) => {
