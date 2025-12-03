@@ -16,6 +16,7 @@ import { extractAppIds } from './appUtils.js';
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const AGGREGATION_TIMEOUT_MESSAGE = /aggregation request timed out/i;
+export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 
 const createAggregationError = (message, status, body) => {
   const error = new Error(message);
@@ -28,7 +29,42 @@ const createAggregationError = (message, status, body) => {
   return error;
 };
 
+export const isTooMuchDataError = (error) => {
+  const { responseStatus, responseBody, details, message, name, isAbortError } = error || {};
+  const status = responseStatus ?? details?.status;
+  const bodyText = typeof (responseBody ?? details?.body) === 'string' ? responseBody ?? details?.body : '';
+  const messageText = message || '';
+
+  return (
+    status === 413 ||
+    RESPONSE_TOO_LARGE_MESSAGE.test(messageText) ||
+    RESPONSE_TOO_LARGE_MESSAGE.test(bodyText || '') ||
+    AGGREGATION_TIMEOUT_MESSAGE.test(messageText) ||
+    AGGREGATION_TIMEOUT_MESSAGE.test(bodyText || '') ||
+    name === 'AbortError' ||
+    isAbortError === true
+  );
+};
+
 const DEFAULT_AGGREGATION_TIMEOUT_MS = 60_000;
+
+const normalizeFallbackWindows = (windowDays) => {
+  const normalized = Number(windowDays);
+
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return [];
+  }
+
+  const windows = [];
+
+  [normalized, ...FALLBACK_WINDOW_SEQUENCE].forEach((candidate) => {
+    if (candidate > 0 && candidate <= normalized && !windows.includes(candidate)) {
+      windows.push(candidate);
+    }
+  });
+
+  return windows;
+};
 
 export const buildAggregationUrl = (envUrls, envValue, subId) => {
   const endpointTemplate = envUrls?.[envValue];
@@ -234,6 +270,58 @@ export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize =
   return payloads;
 };
 
+export const runAggregationWithFallbackWindows = async ({
+  entry,
+  totalWindowDays,
+  buildBasePayload,
+  buildChunkedPayloads,
+  aggregateResults,
+  fetchImpl = fetch,
+}) => {
+  const fallbackWindows = normalizeFallbackWindows(totalWindowDays);
+  const aggregate = typeof aggregateResults === 'function' ? aggregateResults : (collector, response) => {
+    collector.push(response);
+  };
+  let lastError = null;
+  let requestCount = 0;
+
+  for (const windowSize of fallbackWindows) {
+    const payloads =
+      windowSize === Number(totalWindowDays)
+        ? [buildBasePayload(windowSize)]
+        : buildChunkedPayloads(windowSize);
+
+    if (!Array.isArray(payloads) || !payloads.length) {
+      continue;
+    }
+
+    const aggregatedResults = [];
+
+    try {
+      for (const payload of payloads) {
+        requestCount += 1;
+        const response = await postAggregationWithIntegrationKey(entry, payload, fetchImpl);
+        aggregate(aggregatedResults, response, windowSize);
+      }
+
+      return { aggregatedResults, appliedWindow: windowSize, requestCount };
+    } catch (error) {
+      lastError = error;
+
+      if (!isTooMuchDataError(error)) {
+        const propagatedError = error;
+        propagatedError.requestCount = requestCount;
+        throw propagatedError;
+      }
+    }
+  }
+
+  const finalError = lastError || createAggregationError('Aggregation request failed for all fallback windows.', null, '');
+  finalError.requestCount = requestCount;
+
+  return { aggregatedResults: null, appliedWindow: null, lastError: finalError, requestCount };
+};
+
 export const buildMetadataFieldsPayload = (windowDays) => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
@@ -314,59 +402,20 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     }
   };
 
-  const isTooMuchDataError = (error) => {
-    const { responseStatus, responseBody, details, message, name, isAbortError } = error || {};
-    const status = responseStatus ?? details?.status;
-    const bodyText = typeof (responseBody ?? details?.body) === 'string' ? responseBody ?? details?.body : '';
-    const messageText = message || '';
-
-    return (
-      status === 413 ||
-      RESPONSE_TOO_LARGE_MESSAGE.test(messageText) ||
-      RESPONSE_TOO_LARGE_MESSAGE.test(bodyText || '') ||
-      AGGREGATION_TIMEOUT_MESSAGE.test(messageText) ||
-      AGGREGATION_TIMEOUT_MESSAGE.test(bodyText || '') ||
-      name === 'AbortError' ||
-      isAbortError === true
-    );
-  };
-
-  const tryChunkedRequest = async (chunkSize) => {
-    const payloads = buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix);
-
-    if (!payloads.length) {
-      return null;
-    }
-
-    const aggregatedAppIds = [];
-
-    for (const payload of payloads) {
-      try {
-        const chunkResponse = await postAggregationWithIntegrationKey(entry, payload, fetchImpl);
-        aggregatedAppIds.push(...extractAppIds(chunkResponse));
-      } catch (chunkError) {
-        console.error(`Chunked aggregation (${chunkSize}d) encountered an error:`, chunkError);
-        logAggregationResponseDetails(chunkError);
-
-        if (isTooMuchDataError(chunkError)) {
-          return null;
-        }
-
-        throw chunkError;
-      }
-    }
-
-    const uniqueAppIds = Array.from(new Set(aggregatedAppIds));
-
-    return { results: uniqueAppIds.map((appId) => ({ appId })) };
-  };
-
   try {
-    return await postAggregationWithIntegrationKey(
+    const { aggregatedResults } = await runAggregationWithFallbackWindows({
       entry,
-      buildAppListingPayload(windowDays, requestIdPrefix),
+      totalWindowDays: windowDays,
+      buildBasePayload: (totalWindow) => buildAppListingPayload(totalWindow, requestIdPrefix),
+      buildChunkedPayloads: (chunkSize) => buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix),
+      aggregateResults: (collector, response) => collector.push(...extractAppIds(response)),
       fetchImpl,
-    );
+    });
+
+    if (Array.isArray(aggregatedResults)) {
+      const uniqueAppIds = Array.from(new Set(aggregatedResults));
+      return { results: uniqueAppIds.map((appId) => ({ appId })) };
+    }
   } catch (error) {
     console.error('Aggregation request encountered an error:', error);
     logAggregationResponseDetails(error);
@@ -374,33 +423,9 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     if (!isTooMuchDataError(error)) {
       return { errorType: 'failed' };
     }
-
-    try {
-      const chunkedResponse = await tryChunkedRequest(30);
-
-      if (chunkedResponse) {
-        return chunkedResponse;
-      }
-    } catch (chunkError) {
-      if (!isTooMuchDataError(chunkError)) {
-        return { errorType: 'failed' };
-      }
-    }
-
-    try {
-      const chunkedResponse = await tryChunkedRequest(10);
-
-      if (chunkedResponse) {
-        return chunkedResponse;
-      }
-    } catch (chunkError) {
-      if (!isTooMuchDataError(chunkError)) {
-        return { errorType: 'failed' };
-      }
-    }
-
-    return { errorType: 'timeout' };
   }
+
+  return { errorType: 'timeout' };
 };
 
 const extractJwtToken = (cookieHeaderValue) => {
@@ -582,6 +607,9 @@ export default {
   buildAppListingPayload,
   buildMetaEventsPayload,
   buildChunkedMetadataFieldPayloads,
+  FALLBACK_WINDOW_SEQUENCE,
+  isTooMuchDataError,
+  runAggregationWithFallbackWindows,
   buildCookieHeaderValue,
   buildExamplesPayload,
   buildMetadataFieldsPayload,
