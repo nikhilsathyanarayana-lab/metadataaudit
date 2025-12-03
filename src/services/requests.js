@@ -296,7 +296,7 @@ export const buildRequestHeaders = (integrationKey) => ({
  * Fetch the app aggregation for a single SubID entry.
  * @param {AppAggregationEntry} entry
  * @param {typeof fetch} fetchImpl
- * @returns {Promise<object|null>}
+ * @returns {Promise<object|null|{errorType: 'timeout' | 'failed'}>}
  */
 export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch) => {
   const requestIdPrefix = 'apps-list';
@@ -372,7 +372,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     logAggregationResponseDetails(error);
 
     if (!isTooMuchDataError(error)) {
-      return null;
+      return { errorType: 'failed' };
     }
 
     try {
@@ -383,7 +383,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
       }
     } catch (chunkError) {
       if (!isTooMuchDataError(chunkError)) {
-        return null;
+        return { errorType: 'failed' };
       }
     }
 
@@ -395,11 +395,11 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
       }
     } catch (chunkError) {
       if (!isTooMuchDataError(chunkError)) {
-        return null;
+        return { errorType: 'failed' };
       }
     }
 
-    return null;
+    return { errorType: 'timeout' };
   }
 };
 

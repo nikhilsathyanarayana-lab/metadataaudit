@@ -365,14 +365,18 @@ export const initAppSelection = () => {
       let completed = 0;
       const responses = [];
       const failedSubIds = [];
+      const timeoutSubIds = [];
 
       for (const entry of storedRows) {
         const response = await fetchAppsForEntry(entry, currentWindowDays);
         completed += 1;
         updateProgress(completed, storedRows.length);
 
-        if (!response) {
-          failedSubIds.push(entry?.subId || 'unknown SubID');
+        const subIdLabel = entry?.subId || 'unknown SubID';
+
+        if (!response || response.errorType) {
+          const targetList = response?.errorType === 'timeout' ? timeoutSubIds : failedSubIds;
+          targetList.push(subIdLabel);
           continue;
         }
 
@@ -389,10 +393,24 @@ export const initAppSelection = () => {
         localStorage.removeItem(responseStorageKey);
       }
 
-      if (failedSubIds.length && progressBanner) {
-        const uniqueSubIds = Array.from(new Set(failedSubIds));
-        const errorList = uniqueSubIds.join(', ');
-        progressBanner.textContent = `Unable to load apps for ${errorList}. Check your integration key or retry.`;
+      if (progressBanner) {
+        const messages = [];
+
+        if (timeoutSubIds.length) {
+          const uniqueTimeouts = Array.from(new Set(timeoutSubIds));
+          const timeoutList = uniqueTimeouts.join(', ');
+          messages.push(`Unable to load apps for ${timeoutList}, due to a timeout error.`);
+        }
+
+        if (failedSubIds.length) {
+          const uniqueSubIds = Array.from(new Set(failedSubIds));
+          const errorList = uniqueSubIds.join(', ');
+          messages.push(`Unable to load apps for ${errorList}. Check your integration key or retry.`);
+        }
+
+        if (messages.length) {
+          progressBanner.textContent = messages.join(' ');
+        }
       }
 
       populateTableFromResponses(successfulResponses);
