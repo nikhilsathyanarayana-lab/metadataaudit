@@ -334,11 +334,17 @@ export const initAppSelection = () => {
 
     let completed = 0;
     const responses = [];
+    const failedSubIds = [];
 
     for (const entry of storedRows) {
       const response = await fetchAppsForEntry(entry);
       completed += 1;
       updateProgress(completed, storedRows.length);
+
+      if (!response) {
+        failedSubIds.push(entry?.subId || 'unknown SubID');
+        continue;
+      }
 
       responses.push({ ...entry, response });
     }
@@ -351,6 +357,12 @@ export const initAppSelection = () => {
       persistResponses(cachedResponses);
     } else {
       localStorage.removeItem(responseStorageKey);
+    }
+
+    if (failedSubIds.length && progressBanner) {
+      const uniqueSubIds = Array.from(new Set(failedSubIds));
+      const errorList = uniqueSubIds.join(', ');
+      progressBanner.textContent = `Unable to load apps for ${errorList}. Check your integration key or retry.`;
     }
 
     populateTableFromResponses(successfulResponses);
