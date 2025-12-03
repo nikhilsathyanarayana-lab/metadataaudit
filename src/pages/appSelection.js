@@ -4,8 +4,6 @@ import { fetchAppsForEntry } from '../services/requests.js';
 export const initAppSelection = () => {
   const proceedButton = document.getElementById('app-selection-continue');
   const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
-  const headerCheckboxCell = document.getElementById('app-selection-header-checkbox-cell');
-  let headerCheckbox = null;
   const messageRegion = document.getElementById('app-selection-messages');
   const progressBanner = document.getElementById('app-selection-progress');
   const windowSelect = document.getElementById('app-selection-window');
@@ -155,32 +153,11 @@ export const initAppSelection = () => {
     return filteredAppIds.length ? filtered : null;
   };
 
-  const updateHeaderCheckboxState = (checkboxes) => {
-    if (!headerCheckbox) {
-      return;
-    }
-
-    const bodyCheckboxes = checkboxes || getBodyCheckboxes();
-
-    if (!bodyCheckboxes.length) {
-      headerCheckbox.checked = false;
-      headerCheckbox.indeterminate = false;
-      headerCheckbox.disabled = true;
-      return;
-    }
-
-    const checkedCount = Array.from(bodyCheckboxes).filter((box) => box.checked).length;
-    headerCheckbox.disabled = false;
-    headerCheckbox.checked = checkedCount === bodyCheckboxes.length;
-    headerCheckbox.indeterminate = checkedCount > 0 && checkedCount < bodyCheckboxes.length;
-  };
-
   const handleProceedState = () => {
     const checkboxes = getBodyCheckboxes();
     const hasSelection = Array.from(checkboxes).some((box) => box.checked);
     proceedButton.disabled = !hasSelection;
     proceedButton.setAttribute('aria-disabled', String(!hasSelection));
-    updateHeaderCheckboxState(checkboxes);
   };
 
   const attachCheckboxListeners = () => {
@@ -219,36 +196,6 @@ export const initAppSelection = () => {
     handleProceedState();
   };
 
-  const attachHeaderCheckboxListener = () => {
-    if (!headerCheckbox) {
-      return;
-    }
-
-    headerCheckbox.addEventListener('change', () => {
-      const checkboxes = getBodyCheckboxes();
-      checkboxes.forEach((box) => {
-        box.checked = headerCheckbox.checked;
-        box.dispatchEvent(new Event('change'));
-      });
-      handleProceedState();
-    });
-  };
-
-  const renderHeaderCheckbox = () => {
-    if (headerCheckbox || !headerCheckboxCell) {
-      return;
-    }
-
-    headerCheckbox = document.createElement('input');
-    headerCheckbox.type = 'checkbox';
-    headerCheckbox.id = 'app-selection-header-checkbox';
-    headerCheckbox.setAttribute('aria-label', 'Select all apps for the listed SubIDs');
-    headerCheckbox.disabled = true;
-
-    headerCheckboxCell.appendChild(headerCheckbox);
-    attachHeaderCheckboxListener();
-  };
-
   const populateTableFromResponses = (responses) => {
     tableBody.innerHTML = '';
 
@@ -274,7 +221,6 @@ export const initAppSelection = () => {
       tableBody.appendChild(row);
       proceedButton.disabled = true;
       proceedButton.setAttribute('aria-disabled', 'true');
-      updateHeaderCheckboxState();
       return;
     }
 
@@ -306,22 +252,12 @@ export const initAppSelection = () => {
     });
 
     attachCheckboxListeners();
-
-    if (headerCheckbox?.checked) {
-      headerCheckbox.dispatchEvent(new Event('change'));
-    }
   };
 
   const renderLaunchDataRows = (rows) => {
     tableBody.innerHTML = '';
 
-    if (headerCheckbox) {
-      headerCheckbox.checked = false;
-      headerCheckbox.disabled = true;
-    }
-
     if (!rows.length) {
-      updateHeaderCheckboxState();
       proceedButton.disabled = true;
       proceedButton.setAttribute('aria-disabled', 'true');
       return;
@@ -348,7 +284,6 @@ export const initAppSelection = () => {
 
     proceedButton.disabled = true;
     proceedButton.setAttribute('aria-disabled', 'true');
-    updateHeaderCheckboxState();
   };
 
   const fetchAndPopulate = async (windowDays = currentWindowDays) => {
@@ -418,11 +353,6 @@ export const initAppSelection = () => {
       }
 
       populateTableFromResponses(successfulResponses);
-
-      if (successfulResponses.length) {
-        renderHeaderCheckbox();
-        updateHeaderCheckboxState();
-      }
     } finally {
       isFetching = false;
     }
