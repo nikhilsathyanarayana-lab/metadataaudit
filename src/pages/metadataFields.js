@@ -603,6 +603,9 @@ const fetchAndPopulate = async (
         let handledByChunks = false;
 
         if (tooMuchData) {
+          console.info(
+            `Metadata request too large for app ${entry.appId} (${windowDays}d); retrying with split payloads.`,
+          );
           const chunkedPayloads = buildChunkedMetadataFieldPayloads(entry.appId, windowDays);
           const aggregatedResults = [];
 
