@@ -29,7 +29,7 @@ const createAggregationError = (message, status, body) => {
   return error;
 };
 
-export const isTooMuchDataError = (error) => {
+export const isTooMuchDataOrTimeout = (error) => {
   const { responseStatus, responseBody, details, message, name, isAbortError } = error || {};
   const status = responseStatus ?? details?.status;
   const bodyText = typeof (responseBody ?? details?.body) === 'string' ? responseBody ?? details?.body : '';
@@ -45,6 +45,8 @@ export const isTooMuchDataError = (error) => {
     isAbortError === true
   );
 };
+
+export const isTooMuchDataError = (error) => isTooMuchDataOrTimeout(error);
 
 const DEFAULT_AGGREGATION_TIMEOUT_MS = 60_000;
 
@@ -308,7 +310,7 @@ export const runAggregationWithFallbackWindows = async ({
     } catch (error) {
       lastError = error;
 
-      if (!isTooMuchDataError(error)) {
+      if (!isTooMuchDataOrTimeout(error)) {
         const propagatedError = error;
         propagatedError.requestCount = requestCount;
         throw propagatedError;
@@ -420,7 +422,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     console.error('Aggregation request encountered an error:', error);
     logAggregationResponseDetails(error);
 
-    if (!isTooMuchDataError(error)) {
+    if (!isTooMuchDataOrTimeout(error)) {
       return { errorType: 'failed' };
     }
   }
@@ -608,6 +610,7 @@ export default {
   buildMetaEventsPayload,
   buildChunkedMetadataFieldPayloads,
   FALLBACK_WINDOW_SEQUENCE,
+  isTooMuchDataOrTimeout,
   isTooMuchDataError,
   runAggregationWithFallbackWindows,
   buildCookieHeaderValue,
