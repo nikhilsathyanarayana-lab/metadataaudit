@@ -11,6 +11,7 @@ export const initAppSelection = () => {
   const defaultWindowDays = 7;
   let currentWindowDays = Number(windowSelect?.value) || defaultWindowDays;
   let isFetching = false;
+  let activeRequestToken = 0;
   let headerToggleBound = false;
 
   if (!proceedButton || !tableBody) {
@@ -330,10 +331,8 @@ export const initAppSelection = () => {
   };
 
   const fetchAndPopulate = async (windowDays = currentWindowDays) => {
-    if (isFetching) {
-      return;
-    }
-
+    const requestToken = ++activeRequestToken;
+    const isActiveRequest = () => requestToken === activeRequestToken;
     isFetching = true;
 
     try {
@@ -345,6 +344,10 @@ export const initAppSelection = () => {
       }
 
       const storedRows = parseStoredLaunchData();
+
+      if (!isActiveRequest()) {
+        return;
+      }
 
       renderLaunchDataRows(storedRows);
 
@@ -369,6 +372,11 @@ export const initAppSelection = () => {
 
       for (const entry of storedRows) {
         const response = await fetchAppsForEntry(entry, currentWindowDays);
+
+        if (!isActiveRequest()) {
+          return;
+        }
+
         completed += 1;
         updateProgress(completed, storedRows.length);
 
@@ -383,6 +391,10 @@ export const initAppSelection = () => {
         responses.push({ ...entry, response, windowDays: currentWindowDays });
       }
 
+      if (!isActiveRequest()) {
+        return;
+      }
+
       const successfulResponses = responses.filter(({ response }) => Boolean(response));
 
       cachedResponses = buildSelectionState(successfulResponses);
@@ -391,6 +403,10 @@ export const initAppSelection = () => {
         persistResponses(cachedResponses);
       } else {
         localStorage.removeItem(responseStorageKey);
+      }
+
+      if (!isActiveRequest()) {
+        return;
       }
 
       if (progressBanner) {
@@ -415,7 +431,9 @@ export const initAppSelection = () => {
 
       populateTableFromResponses(successfulResponses);
     } finally {
-      isFetching = false;
+      if (isActiveRequest()) {
+        isFetching = false;
+      }
     }
   };
 
