@@ -363,9 +363,10 @@ export const initAppSelection = () => {
       }
 
       clearError();
-      updateProgress(0, storedRows.length);
+      let totalRequests = storedRows.length;
+      let completedRequests = 0;
+      updateProgress(completedRequests, totalRequests);
 
-      let completed = 0;
       const responses = [];
       const failedSubIds = [];
       const timeoutSubIds = [];
@@ -377,8 +378,11 @@ export const initAppSelection = () => {
           return;
         }
 
-        completed += 1;
-        updateProgress(completed, storedRows.length);
+        const requestCount = Math.max(1, response?.requestCount || 1);
+        const additionalRequests = requestCount - 1;
+        totalRequests += additionalRequests;
+        completedRequests += requestCount;
+        updateProgress(completedRequests, totalRequests);
 
         const subIdLabel = entry?.subId || 'unknown SubID';
 
