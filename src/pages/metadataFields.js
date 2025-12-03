@@ -54,6 +54,20 @@ const loadMetadataSnapshot = () => {
   return metadataSnapshot;
 };
 
+export const getMetadataFieldRecords = (windowDays) => {
+  if (!metadataSnapshot.size) {
+    loadMetadataSnapshot();
+  }
+
+  const records = Array.from(metadataSnapshot.values());
+
+  if (Number.isFinite(windowDays)) {
+    return records.filter((record) => record?.windowDays === windowDays);
+  }
+
+  return records;
+};
+
 const logMetadataRequestError = async (error, contextLabel) => {
   const { responseStatus, responseBody, details } = error || {};
   const status = responseStatus ?? details?.status;
