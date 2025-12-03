@@ -9,13 +9,23 @@ import {
 import { extractAppIds } from '../services/appUtils.js';
 
 export const parseExamples = (response, subId) => {
-  if (!response?.results) {
+  const candidateLists = [];
+
+  if (Array.isArray(response?.results)) {
+    candidateLists.push(response.results);
+  }
+
+  if (Array.isArray(response?.data)) {
+    candidateLists.push(response.data);
+  }
+
+  if (!candidateLists.length) {
     return [];
   }
 
   const rows = [];
 
-  response.results.forEach((record) => {
+  candidateLists.flat().forEach((record) => {
     const appId = record?.appId || '';
     const fieldExamples = record?.fields || {};
     const accountExamples = record?.account || {};
