@@ -273,6 +273,10 @@ export const initAppSelection = () => {
     });
 
     attachCheckboxListeners();
+
+    if (headerCheckbox?.checked) {
+      headerCheckbox.dispatchEvent(new Event('change'));
+    }
   };
 
   const renderLaunchDataRows = (rows) => {
