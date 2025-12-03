@@ -1,3 +1,4 @@
+// Injects an external HTML snippet into the current document body to hydrate shared modals.
 export const loadTemplate = async (templatePath) => {
   try {
     const response = await fetch(templatePath);

@@ -1,3 +1,4 @@
+// Normalizes various aggregation responses into a unique list of app IDs.
 export const extractAppIds = (apiResponse) => {
   if (!apiResponse) {
     return [];
