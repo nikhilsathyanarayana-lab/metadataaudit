@@ -1,6 +1,7 @@
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { exportMetadataXlsx } from '../controllers/exports/metadata_xlsx.js';
 
+// Wires up the export modal controls and delegates format handlers based on available options.
 const initExportModal = (options = {}) => {
   const { enableJsonExport = false, additionalFormats = {} } = options;
   const exportButton = document.getElementById('export-button');
@@ -67,6 +68,7 @@ const initExportModal = (options = {}) => {
   });
 };
 
+// Lazy-loads shared modal templates and initializes common UI features used across pages.
 export const bootstrapShared = async (options = {}) => {
   const exportButton = document.getElementById('export-button');
 
