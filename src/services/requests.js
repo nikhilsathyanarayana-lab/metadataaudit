@@ -18,6 +18,22 @@ const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const AGGREGATION_TIMEOUT_MESSAGE = /aggregation request timed out/i;
 export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 
+export const logAggregationSplit = (contextLabel, windowDays, payloadCount) => {
+  const label = contextLabel || 'Aggregation';
+  const normalizedWindow = Number(windowDays);
+  const normalizedPayloadCount = Number(payloadCount);
+
+  if (!Number.isFinite(normalizedPayloadCount) || normalizedPayloadCount <= 1) {
+    return;
+  }
+
+  const windowLabel = Number.isFinite(normalizedWindow) && normalizedWindow > 0
+    ? `${normalizedWindow}-day`
+    : 'unknown-window';
+
+  console.info(`${label} request split into ${normalizedPayloadCount} window(s) at ${windowLabel} scope.`);
+};
+
 const createAggregationError = (message, status, body) => {
   const error = new Error(message);
   error.responseStatus = status;
@@ -279,6 +295,7 @@ export const runAggregationWithFallbackWindows = async ({
   buildChunkedPayloads,
   aggregateResults,
   fetchImpl = fetch,
+  onWindowSplit,
 }) => {
   const fallbackWindows = normalizeFallbackWindows(totalWindowDays);
   const aggregate = typeof aggregateResults === 'function' ? aggregateResults : (collector, response) => {
@@ -295,6 +312,10 @@ export const runAggregationWithFallbackWindows = async ({
 
     if (!Array.isArray(payloads) || !payloads.length) {
       continue;
+    }
+
+    if (typeof onWindowSplit === 'function' && payloads.length > 1) {
+      onWindowSplit(windowSize, payloads.length);
     }
 
     const aggregatedResults = [];
@@ -390,6 +411,7 @@ export const buildRequestHeaders = (integrationKey) => ({
  */
 export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch) => {
   const requestIdPrefix = 'apps-list';
+  let requestCount = 1;
 
   const logAggregationResponseDetails = (error) => {
     const { responseStatus, responseBody, details } = error || {};
@@ -405,29 +427,34 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
   };
 
   try {
-    const { aggregatedResults } = await runAggregationWithFallbackWindows({
+    const { aggregatedResults, requestCount: totalRequests } = await runAggregationWithFallbackWindows({
       entry,
       totalWindowDays: windowDays,
       buildBasePayload: (totalWindow) => buildAppListingPayload(totalWindow, requestIdPrefix),
       buildChunkedPayloads: (chunkSize) => buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix),
       aggregateResults: (collector, response) => collector.push(...extractAppIds(response)),
       fetchImpl,
+      onWindowSplit: (windowSize, payloadCount) =>
+        logAggregationSplit('App discovery', windowSize, payloadCount),
     });
+
+    requestCount = Math.max(1, totalRequests || 1);
 
     if (Array.isArray(aggregatedResults)) {
       const uniqueAppIds = Array.from(new Set(aggregatedResults));
-      return { results: uniqueAppIds.map((appId) => ({ appId })) };
+      return { results: uniqueAppIds.map((appId) => ({ appId })), requestCount };
     }
   } catch (error) {
     console.error('Aggregation request encountered an error:', error);
     logAggregationResponseDetails(error);
+    requestCount = Math.max(1, error?.requestCount || requestCount || 1);
 
     if (!isTooMuchDataOrTimeout(error)) {
-      return { errorType: 'failed' };
+      return { errorType: 'failed', requestCount };
     }
   }
 
-  return { errorType: 'timeout' };
+  return { errorType: 'timeout', requestCount };
 };
 
 const extractJwtToken = (cookieHeaderValue) => {

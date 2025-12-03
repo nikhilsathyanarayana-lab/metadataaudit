@@ -3,6 +3,7 @@ import {
   buildMetadataFieldsForAppPayload,
   isTooMuchDataOrTimeout,
   runAggregationWithFallbackWindows,
+  logAggregationSplit,
 } from '../services/requests.js';
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { extractAppIds } from '../services/appUtils.js';
@@ -637,6 +638,8 @@ const fetchAndPopulate = (
             collector.push(...response);
           }
         },
+        onWindowSplit: (windowSize, payloadCount) =>
+          logAggregationSplit('Metadata fields', windowSize, payloadCount),
       });
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
