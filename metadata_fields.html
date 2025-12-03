@@ -39,71 +39,45 @@
         </div>
       </div>
 
-      <div class="table-and-chart" id="visitor-layout">
-        <div class="table-wrapper" id="visitor-metadata-table-wrapper" role="region" aria-label="Visitor metadata table wrapper" tabindex="0">
-          <table class="data-table" id="visitor-metadata-table">
-            <thead>
-              <tr>
-                <th scope="col">Sub ID</th>
-                <th scope="col">App Name</th>
-                <th scope="col">App ID</th>
-                <th scope="col">7 days</th>
-                <th scope="col">30 days</th>
-                <th scope="col">180 days</th>
-              </tr>
-            </thead>
-            <tbody id="visitor-metadata-table-body">
-              <tr>
-                <td data-label="Sub ID">123-456</td>
-                <td data-label="App Name">Example App One</td>
-                <td data-label="App ID">APP-001</td>
-                <td data-label="7 days">190</td>
-                <td data-label="30 days">620</td>
-                <td data-label="180 days">1,240</td>
-              </tr>
-              <tr>
-                <td data-label="Sub ID">123-456</td>
-                <td data-label="App Name">Example App Two</td>
-                <td data-label="App ID">APP-002</td>
-                <td data-label="7 days">132</td>
-                <td data-label="30 days">455</td>
-                <td data-label="180 days">980</td>
-              </tr>
-              <tr>
-                <td data-label="Sub ID">789-101</td>
-                <td data-label="App Name">Example App Three</td>
-                <td data-label="App ID">APP-003</td>
-                <td data-label="7 days">168</td>
-                <td data-label="30 days">508</td>
-                <td data-label="180 days">1,120</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <aside class="alignment-chart" id="visitor-alignment-chart" aria-live="polite">
-          <p class="alignment-chart-title">Apps with aligned metadata (7 days)</p>
-          <div class="alignment-chart-visual" data-chart-pie role="img" aria-label="Alignment chart updates after metadata is loaded.">
-            <div class="alignment-chart-percent" data-chart-percent>--%</div>
-          </div>
-          <div class="alignment-chart-legend" aria-label="Visitor metadata alignment legend">
-            <div class="legend-row">
-              <span class="legend-swatch is-aligned" aria-hidden="true"></span>
-              <div class="legend-copy">
-                <p class="legend-label">Aligned apps</p>
-                <p class="legend-value" data-aligned-count>--</p>
-              </div>
-            </div>
-            <div class="legend-row">
-              <span class="legend-swatch is-misaligned" aria-hidden="true"></span>
-              <div class="legend-copy">
-                <p class="legend-label">Not aligned</p>
-                <p class="legend-value" data-misaligned-count>--</p>
-              </div>
-            </div>
-            <p class="legend-total" data-total-count>Chart updates after metadata is loaded.</p>
-          </div>
-        </aside>
+      <div class="table-wrapper" id="visitor-metadata-table-wrapper" role="region" aria-label="Visitor metadata table wrapper" tabindex="0">
+        <table class="data-table" id="visitor-metadata-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App Name</th>
+              <th scope="col">App ID</th>
+              <th scope="col">7 days</th>
+              <th scope="col">30 days</th>
+              <th scope="col">180 days</th>
+            </tr>
+          </thead>
+          <tbody id="visitor-metadata-table-body">
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App Name">Example App One</td>
+              <td data-label="App ID">APP-001</td>
+              <td data-label="7 days">190</td>
+              <td data-label="30 days">620</td>
+              <td data-label="180 days">1,240</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">123-456</td>
+              <td data-label="App Name">Example App Two</td>
+              <td data-label="App ID">APP-002</td>
+              <td data-label="7 days">132</td>
+              <td data-label="30 days">455</td>
+              <td data-label="180 days">980</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">789-101</td>
+              <td data-label="App Name">Example App Three</td>
+              <td data-label="App ID">APP-003</td>
+              <td data-label="7 days">168</td>
+              <td data-label="30 days">508</td>
+              <td data-label="180 days">1,120</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 
@@ -115,71 +89,45 @@
         </div>
       </div>
 
-      <div class="table-and-chart" id="account-layout">
-        <div class="table-wrapper" id="account-metadata-table-wrapper" role="region" aria-label="Account metadata table wrapper" tabindex="0">
-          <table class="data-table" id="account-metadata-table">
-            <thead>
-              <tr>
-                <th scope="col">Sub ID</th>
-                <th scope="col">App Name</th>
-                <th scope="col">App ID</th>
-                <th scope="col">7 days</th>
-                <th scope="col">30 days</th>
-                <th scope="col">180 days</th>
-              </tr>
-            </thead>
-            <tbody id="account-metadata-table-body">
-              <tr>
-                <td data-label="Sub ID">555-202</td>
-                <td data-label="App Name">Example App Twenty</td>
-                <td data-label="App ID">APP-020</td>
-                <td data-label="7 days">134</td>
-                <td data-label="30 days">402</td>
-                <td data-label="180 days">860</td>
-              </tr>
-              <tr>
-                <td data-label="Sub ID">555-202</td>
-                <td data-label="App Name">Example App Twenty-One</td>
-                <td data-label="App ID">APP-021</td>
-                <td data-label="7 days">150</td>
-                <td data-label="30 days">448</td>
-                <td data-label="180 days">910</td>
-              </tr>
-              <tr>
-                <td data-label="Sub ID">333-888</td>
-                <td data-label="App Name">Example App Twenty-Two</td>
-                <td data-label="App ID">APP-022</td>
-                <td data-label="7 days">176</td>
-                <td data-label="30 days">497</td>
-                <td data-label="180 days">1,040</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <aside class="alignment-chart" id="account-alignment-chart" aria-live="polite">
-          <p class="alignment-chart-title">Apps with aligned metadata (7 days)</p>
-          <div class="alignment-chart-visual" data-chart-pie role="img" aria-label="Alignment chart updates after metadata is loaded.">
-            <div class="alignment-chart-percent" data-chart-percent>--%</div>
-          </div>
-          <div class="alignment-chart-legend" aria-label="Account metadata alignment legend">
-            <div class="legend-row">
-              <span class="legend-swatch is-aligned" aria-hidden="true"></span>
-              <div class="legend-copy">
-                <p class="legend-label">Aligned apps</p>
-                <p class="legend-value" data-aligned-count>--</p>
-              </div>
-            </div>
-            <div class="legend-row">
-              <span class="legend-swatch is-misaligned" aria-hidden="true"></span>
-              <div class="legend-copy">
-                <p class="legend-label">Not aligned</p>
-                <p class="legend-value" data-misaligned-count>--</p>
-              </div>
-            </div>
-            <p class="legend-total" data-total-count>Chart updates after metadata is loaded.</p>
-          </div>
-        </aside>
+      <div class="table-wrapper" id="account-metadata-table-wrapper" role="region" aria-label="Account metadata table wrapper" tabindex="0">
+        <table class="data-table" id="account-metadata-table">
+          <thead>
+            <tr>
+              <th scope="col">Sub ID</th>
+              <th scope="col">App Name</th>
+              <th scope="col">App ID</th>
+              <th scope="col">7 days</th>
+              <th scope="col">30 days</th>
+              <th scope="col">180 days</th>
+            </tr>
+          </thead>
+          <tbody id="account-metadata-table-body">
+            <tr>
+              <td data-label="Sub ID">555-202</td>
+              <td data-label="App Name">Example App Twenty</td>
+              <td data-label="App ID">APP-020</td>
+              <td data-label="7 days">134</td>
+              <td data-label="30 days">402</td>
+              <td data-label="180 days">860</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">555-202</td>
+              <td data-label="App Name">Example App Twenty-One</td>
+              <td data-label="App ID">APP-021</td>
+              <td data-label="7 days">150</td>
+              <td data-label="30 days">448</td>
+              <td data-label="180 days">910</td>
+            </tr>
+            <tr>
+              <td data-label="Sub ID">333-888</td>
+              <td data-label="App Name">Example App Twenty-Two</td>
+              <td data-label="App ID">APP-022</td>
+              <td data-label="7 days">176</td>
+              <td data-label="30 days">497</td>
+              <td data-label="180 days">1,040</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </section>
 </main>

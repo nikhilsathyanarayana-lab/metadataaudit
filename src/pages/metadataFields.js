@@ -14,7 +14,6 @@ import {
 const LOOKBACK_WINDOWS = [7, 30, 180];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
-const ALIGNMENT_WINDOW_DAYS = 7;
 const storageKey = 'appSelectionResponses';
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
@@ -121,128 +120,6 @@ const updateMetadataSnapshotEntry = (
 
   metadataSnapshot.set(buildMetadataRecordKey(entry.appId, windowDays), record);
   persistMetadataSnapshot();
-};
-
-const normalizeFieldList = (fields) => {
-  if (!Array.isArray(fields)) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      fields
-        .map((field) => (typeof field === 'string' ? field.trim() : String(field || '')).trim())
-        .filter(Boolean),
-    ),
-  ).sort((a, b) => a.localeCompare(b));
-};
-
-const buildFieldSignature = (fields) => normalizeFieldList(fields).join('|');
-
-const EMPTY_ALIGNMENT = {
-  alignedCount: 0,
-  misalignedCount: 0,
-  total: 0,
-  alignedPercent: 0,
-  dominantFields: [],
-};
-
-const calculateAlignmentStats = (fieldMap) => {
-  if (!(fieldMap instanceof Map)) {
-    return EMPTY_ALIGNMENT;
-  }
-
-  const signatureCounts = new Map();
-  let total = 0;
-
-  fieldMap.forEach((fields) => {
-    const signature = buildFieldSignature(fields);
-    const existing = signatureCounts.get(signature) || { count: 0, fields: normalizeFieldList(fields) };
-
-    existing.count += 1;
-    signatureCounts.set(signature, existing);
-    total += 1;
-  });
-
-  if (!total || !signatureCounts.size) {
-    return EMPTY_ALIGNMENT;
-  }
-
-  let dominantSignature = '';
-  let dominantCount = 0;
-
-  signatureCounts.forEach((value, signature) => {
-    if (value.count > dominantCount) {
-      dominantSignature = signature;
-      dominantCount = value.count;
-    }
-  });
-
-  const alignedCount = dominantCount;
-  const misalignedCount = Math.max(total - alignedCount, 0);
-  const alignedPercent = Math.round((alignedCount / total) * 100);
-
-  return {
-    alignedCount,
-    misalignedCount,
-    total,
-    alignedPercent,
-    dominantFields: signatureCounts.get(dominantSignature)?.fields || [],
-  };
-};
-
-const updateAlignmentChart = (chartId, stats = EMPTY_ALIGNMENT) => {
-  const chart = document.getElementById(chartId);
-
-  if (!chart) {
-    return;
-  }
-
-  const pie = chart.querySelector('[data-chart-pie]');
-  const percentLabel = chart.querySelector('[data-chart-percent]');
-  const alignedCountLabel = chart.querySelector('[data-aligned-count]');
-  const misalignedCountLabel = chart.querySelector('[data-misaligned-count]');
-  const totalLabel = chart.querySelector('[data-total-count]');
-
-  const total = stats?.total ?? 0;
-  const alignedCount = Math.min(stats?.alignedCount ?? 0, total);
-  const misalignedCount = Math.min(stats?.misalignedCount ?? 0, Math.max(total - alignedCount, 0));
-  const alignedPercent = total ? stats?.alignedPercent ?? 0 : 0;
-
-  if (pie) {
-    pie.style.background = `conic-gradient(var(--aligned-color) 0% ${alignedPercent}%, var(--misaligned-color) ${alignedPercent}% 100%)`;
-    pie.setAttribute(
-      'aria-label',
-      total
-        ? `${alignedPercent}% of apps aligned (${alignedCount} of ${total})`
-        : 'Alignment chart updates after metadata is loaded.',
-    );
-  }
-
-  if (percentLabel) {
-    percentLabel.textContent = total ? `${alignedPercent}%` : '--%';
-  }
-
-  if (alignedCountLabel) {
-    alignedCountLabel.textContent = total ? `${alignedCount} app${alignedCount === 1 ? '' : 's'}` : 'No data';
-  }
-
-  if (misalignedCountLabel) {
-    misalignedCountLabel.textContent = total
-      ? `${misalignedCount} app${misalignedCount === 1 ? '' : 's'}`
-      : 'No data';
-  }
-
-  if (totalLabel) {
-    totalLabel.textContent = total
-      ? `Based on ${total} app${total === 1 ? '' : 's'}`
-      : 'Add app selections to see alignment.';
-  }
-};
-
-const renderAlignmentCharts = (alignmentTracking = {}) => {
-  updateAlignmentChart('visitor-alignment-chart', calculateAlignmentStats(alignmentTracking.visitor));
-  updateAlignmentChart('account-alignment-chart', calculateAlignmentStats(alignmentTracking.account));
 };
 
 const updateAppSelectionMetadataFields = (
@@ -667,18 +544,6 @@ const fetchAndPopulate = async (
   addTotalCalls,
   manualAppNames,
 ) => {
-  const alignmentTracking = {
-    visitor: new Map(),
-    account: new Map(),
-  };
-
-  entries.forEach((entry) => {
-    if (entry?.appId) {
-      alignmentTracking.visitor.set(entry.appId, []);
-      alignmentTracking.account.set(entry.appId, []);
-    }
-  });
-
   let completedCalls = 0;
 
   for (const entry of entries) {
@@ -709,11 +574,6 @@ const fetchAndPopulate = async (
 
         updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
         updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
-
-        if (windowDays === ALIGNMENT_WINDOW_DAYS) {
-          alignmentTracking.visitor.set(entry.appId, visitorFields);
-          alignmentTracking.account.set(entry.appId, accountFields);
-        }
 
         visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
         accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
@@ -759,11 +619,6 @@ const fetchAndPopulate = async (
             updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
             updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
 
-            if (windowDays === ALIGNMENT_WINDOW_DAYS) {
-              alignmentTracking.visitor.set(entry.appId, visitorFields);
-              alignmentTracking.account.set(entry.appId, accountFields);
-            }
-
             visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
             handledByChunks = true;
@@ -794,11 +649,6 @@ const fetchAndPopulate = async (
           accountCells[windowDays].textContent = cellMessage;
           visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
           accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
-
-          if (windowDays === ALIGNMENT_WINDOW_DAYS) {
-            alignmentTracking.visitor.set(entry.appId, []);
-            alignmentTracking.account.set(entry.appId, []);
-          }
         }
 
         if (clientErrorWithoutRecovery) {
@@ -812,8 +662,6 @@ const fetchAndPopulate = async (
       }
     }
   }
-
-  return alignmentTracking;
 };
 
 export const initMetadataFields = () => {
@@ -838,7 +686,6 @@ export const initMetadataFields = () => {
       renderTableRows(visitorTableBody, []);
       renderTableRows(accountTableBody, []);
       updateProgress(0);
-      renderAlignmentCharts({ visitor: new Map(), account: new Map() });
       return;
     }
 
@@ -868,17 +715,7 @@ export const initMetadataFields = () => {
       });
     }
 
-    const alignmentTracking = await fetchAndPopulate(
-      entries,
-      visitorRows,
-      accountRows,
-      messageRegion,
-      updateProgress,
-      addTotalCalls,
-      manualAppNames,
-    );
-
-    renderAlignmentCharts(alignmentTracking);
+    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress, addTotalCalls, manualAppNames);
   })();
 
   return metadataFieldsReadyPromise;
