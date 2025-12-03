@@ -219,8 +219,10 @@ const syncMetadataSnapshotAppName = (appId, appName) => {
 const setupProgressTracker = (initialTotalCalls) => {
   const progressText = document.getElementById('metadata-fields-progress-text');
   let totalCalls = initialTotalCalls;
+  let sentCalls = 0;
+  let responses = 0;
 
-  const updateText = (completed) => {
+  const updateText = () => {
     if (!progressText) {
       return;
     }
@@ -230,8 +232,9 @@ const setupProgressTracker = (initialTotalCalls) => {
       return;
     }
 
-    const boundedCompleted = Math.min(completed, totalCalls);
-    progressText.textContent = `API calls: ${boundedCompleted}/${totalCalls}`;
+    const boundedSent = Math.min(sentCalls, totalCalls);
+    const boundedResponses = Math.min(responses, totalCalls);
+    progressText.textContent = `API calls: sent ${boundedSent} / responses ${boundedResponses} of ${totalCalls}`;
   };
 
   const addCalls = (additionalCalls) => {
@@ -240,11 +243,26 @@ const setupProgressTracker = (initialTotalCalls) => {
     }
 
     totalCalls += additionalCalls;
+    updateText();
   };
 
-  updateText(0);
+  const recordDispatch = (count = 1) => {
+    if (!Number.isFinite(count) || count <= 0) {
+      return;
+    }
 
-  return { updateText, addCalls, getTotalCalls: () => totalCalls };
+    sentCalls += count;
+    updateText();
+  };
+
+  const recordResponse = () => {
+    responses += 1;
+    updateText();
+  };
+
+  updateText();
+
+  return { updateText, addCalls, recordDispatch, recordResponse, getTotalCalls: () => totalCalls };
 };
 
 const createMessageRegion = () => {
@@ -554,16 +572,15 @@ const fetchAndPopulate = (
   visitorRows,
   accountRows,
   messageRegion,
-  updateProgress,
-  addTotalCalls,
+  progressTracker,
   manualAppNames,
 ) => {
-  let completedCalls = 0;
   let queueIntervalId = null;
   const workQueue = [];
   const inFlight = new Set();
   const abortedEntries = new Set();
   const chunkGroups = new Map();
+  const { addCalls: addTotalCalls, recordDispatch, recordResponse } = progressTracker;
 
   const entryKey = (entry) => `${entry.subId || ''}::${entry.domain || ''}::${entry.integrationKey || ''}`;
   const recordKey = (entry, windowDays) => `${entryKey(entry)}::${windowDays}`;
@@ -572,11 +589,6 @@ const fetchAndPopulate = (
     visitorCells: visitorRows.find((row) => row.entry === entry)?.cells,
     accountCells: accountRows.find((row) => row.entry === entry)?.cells,
   });
-
-  const incrementProgress = () => {
-    completedCalls += 1;
-    updateProgress(completedCalls);
-  };
 
   const isAborted = (entry) => abortedEntries.has(entryKey(entry));
 
@@ -591,6 +603,7 @@ const fetchAndPopulate = (
 
   const enqueueWorkItem = (item) => {
     workQueue.push(item);
+    recordDispatch();
   };
 
   const finalizeChunkGroup = (groupKey, entry, windowDays, manualAppNames) => {
@@ -631,7 +644,6 @@ const fetchAndPopulate = (
     const { visitorCells, accountCells } = getCells(entry);
 
     if (!visitorCells || !accountCells || isAborted(entry)) {
-      incrementProgress();
       return;
     }
 
@@ -640,7 +652,6 @@ const fetchAndPopulate = (
       const group = chunkGroups.get(groupKey);
 
       if (!group) {
-        incrementProgress();
         return;
       }
 
@@ -653,8 +664,6 @@ const fetchAndPopulate = (
       }
 
       group.remaining -= 1;
-      incrementProgress();
-
       if (group.remaining <= 0) {
         finalizeChunkGroup(groupKey, entry, windowDays, manualAppNames);
       }
@@ -669,8 +678,6 @@ const fetchAndPopulate = (
           finalizeChunkGroup(groupKey, entry, windowDays, manualAppNames);
         }
       }
-
-      incrementProgress();
     }
   };
 
@@ -679,7 +686,6 @@ const fetchAndPopulate = (
     const { visitorCells, accountCells } = getCells(entry);
 
     if (!visitorCells || !accountCells || isAborted(entry)) {
-      incrementProgress();
       return;
     }
 
@@ -751,8 +757,6 @@ const fetchAndPopulate = (
         abortedEntries.add(entryKey(entry));
         removePendingForEntry(entry);
       }
-
-      incrementProgress();
     }
   };
 
@@ -776,7 +780,12 @@ const fetchAndPopulate = (
     const nextItem = workQueue.shift();
     const promise = executeWorkItem(nextItem);
     inFlight.add(promise);
-    promise.finally(() => inFlight.delete(promise));
+    promise
+      .catch(() => {})
+      .finally(() => {
+        recordResponse();
+        inFlight.delete(promise);
+      });
   };
 
   const startScheduler = () => {
@@ -812,13 +821,13 @@ export const initMetadataFields = () => {
     const entries = buildAppEntries(manualAppNames);
 
     const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
-    const { updateText: updateProgress, addCalls: addTotalCalls } = setupProgressTracker(totalCalls);
+    const progressTracker = setupProgressTracker(totalCalls);
 
     if (!entries.length) {
       showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
       renderTableRows(visitorTableBody, []);
       renderTableRows(accountTableBody, []);
-      updateProgress(0);
+      progressTracker.updateText();
       return;
     }
 
@@ -848,7 +857,7 @@ export const initMetadataFields = () => {
       });
     }
 
-    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, updateProgress, addTotalCalls, manualAppNames);
+    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, progressTracker, manualAppNames);
   })();
 
   return metadataFieldsReadyPromise;
