@@ -390,6 +390,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
   const totalDatasetCount = totalDatasets || 0;
   const valueLookup = buildValueLookup();
   const aggregatedRows = [];
+  const appSheets = [];
 
   const summaryRows = (subIds.length ? subIds : ['No Sub ID captured']).map((subId) => {
     const datasetsForSub = datasetTotals.get(subId) || 0;
@@ -435,6 +436,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
         7: 0,
       };
       const stats = getValueStats(selection, valueLookup);
+      const totalCount = parseCount(counts[180]) + parseCount(counts[30]) + parseCount(counts[7]);
 
       aggregatedRows.push({
         Type: selection.type === 'account' ? 'Account' : 'Visitor',
@@ -448,10 +450,7 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
         'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
         'Needs review': stats.needsReview ? 'Yes' : 'No',
-        '180 days': parseCount(counts[180]),
-        '30 days': parseCount(counts[30]),
-        '7 days': parseCount(counts[7]),
-        'Total occurrences': parseCount(counts[180]) + parseCount(counts[30]) + parseCount(counts[7]),
+        'Total occurrences': totalCount,
       });
 
       return {
@@ -464,19 +463,16 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
         'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
         'Needs review': stats.needsReview ? 'Yes' : 'No',
-        'Total occurrences': parseCount(counts[180]) + parseCount(counts[30]) + parseCount(counts[7]),
+        'Total occurrences': totalCount,
       };
     });
 
     const sheetLabel = appName || appSelection.appId || 'app';
 
-    appendWorksheetFromRows(
-      workbook,
+    appSheets.push({
       rows,
-      'No deep dive metadata was available for this app.',
       sheetLabel,
-      sheetNames,
-    );
+    });
   });
 
   const fieldAnalysisRows = aggregatedRows.sort(
@@ -490,6 +486,16 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     'Field analysis',
     sheetNames,
   );
+
+  appSheets.forEach(({ rows, sheetLabel }) => {
+    appendWorksheetFromRows(
+      workbook,
+      rows,
+      'No deep dive metadata was available for this app.',
+      sheetLabel,
+      sheetNames,
+    );
+  });
 
   return workbook;
 };
