@@ -40,6 +40,11 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - Aggregation requests are assembled with helpers in `src/services/requests.js` and posted through `proxy.php` using a `cookie` header built by `buildCookieHeaderValue()`.
 - Responses are parsed into CSV-ready rows with `parseExamples()` before triggering downloads for downstream Excel processing.
 
+## Debug logging
+- Logging is centralized through `src/utils/logger.js`, which prefixes console output with the calling scope (for example, `[AppSelection]` or `[WorkbookUI]`).
+- Debug statements are suppressed by default; set `window.DEBUG_LOGGING = true` before triggering interactions to surface debug-level messages across the app and request helpers.
+- Deep Dive pages gate all non-error logs unless `window.DEBUG_DEEP_DIVE` is enabled. Toggle that flag in the console when diagnosing exports or metadata alignment issues without flooding the console during normal use.
+
 ## Maintenance notes
 - Clear `localStorage` between runs to avoid stale SubID or manual naming data.
 - Keep secrets out of exports; integration keys and cookies are never written to disk.
