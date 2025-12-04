@@ -45,6 +45,38 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - Debug statements are suppressed by default; set `window.DEBUG_LOGGING = true` before triggering interactions to surface debug-level messages across the app and request helpers.
 - Deep Dive pages gate all non-error logs unless `window.DEBUG_DEEP_DIVE` is enabled. Toggle that flag in the console when diagnosing exports or metadata alignment issues without flooding the console during normal use.
 
+## Console helpers
+- `window.deepDiveData`
+  - Context: Loaded on `deep_dive.html` during bootstrap to expose cached selections and metadata lookups.
+  - Expected input: None; populated from `localStorage` keys (`appSelectionResponses`, `metadataFieldRecords`, `deepDiveMetaEvents`).
+  - Sample invocation: `window.deepDiveData?.metadataFieldRecords?.length`.
+  - Output: Object keyed by the storage entries above with their cached record arrays.
+- `window.metadata_visitors`
+  - Context: Deep Dive scans after `updateMetadataCollections()` runs.
+  - Expected input: None; filled when visitor metadata responses are aggregated.
+  - Sample invocation: `window.metadata_visitors[0]?.apps[0]?.metadataFields`.
+  - Output: Array of `{ subId, apps: [{ appId, metadataFields: [{ field, values: [{ value, count }] }] }] }` sorted for visitor exports.
+- `window.metadata_accounts`
+  - Context: Deep Dive scans after `updateMetadataCollections()` processes account metadata.
+  - Expected input: None; values flow from account metadata aggregation.
+  - Sample invocation: `window.metadata_accounts.find((row) => row.field === 'industry')`.
+  - Output: Array of flat rows `{ subId, appId, field, value, count }` ordered for XLSX/JSON exports.
+- `window.metadata_api_calls`
+  - Context: Deep Dive request lifecycle while metadata responses stream in.
+  - Expected input: None; appended through `updateMetadataApiCalls()` during each request.
+  - Sample invocation: `window.metadata_api_calls.slice(-3)`.
+  - Output: Array of call records `{ appId, subId, datasetCount, status, error, recordedAt }`.
+- `window.metadata_pending_api_calls`
+  - Context: Deep Dive queue tracking for in-flight or waiting metadata requests.
+  - Expected input: None; maintained by `registerPendingMetadataCall()`, `markPendingMetadataCallStarted()`, and `resolvePendingMetadataCall()`.
+  - Sample invocation: `window.metadata_pending_api_calls.filter((call) => call.status !== 'completed')`.
+  - Output: Array of pending call entries `{ appId, subId, status, queuedAt, startedAt, completedAt, error }`.
+- `window.showPendingDeepDiveRequests()`
+  - Context: Deep Dive page debugging to review outstanding API traffic before scans finish.
+  - Expected input: None; invoked directly from the console.
+  - Sample invocation: `window.showPendingDeepDiveRequests()`.
+  - Output: Returns the outstanding pending call objects and prints a `console.table` showing `appId`, `subId`, `status`, and timestamps.
+
 ## Maintenance notes
 - Clear `localStorage` between runs to avoid stale SubID or manual naming data.
 - Keep secrets out of exports; integration keys and cookies are never written to disk.
