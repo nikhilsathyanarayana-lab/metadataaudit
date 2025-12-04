@@ -11,10 +11,10 @@ import { dedupeMetadataRecords, loadDeepDiveRecords, loadMetadataRecords } from 
 import { metadata_accounts, metadata_api_calls, metadata_visitors } from '../../pages/deepDive/aggregation.js';
 import { reportDeepDiveError } from '../../pages/deepDive/ui/render.js';
 
-const LOOKBACK_WINDOWS = [180, 30, 7];
 const TOP_VALUE_LIMIT = 3;
 const NULL_RATE_THRESHOLD = 0.2;
 const MATCH_RATE_THRESHOLD = 0.8;
+const LOOKBACK_WINDOWS = [180, 30, 7];
 
 const buildDefaultFileName = (metadataRecords = []) => {
   const subId = metadataRecords.find((record) => record?.subId)?.subId || '';
@@ -314,7 +314,6 @@ const applyOverviewFormatting = (worksheet) => {
 
 const buildLookbackIndex = (records) => {
   const index = new Map();
-  const totals = { visitor: { 180: 0, 30: 0, 7: 0 }, account: { 180: 0, 30: 0, 7: 0 } };
   const subIds = new Set();
   const appIds = new Set();
   const datasetCountsFromCalls = buildDatasetCountLookup(metadata_api_calls);
@@ -345,36 +344,14 @@ const buildLookbackIndex = (records) => {
       totalDatasets += datasetCountForTotals;
     }
 
-    const appEntry = index.get(record.appId) || {
-      appId: record.appId,
-      appName: '',
-      subId: record.subId || '',
-      visitor: new Map(),
-      account: new Map(),
-    };
-
+    const appEntry = index.get(record.appId) || { appId: record.appId, appName: '', subId: '' };
     appEntry.appName = record.appName || appEntry.appName;
     appEntry.subId = record.subId || appEntry.subId;
-
-    const recordLookup = record?.type ? appEntry[record.type] : null;
-    const key = record.fieldName || record.field;
-
-    if (!recordLookup || !key) {
-      index.set(record.appId, appEntry);
-      return;
-    }
-
-    if (!recordLookup.has(key)) {
-      recordLookup.set(key, new Map());
-    }
-
-    recordLookup.get(key).set(record.windowDays, record.count);
     index.set(record.appId, appEntry);
   });
 
   return {
     index,
-    totals,
     distinctApps: appIds.size,
     subIds: Array.from(subIds.values()),
     datasetTotals,
@@ -385,11 +362,12 @@ const buildLookbackIndex = (records) => {
 const buildWorkbook = (formatSelections, metadataRecords) => {
   const workbook = new window.ExcelJS.Workbook();
   const sheetNames = new Set();
-  const { index, totals, distinctApps, subIds, datasetTotals, totalDatasets } =
-    buildLookbackIndex(metadataRecords);
+  const { index, distinctApps, subIds, datasetTotals, totalDatasets } = buildLookbackIndex(
+    metadataRecords,
+  );
   const totalDatasetCount = totalDatasets || 0;
   const valueLookup = buildValueLookup();
-  const aggregatedRows = [];
+  const fieldAnalysisEntries = [];
   const appSheets = [];
 
   const summaryRows = (subIds.length ? subIds : ['No Sub ID captured']).map((subId) => {
@@ -430,27 +408,22 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
 
     const rows = appSelection.rows.map((selection) => {
-      const counts = lookup?.[selection.type]?.get(selection.fieldName) || {
-        180: 0,
-        30: 0,
-        7: 0,
-      };
       const stats = getValueStats(selection, valueLookup);
-      const totalCount = parseCount(counts[180]) + parseCount(counts[30]) + parseCount(counts[7]);
-
-      aggregatedRows.push({
-        Type: selection.type === 'account' ? 'Account' : 'Visitor',
-        'Sub ID': subId,
-        App: appName || lookup?.appId || selection.appId,
-        'App ID': selection.appId,
-        'Metadata field': selection.fieldName,
-        'Expected format': selection.format,
-        'Regex pattern': selection.regexPattern,
-        'Top values': stats.topValues,
-        'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
-        'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
-        'Needs review': stats.needsReview ? 'Yes' : 'No',
-        'Total occurrences': totalCount,
+      fieldAnalysisEntries.push({
+        row: {
+          Type: selection.type === 'account' ? 'Account' : 'Visitor',
+          'Sub ID': subId,
+          App: appName || lookup?.appId || selection.appId,
+          'App ID': selection.appId,
+          'Metadata field': selection.fieldName,
+          'Expected format': selection.format,
+          'Regex pattern': selection.regexPattern,
+          'Top values': stats.topValues,
+          'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
+          'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
+          'Needs review': stats.needsReview ? 'Yes' : 'No',
+        },
+        totalValues: parseCount(stats.totalValues),
       });
 
       return {
@@ -463,7 +436,6 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
         'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
         'Needs review': stats.needsReview ? 'Yes' : 'No',
-        'Total occurrences': totalCount,
       };
     });
 
@@ -475,9 +447,9 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     });
   });
 
-  const fieldAnalysisRows = aggregatedRows.sort(
-    (first, second) => (parseCount(second['Total occurrences']) || 0) - (parseCount(first['Total occurrences']) || 0),
-  );
+  const fieldAnalysisRows = fieldAnalysisEntries
+    .sort((first, second) => (second.totalValues || 0) - (first.totalValues || 0))
+    .map((entry) => entry.row);
 
   appendWorksheetFromRows(
     workbook,
