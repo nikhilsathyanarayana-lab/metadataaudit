@@ -21,10 +21,11 @@ export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 
 const requestLogger = createLogger('Requests');
 
-export const logAggregationSplit = (contextLabel, windowDays, payloadCount) => {
+export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appIds) => {
   const label = contextLabel || 'Aggregation';
   const normalizedWindow = Number(windowDays);
   const normalizedPayloadCount = Number(payloadCount);
+  const normalizedAppIds = Array.isArray(appIds) ? appIds : [appIds];
 
   if (!Number.isFinite(normalizedPayloadCount) || normalizedPayloadCount <= 1) {
     return;
@@ -34,7 +35,14 @@ export const logAggregationSplit = (contextLabel, windowDays, payloadCount) => {
     ? `${normalizedWindow}-day`
     : 'unknown-window';
 
-  requestLogger.info(
+  const appIdLabel = normalizedAppIds
+    .map((candidate) => (candidate === undefined || candidate === null ? '' : String(candidate).trim()))
+    .filter(Boolean)
+    .join(',');
+
+  const logger = appIdLabel ? createLogger(`Request-${appIdLabel}`) : requestLogger;
+
+  logger.info(
     `${label} request split into ${normalizedPayloadCount} window(s) at ${windowLabel} scope.`,
   );
 };
