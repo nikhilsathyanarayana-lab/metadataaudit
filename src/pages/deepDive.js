@@ -31,6 +31,7 @@ import {
   updateMetadataApiCalls,
   registerPendingMetadataCall,
   resolvePendingMetadataCall,
+  summarizePendingMetadataCallProgress,
   updateMetadataCollections,
 } from './deepDive/aggregation.js';
 import {
@@ -65,29 +66,44 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
   const queue = entries.slice();
   queue.forEach(registerPendingMetadataCall);
-  const totalApiCalls = queue.length;
-  let completedApiCalls = 0;
+  let { total: totalApiCalls, completed: completedApiCalls } =
+    summarizePendingMetadataCallProgress();
   let completedProcessingSteps = 0;
   let successCount = 0;
   const deepDiveAccumulator = new Map();
 
+  const getTotalApiCalls = () => {
+    const { total } = summarizePendingMetadataCallProgress();
+    if (total > 0) {
+      totalApiCalls = total;
+    }
+    return totalApiCalls;
+  };
+
   const syncApiProgress = () =>
     scheduleDomUpdate(() => {
+      const { completed, total } = summarizePendingMetadataCallProgress();
+
+      if (total > 0) {
+        totalApiCalls = total;
+      }
+
+      completedApiCalls = Math.max(completedApiCalls, completed);
       updateApiProgress?.(completedApiCalls, totalApiCalls);
     });
 
   const syncProcessingProgress = () =>
     scheduleDomUpdate(() => {
-      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
     });
 
   logDeepDive('info', 'Starting deep dive scan', {
     requestedEntries: entries.length,
-    totalApiCalls,
+    totalApiCalls: getTotalApiCalls(),
     targetLookback,
   });
 
-  if (!totalApiCalls) {
+  if (!getTotalApiCalls()) {
     syncApiProgress();
     scheduleDomUpdate(() => {
       setApiError?.(
@@ -99,8 +115,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   }
 
   scheduleDomUpdate(() => {
-    updateApiProgress?.(completedApiCalls, totalApiCalls);
-    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+    updateApiProgress?.(completedApiCalls, getTotalApiCalls());
+    updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
     setApiStatus?.('Starting deep dive scan…');
     setProcessingStatus?.('Waiting for the first API response…');
   });
@@ -139,10 +155,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       }
 
       apiCompleted = true;
-      completedApiCalls += 1;
       syncApiProgress();
       scheduleDomUpdate(() => {
-        setProcessingStatus?.(`Handling response ${completedProcessingSteps + 1}/${totalApiCalls}.`);
+        setProcessingStatus?.(
+          `Handling response ${completedProcessingSteps + 1}/${getTotalApiCalls()}.`,
+        );
       });
 
       const normalizedFields = await collectDeepDiveMetadataFields(
@@ -178,7 +195,6 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       resolvePendingMetadataCall(entry, 'failed', detail);
 
       if (!apiCompleted) {
-        completedApiCalls += 1;
         syncApiProgress();
       }
       completedProcessingSteps += 1;
@@ -224,6 +240,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       setApiStatus?.(`Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`);
     });
   }
+
+  const { completed: resolvedCalls, total: finalTotal } = summarizePendingMetadataCallProgress();
+  completedApiCalls = Math.max(completedApiCalls, resolvedCalls);
+  totalApiCalls = Math.max(totalApiCalls, finalTotal);
 
   logDeepDive('info', 'Deep dive scan completed', {
     completedCalls: completedApiCalls,

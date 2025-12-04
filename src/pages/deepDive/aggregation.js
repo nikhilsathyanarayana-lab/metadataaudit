@@ -100,6 +100,11 @@ export const processDeepDiveResponseItems = async (response, onItem) => {
 const findPendingCallIndex = (appId) =>
   metadata_pending_api_calls.findIndex((entry) => entry?.appId === appId);
 
+const normalizeRequestCount = (value) => {
+  const normalized = Number(value);
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : 1;
+};
+
 const upsertPendingCall = (entry, overrides = {}) => {
   if (!entry?.appId) {
     return null;
@@ -113,6 +118,7 @@ const upsertPendingCall = (entry, overrides = {}) => {
     startedAt: '',
     completedAt: '',
     error: '',
+    requestCount: normalizeRequestCount(overrides.requestCount ?? entry.requestCount ?? 1),
     ...overrides,
   };
 
@@ -159,6 +165,23 @@ export const resolvePendingMetadataCall = (entry, status = 'completed', error = 
 
 export const getOutstandingMetadataCalls = () =>
   metadata_pending_api_calls.filter((call) => call?.status === 'queued' || call?.status === 'in-flight');
+
+const isResolvedCall = (call) => call?.status === 'completed' || call?.status === 'failed';
+
+export const summarizePendingMetadataCallProgress = () =>
+  metadata_pending_api_calls.reduce(
+    (totals, call) => {
+      const requestCount = normalizeRequestCount(call?.requestCount);
+      totals.total += requestCount;
+
+      if (isResolvedCall(call)) {
+        totals.completed += requestCount;
+      }
+
+      return totals;
+    },
+    { total: 0, completed: 0 },
+  );
 
 export const updateMetadataApiCalls = (entry, status, error = '', datasetCount = 0) => {
   if (!entry?.appId) {
