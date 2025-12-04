@@ -1,5 +1,8 @@
+import { createLogger } from '../utils/logger.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { fetchAppsForEntry } from '../services/requests.js';
+
+const appSelectionLogger = createLogger('AppSelection');
 
 export const initAppSelection = () => {
   const proceedButton = document.getElementById('app-selection-continue');
@@ -75,7 +78,7 @@ export const initAppSelection = () => {
 
       return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey);
     } catch (error) {
-      console.error('Unable to load stored SubID data:', error);
+      appSelectionLogger.error('Unable to load stored SubID data:', error);
       return [];
     }
   };

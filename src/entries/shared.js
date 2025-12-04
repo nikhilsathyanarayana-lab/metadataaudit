@@ -1,5 +1,8 @@
+import { createLogger } from '../utils/logger.js';
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { exportMetadataXlsx } from '../controllers/exports/metadata_xlsx.js';
+
+const sharedLogger = createLogger('SharedEntries');
 
 // Wires up the export modal controls and delegates format handlers based on available options.
 const initExportModal = (options = {}) => {
@@ -57,7 +60,7 @@ const initExportModal = (options = {}) => {
         return;
       }
 
-      console.info(`Export selected: ${format?.toUpperCase()}`);
+      sharedLogger.info(`Export selected: ${format?.toUpperCase()}`);
     });
   });
 

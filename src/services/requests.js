@@ -1,3 +1,4 @@
+import { createLogger } from '../utils/logger.js';
 import { extractAppIds } from './appUtils.js';
 
 /**
@@ -18,6 +19,8 @@ const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const AGGREGATION_TIMEOUT_MESSAGE = /aggregation request timed out/i;
 export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 
+const requestLogger = createLogger('Requests');
+
 export const logAggregationSplit = (contextLabel, windowDays, payloadCount) => {
   const label = contextLabel || 'Aggregation';
   const normalizedWindow = Number(windowDays);
@@ -31,7 +34,9 @@ export const logAggregationSplit = (contextLabel, windowDays, payloadCount) => {
     ? `${normalizedWindow}-day`
     : 'unknown-window';
 
-  console.info(`${label} request split into ${normalizedPayloadCount} window(s) at ${windowLabel} scope.`);
+  requestLogger.info(
+    `${label} request split into ${normalizedPayloadCount} window(s) at ${windowLabel} scope.`,
+  );
 };
 
 const createAggregationError = (message, status, body) => {
@@ -419,7 +424,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     const body = responseBody ?? details?.body;
 
     if (status !== undefined || body !== undefined) {
-      console.error('Aggregation response details:', {
+      requestLogger.error('Aggregation response details:', {
         status: status ?? 'unknown status',
         body: body ?? '',
       });
@@ -445,7 +450,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
       return { results: uniqueAppIds.map((appId) => ({ appId })), requestCount };
     }
   } catch (error) {
-    console.error('Aggregation request encountered an error:', error);
+    requestLogger.error('Aggregation request encountered an error:', error);
     logAggregationResponseDetails(error);
     requestCount = Math.max(1, error?.requestCount || requestCount || 1);
 
@@ -610,7 +615,7 @@ export const fetchAggregation = async (
       ? `Aggregation request failed (${statusLabel}): ${detail}`
       : `Aggregation request failed (status ${statusLabel}).`;
 
-    console.error('Aggregation response details:', {
+    requestLogger.error('Aggregation response details:', {
       status: response?.status ?? 'unknown status',
       body: parsedBody ?? rawBody ?? '',
     });

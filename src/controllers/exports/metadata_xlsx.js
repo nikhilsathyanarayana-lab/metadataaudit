@@ -5,6 +5,7 @@ import {
   downloadWorkbook,
   ensurePageDocument,
   ensureWorkbookLibraries,
+  logXlsx,
   openNamingModal,
   sanitizeFileName,
   sanitizeSheetName,
@@ -240,7 +241,7 @@ export const exportMetadataXlsx = async () => {
 
     setStatus('Loading available metadata for export…', { pending: true });
     waitForMetadataFields().catch((error) =>
-      console.error('Metadata fields may not finish loading before export completes.', error),
+      logXlsx('error', 'Metadata fields may not finish loading before export completes.', error),
     );
 
     setStatus('Building XLSX workbook…', { pending: true });
@@ -270,7 +271,7 @@ export const exportMetadataXlsx = async () => {
     await downloadWorkbook(workbook, desiredName || buildDefaultFileName());
     setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
   } catch (error) {
-    console.error('Unable to export metadata XLSX.', error);
+    logXlsx('error', 'Unable to export metadata XLSX.', error);
     setStatus('Unable to export metadata to XLSX. Please try again.', {
       pending: false,
       tone: 'error',

@@ -1,5 +1,9 @@
+import { createLogger } from '../utils/logger.js';
+
 const MANUAL_APP_NAME_STORAGE_KEY = 'manualAppNames';
 let manualAppNameCache = null;
+
+const appNamesLogger = createLogger('AppNames');
 
 // Retrieves stored manual app name overrides from localStorage, caching results for reuse.
 export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => {
@@ -20,7 +24,7 @@ export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => 
     const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
     manualAppNameCache = new Map(entries);
   } catch (error) {
-    console.warn('Unable to access manual app names from storage:', error);
+    appNamesLogger.warn('Unable to access manual app names from storage:', error);
   }
 
   return manualAppNameCache;
@@ -37,7 +41,7 @@ export const persistManualAppNames = (appNameMap, storageKey = MANUAL_APP_NAME_S
   try {
     localStorage.setItem(storageKey, JSON.stringify(serialized));
   } catch (error) {
-    console.warn('Unable to persist manual app names to storage:', error);
+    appNamesLogger.warn('Unable to persist manual app names to storage:', error);
   }
 
   manualAppNameCache = appNameMap;

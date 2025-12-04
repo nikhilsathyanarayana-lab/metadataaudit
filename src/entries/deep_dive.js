@@ -3,6 +3,7 @@ import {
   appSelectionGlobalKey,
   deepDiveGlobalKey,
   metadataFieldGlobalKey,
+  logDeepDive,
 } from '../pages/deepDive/constants.js';
 import {
   exportDeepDiveJson,
@@ -23,7 +24,7 @@ const parseStoredRecords = (key) => {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed?.records) ? parsed.records : parsed;
   } catch (error) {
-    console.error(`Unable to read cached ${key}:`, error);
+    logDeepDive('error', `Unable to read cached ${key}:`, error);
     return null;
   }
 };

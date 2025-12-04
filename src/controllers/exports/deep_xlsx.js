@@ -154,7 +154,7 @@ const getFormatEvaluator = (format, regexPattern) => {
       const regex = new RegExp(regexPattern);
       return (value) => regex.test(String(value));
     } catch (error) {
-      console.warn('Invalid regex pattern encountered for format evaluation', error);
+      logXlsx('warn', 'Invalid regex pattern encountered for format evaluation', error);
       return null;
     }
   }
