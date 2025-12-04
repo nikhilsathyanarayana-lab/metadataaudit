@@ -309,19 +309,38 @@ export const runAggregationWithFallbackWindows = async ({
   aggregateResults,
   fetchImpl = fetch,
   onWindowSplit,
+  maxWindowHint,
+  preferredChunkSize,
 }) => {
   const fallbackWindows = normalizeFallbackWindows(totalWindowDays);
+  const logger = entry?.appId ? createLogger(`Request-${entry.appId}`) : requestLogger;
   const aggregate = typeof aggregateResults === 'function' ? aggregateResults : (collector, response) => {
     collector.push(response);
   };
   let lastError = null;
   let requestCount = 0;
 
-  for (const windowSize of fallbackWindows) {
+  const hintWindow = Number(maxWindowHint);
+  const preferredChunk = Number(preferredChunkSize);
+  const filteredFallbacks = Number.isFinite(hintWindow)
+    ? fallbackWindows.filter((windowSize) => windowSize <= hintWindow)
+    : fallbackWindows;
+  const normalizedFallbacks = filteredFallbacks.length ? filteredFallbacks : fallbackWindows;
+
+  if (fallbackWindows.length !== normalizedFallbacks.length) {
+    logger.info(
+      `Skipping oversized aggregation windows (${fallbackWindows.filter((size) => size > hintWindow).join(', ')}) in favor of ${hintWindow}-day chunks due to prior limits.`,
+    );
+  }
+
+  for (const windowSize of normalizedFallbacks) {
+    const baseWindow = Number(totalWindowDays);
+    const shouldForceChunkedBase =
+      windowSize === baseWindow && Number.isFinite(preferredChunk) && preferredChunk > 0 && preferredChunk < baseWindow;
     const payloads =
-      windowSize === Number(totalWindowDays)
+      windowSize === baseWindow && !shouldForceChunkedBase
         ? [buildBasePayload(windowSize)]
-        : buildChunkedPayloads(windowSize);
+        : buildChunkedPayloads(shouldForceChunkedBase ? preferredChunk : windowSize);
 
     if (!Array.isArray(payloads) || !payloads.length) {
       continue;
@@ -340,7 +359,9 @@ export const runAggregationWithFallbackWindows = async ({
         aggregate(aggregatedResults, response, windowSize);
       }
 
-      return { aggregatedResults, appliedWindow: windowSize, requestCount };
+      const chunkSizeUsed = payloads.length > 1 ? (shouldForceChunkedBase ? preferredChunk : windowSize) : null;
+
+      return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
     } catch (error) {
       lastError = error;
 
