@@ -375,7 +375,6 @@ const buildLookbackIndex = (records) => {
   return {
     index,
     totals,
-    distinctSubs: subIds.size,
     distinctApps: appIds.size,
     subIds: Array.from(subIds.values()),
     datasetTotals,
@@ -386,15 +385,8 @@ const buildLookbackIndex = (records) => {
 const buildWorkbook = (formatSelections, metadataRecords) => {
   const workbook = new window.ExcelJS.Workbook();
   const sheetNames = new Set();
-  const {
-    index,
-    totals,
-    distinctSubs,
-    distinctApps,
-    subIds,
-    datasetTotals,
-    totalDatasets,
-  } = buildLookbackIndex(metadataRecords);
+  const { index, totals, distinctApps, subIds, datasetTotals, totalDatasets } =
+    buildLookbackIndex(metadataRecords);
   const totalDatasetCount = totalDatasets || 0;
   const valueLookup = buildValueLookup();
   const aggregatedRows = [];
@@ -405,7 +397,6 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
 
     return {
       'Sub ID': resolvedSubId,
-      Subs: distinctSubs,
       Apps: distinctApps,
       'Records Scanned': datasetTotals.size > 0 ? datasetsForSub : totalDatasetCount,
     };
