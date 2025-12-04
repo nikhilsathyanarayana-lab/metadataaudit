@@ -340,7 +340,7 @@ export const runAggregationWithFallbackWindows = async ({
     const payloads =
       windowSize === baseWindow && !shouldForceChunkedBase
         ? [buildBasePayload(windowSize)]
-        : buildChunkedPayloads(shouldForceChunkedBase ? preferredChunk : windowSize);
+        : buildChunkedPayloads(windowSize, shouldForceChunkedBase ? preferredChunk : windowSize);
 
     if (!Array.isArray(payloads) || !payloads.length) {
       continue;
@@ -477,7 +477,8 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
       entry,
       totalWindowDays: windowDays,
       buildBasePayload: (totalWindow) => buildAppListingPayload(totalWindow, requestIdPrefix),
-      buildChunkedPayloads: (chunkSize) => buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix),
+      buildChunkedPayloads: (windowDays, chunkSize) =>
+        buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix),
       aggregateResults: (collector, response) => collector.push(...extractAppIds(response)),
       fetchImpl,
       onWindowSplit: (windowSize, payloadCount) =>
