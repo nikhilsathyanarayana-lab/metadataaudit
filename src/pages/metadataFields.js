@@ -666,7 +666,8 @@ const fetchAndPopulate = (
         entry,
         totalWindowDays: windowDays,
         buildBasePayload: (totalWindow) => buildMetadataFieldsForAppPayload(entry.appId, totalWindow),
-        buildChunkedPayloads: (chunkSize) => buildChunkedMetadataFieldPayloads(entry.appId, windowDays, chunkSize),
+        buildChunkedPayloads: (windowSize, chunkSize) =>
+          buildChunkedMetadataFieldPayloads(entry.appId, windowSize, chunkSize),
         aggregateResults: (collector, response) => {
           if (Array.isArray(response?.results)) {
             collector.push(...response.results);
