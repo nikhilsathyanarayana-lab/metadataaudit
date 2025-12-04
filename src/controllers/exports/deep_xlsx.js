@@ -359,7 +359,7 @@ const buildLookbackIndex = (records) => {
   };
 };
 
-const buildWorkbook = (formatSelections, metadataRecords) => {
+const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) => {
   const workbook = new window.ExcelJS.Workbook();
   const sheetNames = new Set();
   const { index, distinctApps, subIds, datasetTotals, totalDatasets } = buildLookbackIndex(
@@ -390,6 +390,12 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
     applyOverviewFormatting,
   );
 
+  const completedAppIds = new Set(
+    deepDiveRecords
+      .filter((record) => record?.status === 'success' && record?.appId)
+      .map((record) => record.appId),
+  );
+
   const groupedSelections = formatSelections.reduce((acc, selection) => {
     if (!selection?.appId) {
       return acc;
@@ -403,6 +409,11 @@ const buildWorkbook = (formatSelections, metadataRecords) => {
   }, new Map());
 
   groupedSelections.forEach((appSelection) => {
+    if (completedAppIds.size > 0 && !completedAppIds.has(appSelection.appId)) {
+      logXlsx('debug', `Skipping worksheet for app ${appSelection.appId} because scan is incomplete.`);
+      return;
+    }
+
     const lookup = index.get(appSelection.appId);
     const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
@@ -476,10 +487,8 @@ export const exportDeepDiveXlsx = async () => {
   logXlsx('info', 'Starting deep-dive XLSX export flow');
   const visitorTable = document.getElementById('visitor-deep-dive-table');
   const accountTable = document.getElementById('account-deep-dive-table');
-  const metadataRecords = dedupeMetadataRecords(
-    loadMetadataRecords(),
-    loadDeepDiveRecords(),
-  );
+  const deepDiveRecords = loadDeepDiveRecords();
+  const metadataRecords = dedupeMetadataRecords(loadMetadataRecords(), deepDiveRecords);
 
   logXlsx('debug', 'Collected metadata records for export', {
     metadataRecords: metadataRecords.length,
@@ -512,7 +521,11 @@ export const exportDeepDiveXlsx = async () => {
     accountSelections: accountSelections.length,
   });
 
-  const workbook = buildWorkbook([...visitorSelections, ...accountSelections], metadataRecords);
+  const workbook = buildWorkbook(
+    [...visitorSelections, ...accountSelections],
+    metadataRecords,
+    deepDiveRecords,
+  );
 
   logXlsx('info', 'Deep-dive workbook assembled; starting download');
 
