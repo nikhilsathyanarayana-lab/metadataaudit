@@ -3,5 +3,5 @@ import { initAppSelection } from '../pages/appSelection.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await bootstrapShared();
-  initAppSelection();
+  await initAppSelection();
 });
