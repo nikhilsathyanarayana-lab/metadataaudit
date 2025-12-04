@@ -257,8 +257,12 @@ const setupProgressTracker = (initialTotalCalls) => {
     updateText();
   };
 
-  const recordResponse = () => {
-    responses += 1;
+  const recordResponse = (count = 1) => {
+    if (!Number.isFinite(count) || count <= 0) {
+      return;
+    }
+
+    responses += count;
     updateText();
   };
 
@@ -594,10 +598,16 @@ const fetchAndPopulate = (
 
   const removePendingForEntry = (entry) => {
     const key = entryKey(entry);
+    let removedCount = 0;
     for (let i = workQueue.length - 1; i >= 0; i -= 1) {
       if (entryKey(workQueue[i].entry) === key) {
         workQueue.splice(i, 1);
+        removedCount += 1;
       }
+    }
+
+    if (removedCount > 0) {
+      recordResponse(removedCount);
     }
   };
 
