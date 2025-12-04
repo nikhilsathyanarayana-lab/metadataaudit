@@ -172,7 +172,8 @@ const getValueStats = (selection, valueLookup) => {
       matchRate: null,
       nullRate: 0,
       needsReview: false,
-      totalValues: 0,
+      uniqueValues: 0,
+      uniqueValueCount: 0,
     };
   }
 
@@ -189,6 +190,7 @@ const getValueStats = (selection, valueLookup) => {
 
   const evaluator = getFormatEvaluator(selection.format, selection.regexPattern);
   let matchRate = null;
+  const uniqueValues = entry.counts.size;
 
   if (evaluator && entry.total) {
     const matches = sortedValues.reduce(
@@ -208,7 +210,8 @@ const getValueStats = (selection, valueLookup) => {
     matchRate,
     nullRate,
     needsReview: mismatchConcern || nullConcern || missingRegex,
-    totalValues: entry.total,
+    uniqueValues,
+    uniqueValueCount: uniqueValues,
   };
 };
 
@@ -430,11 +433,12 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
           'Expected format': selection.format,
           'Regex pattern': selection.regexPattern,
           'Top values': stats.topValues,
+          'Unique values': stats.uniqueValueCount,
           'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
           'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
           'Needs review': stats.needsReview ? 'Yes' : 'No',
         },
-        totalValues: parseCount(stats.totalValues),
+        uniqueValueCount: parseCount(stats.uniqueValueCount),
       });
 
       return {
@@ -444,6 +448,7 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
         'Regex pattern': selection.regexPattern,
         Type: selection.type === 'account' ? 'Account' : 'Visitor',
         'Top values': stats.topValues,
+        'Unique values': stats.uniqueValueCount,
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
         'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
         'Needs review': stats.needsReview ? 'Yes' : 'No',
@@ -459,7 +464,7 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
   });
 
   const fieldAnalysisRows = fieldAnalysisEntries
-    .sort((first, second) => (second.totalValues || 0) - (first.totalValues || 0))
+    .sort((first, second) => (second.uniqueValueCount || 0) - (first.uniqueValueCount || 0))
     .map((entry) => entry.row);
 
   appendWorksheetFromRows(
