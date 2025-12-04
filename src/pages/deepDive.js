@@ -5,6 +5,7 @@ import {
   DEEP_DIVE_CONCURRENCY,
   LOOKBACK_OPTIONS,
   TARGET_LOOKBACK,
+  DEEP_DIVE_REQUEST_SPACING_MS,
   logDeepDive,
 } from './deepDive/constants.js';
 import {
@@ -87,7 +88,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       setApiError?.(
         'No metadata selections found. Run the Metadata Fields page first to capture app details.',
       );
-      setProcessingStatus?.('Processing queue idle.');
+      setProcessingStatus?.('Response queue idle.');
     });
     return;
   }
@@ -135,7 +136,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       completedApiCalls += 1;
       syncApiProgress();
       scheduleDomUpdate(() => {
-        setProcessingStatus?.(`Processing call ${completedProcessingSteps + 1}/${totalApiCalls}.`);
+        setProcessingStatus?.(`Handling response ${completedProcessingSteps + 1}/${totalApiCalls}.`);
       });
 
       const normalizedFields = await collectDeepDiveMetadataFields(
@@ -176,13 +177,13 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       syncProcessingProgress();
 
       const targetSetter = apiCompleted ? setProcessingError : setApiError;
-      const errorTargetLabel = apiCompleted ? 'processing' : 'API';
+      const errorTargetLabel = apiCompleted ? 'response handling' : 'API';
       scheduleDomUpdate(() => {
         targetSetter?.(`Deep dive ${errorTargetLabel} error for app ${entry.appId}: ${detail}`);
       });
 
       if (apiCompleted) {
-        logDeepDive('error', 'Processing deep dive response failed', { appId: entry.appId, error });
+        logDeepDive('error', 'Deep dive response handling failed', { appId: entry.appId, error });
       } else {
         logDeepDive('error', 'Deep dive request failed', { appId: entry.appId, error });
       }
@@ -192,21 +193,23 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     }
   };
 
-  const workerCount = Math.min(Math.max(DEEP_DIVE_CONCURRENCY, 1), totalApiCalls);
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (queue.length) {
-      const entry = queue.shift();
+  const scheduleDeepDiveRequest = (entry, index) =>
+    new Promise((resolve) => {
+      const chunkIndex = Math.floor(index / Math.max(DEEP_DIVE_CONCURRENCY, 1));
+      const delayMs = chunkIndex * DEEP_DIVE_REQUEST_SPACING_MS;
 
-      if (!entry) {
-        continue;
-      }
+      setTimeout(async () => {
+        try {
+          await processEntry(entry);
+        } finally {
+          resolve();
+        }
+      }, delayMs);
+    });
 
-      await processEntry(entry);
-      await yieldToBrowser();
-    }
-  });
+  const scheduledRequests = queue.map((entry, index) => scheduleDeepDiveRequest(entry, index));
 
-  await Promise.all(workers);
+  await Promise.all(scheduledRequests);
 
   if (successCount) {
     scheduleDomUpdate(() => {
