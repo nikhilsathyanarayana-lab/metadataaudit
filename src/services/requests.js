@@ -337,10 +337,11 @@ export const runAggregationWithFallbackWindows = async ({
     const baseWindow = Number(totalWindowDays);
     const shouldForceChunkedBase =
       windowSize === baseWindow && Number.isFinite(preferredChunk) && preferredChunk > 0 && preferredChunk < baseWindow;
+    const chunkSize = shouldForceChunkedBase ? preferredChunk : windowSize;
     const payloads =
       windowSize === baseWindow && !shouldForceChunkedBase
         ? [buildBasePayload(windowSize)]
-        : buildChunkedPayloads(shouldForceChunkedBase ? preferredChunk : windowSize);
+        : buildChunkedPayloads(windowSize, chunkSize);
 
     if (!Array.isArray(payloads) || !payloads.length) {
       continue;
@@ -371,7 +372,7 @@ export const runAggregationWithFallbackWindows = async ({
         .sort((a, b) => a.index - b.index)
         .forEach(({ response }) => aggregate(aggregatedResults, response, windowSize));
 
-      const chunkSizeUsed = payloads.length > 1 ? (shouldForceChunkedBase ? preferredChunk : windowSize) : null;
+      const chunkSizeUsed = payloads.length > 1 ? chunkSize : null;
 
       return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
     } catch (error) {
@@ -477,7 +478,8 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
       entry,
       totalWindowDays: windowDays,
       buildBasePayload: (totalWindow) => buildAppListingPayload(totalWindow, requestIdPrefix),
-      buildChunkedPayloads: (chunkSize) => buildChunkedAppListingPayloads(windowDays, chunkSize, requestIdPrefix),
+      buildChunkedPayloads: (windowSize, chunkSize) =>
+        buildChunkedAppListingPayloads(windowSize, chunkSize, requestIdPrefix),
       aggregateResults: (collector, response) => collector.push(...extractAppIds(response)),
       fetchImpl,
       onWindowSplit: (windowSize, payloadCount) =>
