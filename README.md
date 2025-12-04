@@ -46,6 +46,3 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - XLSX downloads use the open-source ExcelJS build from the CDN so header styling applied in-browser persists in the saved workbook. Keep
   export tooling open-source unless otherwise directed.
 
-## What’s still missing
-- **API request/response examples**: Add JSON samples for payload builders in `src/services/requests.js` (e.g., app listing, metadata field lookups, examples) and the typical success/failure responses returned via `proxy.php`.
-- **Authentication guidance**: Document when to choose integration keys versus `pendo.sess.jwt2` cookies, how cookie masking/validation works in the UI, and expected 401/403 behaviors for direct and proxied requests.
