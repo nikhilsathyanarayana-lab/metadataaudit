@@ -353,11 +353,23 @@ export const runAggregationWithFallbackWindows = async ({
     const aggregatedResults = [];
 
     try {
-      for (const payload of payloads) {
-        requestCount += 1;
-        const response = await postAggregationWithIntegrationKey(entry, payload, fetchImpl);
-        aggregate(aggregatedResults, response, windowSize);
-      }
+      const scheduleAggregationRequest = (payload, index) => new Promise((resolve, reject) => {
+        setTimeout(() => {
+          postAggregationWithIntegrationKey(entry, payload, fetchImpl)
+            .then((response) => resolve({ index, response }))
+            .catch(reject);
+        }, index * 3000);
+      });
+
+      requestCount += payloads.length;
+
+      const responses = await Promise.all(
+        payloads.map((payload, index) => scheduleAggregationRequest(payload, index)),
+      );
+
+      responses
+        .sort((a, b) => a.index - b.index)
+        .forEach(({ response }) => aggregate(aggregatedResults, response, windowSize));
 
       const chunkSizeUsed = payloads.length > 1 ? (shouldForceChunkedBase ? preferredChunk : windowSize) : null;
 
