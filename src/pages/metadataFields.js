@@ -652,7 +652,7 @@ const fetchAndPopulate = (
           }
         },
         onWindowSplit: (windowSize, payloadCount) =>
-          logAggregationSplit('Metadata fields', windowSize, payloadCount),
+          logAggregationSplit('Metadata fields', windowSize, payloadCount, entry?.appId),
       });
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
