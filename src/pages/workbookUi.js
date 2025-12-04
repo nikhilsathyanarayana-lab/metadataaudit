@@ -7,6 +7,9 @@ import {
   fetchAggregation,
 } from '../services/requests.js';
 import { extractAppIds } from '../services/appUtils.js';
+import { createLogger } from '../utils/logger.js';
+
+const workbookLogger = createLogger('WorkbookUI');
 
 export const parseExamples = (response, subId) => {
   const candidateLists = [];
@@ -339,7 +342,7 @@ const summarizeError = (error) => {
     const errorDetails =
       error && typeof error === 'object' && 'details' in error && error.details ? error.details : undefined;
 
-    console.error('Workbook step failure', {
+    workbookLogger.error('Workbook step failure', {
       stepId,
       error,
       errorDetails,
@@ -518,7 +521,7 @@ const summarizeError = (error) => {
       showMessage(`Workbook downloaded as ${workbookLabel}.`, 'info');
       setProgress(`Workbook downloaded as ${workbookLabel}.`);
     } catch (error) {
-      console.error('Workbook run failed:', error);
+      workbookLogger.error('Workbook run failed:', error);
       const message = summarizeError(error);
       lastErrorSummary = lastErrorSummary || message;
       showMessage(message, 'error');

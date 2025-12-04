@@ -7,11 +7,14 @@ import {
 } from '../services/requests.js';
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { extractAppIds } from '../services/appUtils.js';
+import { createLogger } from '../utils/logger.js';
 import {
   applyManualAppNames,
   loadManualAppNames,
   setManualAppName,
 } from '../services/appNames.js';
+
+const metadataLogger = createLogger('MetadataFields');
 
 const LOOKBACK_WINDOWS = [7, 30, 180];
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
@@ -50,7 +53,7 @@ const loadMetadataSnapshot = () => {
       metadataSnapshot.set(key, record);
     });
   } catch (error) {
-    console.error('Unable to load stored metadata fields:', error);
+    metadataLogger.error('Unable to load stored metadata fields:', error);
   }
 
   return metadataSnapshot;
@@ -76,7 +79,7 @@ const logMetadataRequestError = async (error, contextLabel) => {
   const body = responseBody ?? details?.body;
 
   if (status !== undefined || body !== undefined) {
-    console.error(`${contextLabel} response details:`, {
+    metadataLogger.error(`${contextLabel} response details:`, {
       status: status ?? 'unknown status',
       body: body ?? '',
     });
@@ -88,16 +91,16 @@ const logMetadataRequestError = async (error, contextLabel) => {
       const responseText = await error.response.text();
 
       if (responseText) {
-        console.error(`${contextLabel} response body:`, responseText);
+        metadataLogger.error(`${contextLabel} response body:`, responseText);
         return;
       }
     } catch (loggingError) {
-      console.error('Unable to read error response text:', loggingError);
+      metadataLogger.error('Unable to read error response text:', loggingError);
       return;
     }
   }
 
-  console.error(contextLabel, error);
+  metadataLogger.error(contextLabel, error);
 };
 
 const persistMetadataSnapshot = () => {
@@ -192,7 +195,7 @@ const updateAppSelectionMetadataFields = (
 
     localStorage.setItem(storageKey, JSON.stringify(updatedSelections));
   } catch (error) {
-    console.error('Unable to update stored app selections with metadata fields:', error);
+    metadataLogger.error('Unable to update stored app selections with metadata fields:', error);
   }
 };
 
@@ -312,7 +315,7 @@ const parseStoredSelection = () => {
       ? parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey)
       : [];
   } catch (error) {
-    console.error('Unable to parse stored app selection data:', error);
+    metadataLogger.error('Unable to parse stored app selection data:', error);
     return [];
   }
 };

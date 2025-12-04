@@ -1,5 +1,5 @@
 // UI helpers for rendering deep dive tables, headers, and on-page feedback.
-import { LOOKBACK_OPTIONS, TARGET_LOOKBACK } from '../constants.js';
+import { LOOKBACK_OPTIONS, TARGET_LOOKBACK, logDeepDive } from '../constants.js';
 
 export const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -250,7 +250,7 @@ export const showMessage = (region, message, tone = 'info') => {
 };
 
 export const reportDeepDiveError = (message, error, region = null) => {
-  console.error(message, error);
+  logDeepDive('error', message, error);
 
   if (region) {
     showMessage(region, message, 'error');

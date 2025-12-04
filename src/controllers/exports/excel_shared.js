@@ -1,3 +1,5 @@
+import { createLogger } from '../../utils/logger.js';
+
 const XLSX_LIBRARIES = {
   exceljs: 'https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js',
   fileSaver: 'https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js',
@@ -5,17 +7,7 @@ const XLSX_LIBRARIES = {
 
 let workbookLibsPromise;
 
-export const logXlsx = (level, ...messages) => {
-  const normalizedLevel = level === 'error' || level === 'warn' || level === 'debug' ? level : 'info';
-  const logger =
-    normalizedLevel === 'error' && typeof console?.error === 'function'
-      ? console.error
-      : typeof console?.[normalizedLevel] === 'function'
-        ? console[normalizedLevel]
-        : console.log;
-
-  logger('[XLSX Export]', ...messages);
-};
+export const logXlsx = createLogger('XLSX Export').log;
 
 const ensureScript = (key, url) =>
   new Promise((resolve, reject) => {
@@ -203,7 +195,7 @@ const fetchStaticDocument = async (path) => {
     const parser = new DOMParser();
     return parser.parseFromString(html, 'text/html');
   } catch (error) {
-    console.error(`Unable to load ${path} for export`, error);
+    logXlsx('error', `Unable to load ${path} for export`, error);
     return null;
   }
 };

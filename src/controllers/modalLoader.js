@@ -1,3 +1,7 @@
+import { createLogger } from '../utils/logger.js';
+
+const modalLogger = createLogger('ModalLoader');
+
 // Injects an external HTML snippet into the current document body to hydrate shared modals.
 export const loadTemplate = async (templatePath) => {
   try {
@@ -16,6 +20,6 @@ export const loadTemplate = async (templatePath) => {
 
     document.body.appendChild(fragment);
   } catch (error) {
-    console.error(error);
+    modalLogger.error(error);
   }
 };
