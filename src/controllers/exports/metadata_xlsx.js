@@ -132,67 +132,7 @@ const appendTableSheet = (workbook, table, label, sheetNames) => {
   return worksheet;
 };
 
-const normalizePercentage = (numerator, denominator) => {
-  if (!denominator) {
-    return 0;
-  }
-
-  const raw = Math.round((numerator / denominator) * 100);
-  return Math.max(0, Math.min(100, raw));
-};
-
-const buildPieChart = (alignedCount, misalignedCount, title) => {
-  const total = alignedCount + misalignedCount;
-  const canvas = document.createElement('canvas');
-  canvas.width = 340;
-  canvas.height = 220;
-  const context = canvas.getContext('2d');
-
-  if (!context || !total) {
-    return null;
-  }
-
-  const normalizedAligned = Math.max(0, alignedCount);
-  const normalizedMisaligned = Math.max(0, misalignedCount);
-  const startAngle = -Math.PI / 2;
-  const alignedAngle = (normalizedAligned / total) * Math.PI * 2;
-
-  context.fillStyle = '#198754';
-  context.beginPath();
-  context.moveTo(canvas.width / 2, canvas.height / 2);
-  context.arc(canvas.width / 2, canvas.height / 2, 80, startAngle, startAngle + alignedAngle);
-  context.closePath();
-  context.fill();
-
-  context.fillStyle = '#dc3545';
-  context.beginPath();
-  context.moveTo(canvas.width / 2, canvas.height / 2);
-  context.arc(
-    canvas.width / 2,
-    canvas.height / 2,
-    80,
-    startAngle + alignedAngle,
-    startAngle + Math.PI * 2,
-  );
-  context.closePath();
-  context.fill();
-
-  context.fillStyle = '#111827';
-  context.font = '16px Arial';
-  context.textAlign = 'center';
-  context.fillText(title, canvas.width / 2, 30);
-
-  const alignedLabel = `${normalizePercentage(normalizedAligned, total)}% aligned`;
-  const misalignedLabel = `${normalizePercentage(normalizedMisaligned, total)}% misaligned`;
-
-  context.font = '14px Arial';
-  context.fillText(alignedLabel, canvas.width / 2, canvas.height - 50);
-  context.fillText(misalignedLabel, canvas.width / 2, canvas.height - 30);
-
-  return canvas.toDataURL('image/png');
-};
-
-const addAlignmentChart = (workbook, worksheet, stats) => {
+const addAlignmentSummary = (worksheet, stats) => {
   if (!worksheet) {
     return;
   }
@@ -210,18 +150,6 @@ const addAlignmentChart = (workbook, worksheet, stats) => {
 
   worksheet.getCell(2, columnOffset + 1).value = `Aligned: ${alignedCount} of ${totalApps} (${alignedPercentage}%)`;
   worksheet.getCell(3, columnOffset + 1).value = `Misaligned: ${misalignedCount}`;
-
-  const chartDataUrl = buildPieChart(alignedCount, misalignedCount, 'Apps with aligned metadata (7 days)');
-
-  if (!chartDataUrl) {
-    return;
-  }
-
-  const imageId = workbook.addImage({ base64: chartDataUrl.split(',')[1], extension: 'png' });
-  worksheet.addImage(imageId, {
-    tl: { col: columnOffset + 0.5, row: 0.5 },
-    ext: { width: 240, height: 160 },
-  });
 };
 
 // Orchestrates the metadata XLSX export flow from modal prompt to download delivery.
@@ -265,8 +193,8 @@ export const exportMetadataXlsx = async () => {
       windowDays: 7,
     });
 
-    addAlignmentChart(workbook, visitorSheet, visitorAlignment);
-    addAlignmentChart(workbook, accountSheet, accountAlignment);
+    addAlignmentSummary(visitorSheet, visitorAlignment);
+    addAlignmentSummary(accountSheet, accountAlignment);
 
     await downloadWorkbook(workbook, desiredName || buildDefaultFileName());
     setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
