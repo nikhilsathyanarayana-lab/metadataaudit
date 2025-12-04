@@ -23,10 +23,14 @@ import {
   clearDeepDiveCollections,
   collectDeepDiveMetadataFields,
   ensureDeepDiveAccumulatorEntry,
+  getOutstandingMetadataCalls,
   metadata_accounts,
   metadata_api_calls,
   metadata_visitors,
+  markPendingMetadataCallStarted,
   updateMetadataApiCalls,
+  registerPendingMetadataCall,
+  resolvePendingMetadataCall,
   updateMetadataCollections,
 } from './deepDive/aggregation.js';
 import {
@@ -60,6 +64,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
   const queue = entries.slice();
+  queue.forEach(registerPendingMetadataCall);
   const totalApiCalls = queue.length;
   let completedApiCalls = 0;
   let completedProcessingSteps = 0;
@@ -108,6 +113,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     });
 
     await yieldToBrowser();
+    markPendingMetadataCallStarted(entry);
     let payload;
     let response = null;
     let apiCompleted = false;
@@ -151,6 +157,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
       upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
       updateMetadataApiCalls(entry, 'success', '', datasetCount);
+      resolvePendingMetadataCall(entry, 'completed');
       await updateMetadataCollections(response, entry);
       response = null;
       successCount += 1;
@@ -168,6 +175,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
       upsertDeepDiveRecord(entry, normalizedFields, detail, targetLookback);
       updateMetadataApiCalls(entry, 'error', detail);
+      resolvePendingMetadataCall(entry, 'failed', detail);
 
       if (!apiCompleted) {
         completedApiCalls += 1;
@@ -235,6 +243,34 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   }
 };
 
+const exposeDeepDiveDebugCommands = () => {
+  if (typeof window === 'undefined' || window.showPendingDeepDiveRequests) {
+    return;
+  }
+
+  window.showPendingDeepDiveRequests = () => {
+    const outstanding = getOutstandingMetadataCalls();
+
+    if (!outstanding.length) {
+      console.info('No pending deep dive requests.');
+      return [];
+    }
+
+    const summarized = outstanding.map((call) => ({
+      appId: call.appId,
+      subId: call.subId,
+      status: call.status,
+      queuedAt: call.queuedAt,
+      startedAt: call.startedAt,
+    }));
+
+    console.table(summarized);
+    return outstanding;
+  };
+
+  logDeepDive('info', 'Deep dive pending request inspector installed.');
+};
+
 export const initDeepDive = async () => {
   try {
     logDeepDive('info', 'Initializing deep dive experience');
@@ -244,6 +280,8 @@ export const initDeepDive = async () => {
     if (!visitorTableBody || !accountTableBody) {
       return;
     }
+
+    exposeDeepDiveDebugCommands();
 
     const progressHandlers = setupProgressTracker();
     const startButton = document.getElementById('deep-dive-start');
