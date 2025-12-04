@@ -1,10 +1,13 @@
 import { createLogger } from '../utils/logger.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { fetchAppsForEntry } from '../services/requests.js';
+import { loadManualAppNames } from '../services/appNames.js';
+import { setupManualAppNameModal } from './deepDive/ui/modals.js';
+import { buildAppNameCell } from './deepDive/ui/render.js';
 
 const appSelectionLogger = createLogger('AppSelection');
 
-export const initAppSelection = () => {
+export const initAppSelection = async () => {
   const proceedButton = document.getElementById('app-selection-continue');
   const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
   const headerCheckbox = document.getElementById('app-selection-toggle-all');
@@ -16,6 +19,11 @@ export const initAppSelection = () => {
   let isFetching = false;
   let activeRequestToken = 0;
   let headerToggleBound = false;
+  const manualAppNames = loadManualAppNames();
+  const rows = [];
+  const renderedRows = [];
+  const getRenderedRows = () => renderedRows;
+  let openAppNameModal = () => {};
 
   if (!proceedButton || !tableBody) {
     return;
@@ -102,17 +110,19 @@ export const initAppSelection = () => {
     }
 
     const normalizedAppId = normalizeAppId(appId);
+    const manualAppName = manualAppNames.get(normalizedAppId);
 
     cachedResponses = cachedResponses.map((entry) => {
       if (entry.subId !== subId) {
         return entry;
       }
 
+      const previousSelection = entry.selectionState?.[normalizedAppId];
       const selectionState = {
         ...(entry.selectionState || {}),
         [normalizedAppId]: {
           appId: normalizedAppId,
-          appName: entry.selectionState?.[normalizedAppId]?.appName || normalizedAppId,
+          appName: manualAppName || previousSelection?.appName || normalizedAppId,
           selected: isSelected ? 1 : 0,
         },
       };
@@ -121,7 +131,7 @@ export const initAppSelection = () => {
     });
   };
 
-  const buildSelectionState = (responses) =>
+  const buildSelectionState = (responses, manualAppNamesMap = manualAppNames) =>
     responses.map((entry) => {
       const appIds = extractAppIds(entry.response);
       const existingSelection = entry.selectionState || {};
@@ -132,13 +142,34 @@ export const initAppSelection = () => {
         const previous = existingSelection[normalizedAppId];
         selectionState[normalizedAppId] = {
           appId: normalizedAppId,
-          appName: previous?.appName || normalizedAppId,
+          appName: manualAppNamesMap.get(normalizedAppId) || previous?.appName || normalizedAppId,
           selected: previous?.selected === 1 ? 1 : 0,
         };
       });
 
       return { ...entry, selectionState };
     });
+
+  const syncCachedAppName = (appId, appName) => {
+    if (!appId || !appName) {
+      return;
+    }
+
+    const normalizedAppId = normalizeAppId(appId);
+    cachedResponses = cachedResponses.map((entry) => {
+      const selection = entry.selectionState?.[normalizedAppId];
+
+      if (!selection) {
+        return entry;
+      }
+
+      const selectionState = { ...(entry.selectionState || {}) };
+      selectionState[normalizedAppId] = { ...selection, appName };
+      return { ...entry, selectionState };
+    });
+
+    persistResponses(cachedResponses);
+  };
 
   const persistResponses = (responses) => {
     localStorage.setItem(responseStorageKey, JSON.stringify(responses));
@@ -244,24 +275,30 @@ export const initAppSelection = () => {
 
   const populateTableFromResponses = (responses) => {
     tableBody.innerHTML = '';
+    rows.length = 0;
+    renderedRows.length = 0;
 
-    const rows = [];
-
-    responses.forEach(({ subId, response }) => {
+    responses.forEach(({ subId, response, selectionState }) => {
       const appIds = extractAppIds(response);
 
       if (!appIds.length) {
-        rows.push({ subId, appId: 'No apps returned' });
+        rows.push({ subId, appId: 'No apps returned', appName: '' });
         return;
       }
 
-      appIds.forEach((appId) => rows.push({ subId, appId }));
+      appIds.forEach((appId) => {
+        const normalizedAppId = normalizeAppId(appId);
+        const previousSelection = selectionState?.[normalizedAppId];
+        const appName = manualAppNames.get(normalizedAppId) || previousSelection?.appName || '';
+
+        rows.push({ subId, appId: normalizedAppId, appName });
+      });
     });
 
     if (!rows.length) {
       const row = document.createElement('tr');
       const emptyCell = document.createElement('td');
-      emptyCell.colSpan = 3;
+      emptyCell.colSpan = 4;
       emptyCell.textContent = 'No app data available.';
       row.appendChild(emptyCell);
       tableBody.appendChild(row);
@@ -270,31 +307,35 @@ export const initAppSelection = () => {
       return;
     }
 
-    rows.forEach(({ subId, appId }, index) => {
+    rows.forEach((rowData, index) => {
       const row = document.createElement('tr');
 
       const subIdCell = document.createElement('td');
       subIdCell.dataset.label = 'Sub ID';
-      subIdCell.textContent = subId;
+      subIdCell.textContent = rowData.subId;
+
+      const { cell: appNameCell, appNameButton } = buildAppNameCell(rowData, openAppNameModal);
 
       const appIdCell = document.createElement('td');
       appIdCell.dataset.label = 'App ID';
-      appIdCell.textContent = appId;
+      appIdCell.textContent = rowData.appId;
+      appIdCell.title = rowData.appName ? `App name: ${rowData.appName}` : '';
 
       const checkboxCell = document.createElement('td');
       checkboxCell.className = 'checkbox-cell';
-      const checkbox = buildCheckbox(subId, index);
-      checkbox.dataset.appId = appId;
-      checkbox.dataset.subId = subId;
+      const checkbox = buildCheckbox(rowData.subId, index);
+      checkbox.dataset.appId = rowData.appId;
+      checkbox.dataset.subId = rowData.subId;
 
-      const matchingEntry = cachedResponses.find((entry) => entry.subId === subId);
-      const isSelected = matchingEntry?.selectionState?.[normalizeAppId(appId)]?.selected === 1;
+      const matchingEntry = cachedResponses.find((entry) => entry.subId === rowData.subId);
+      const isSelected = matchingEntry?.selectionState?.[rowData.appId]?.selected === 1;
       checkbox.checked = isSelected;
 
       checkboxCell.appendChild(checkbox);
 
-      row.append(subIdCell, appIdCell, checkboxCell);
+      row.append(subIdCell, appNameCell, appIdCell, checkboxCell);
       tableBody.appendChild(row);
+      renderedRows.push({ rowData, appNameButton, appIdCell });
     });
 
     attachCheckboxListeners();
@@ -317,6 +358,10 @@ export const initAppSelection = () => {
       subIdCell.dataset.label = 'Sub ID';
       subIdCell.textContent = subId;
 
+      const appNameCell = document.createElement('td');
+      appNameCell.dataset.label = 'App Name';
+      appNameCell.textContent = 'Loading…';
+
       const loadingCell = document.createElement('td');
       loadingCell.dataset.label = 'App ID';
       loadingCell.textContent = 'Loading apps…';
@@ -325,7 +370,7 @@ export const initAppSelection = () => {
       placeholderCheckboxCell.className = 'checkbox-cell';
       placeholderCheckboxCell.textContent = '—';
 
-      row.append(subIdCell, loadingCell, placeholderCheckboxCell);
+      row.append(subIdCell, appNameCell, loadingCell, placeholderCheckboxCell);
       tableBody.appendChild(row);
     });
 
@@ -404,7 +449,7 @@ export const initAppSelection = () => {
 
       const successfulResponses = responses.filter(({ response }) => Boolean(response));
 
-      cachedResponses = buildSelectionState(successfulResponses);
+      cachedResponses = buildSelectionState(successfulResponses, manualAppNames);
 
       if (cachedResponses.length) {
         persistResponses(cachedResponses);
@@ -436,13 +481,20 @@ export const initAppSelection = () => {
         }
       }
 
-      populateTableFromResponses(successfulResponses);
+      populateTableFromResponses(cachedResponses);
     } finally {
       if (isActiveRequest()) {
         isFetching = false;
       }
     }
   };
+
+  openAppNameModal = await setupManualAppNameModal(
+    manualAppNames,
+    rows,
+    getRenderedRows,
+    syncCachedAppName,
+  );
 
   proceedButton.addEventListener('click', () => {
     const selectedRows = Array.from(getBodyCheckboxes()).filter((box) => box.checked);
@@ -468,13 +520,17 @@ export const initAppSelection = () => {
       const sourceEntry = cachedResponses.find((entry) => entry.subId === subId);
       const filteredResponse = filterResponseByAppIds(sourceEntry?.response, new Set([appId]));
       const normalizedAppId = normalizeAppId(appId);
+      const appName =
+        manualAppNames.get(normalizedAppId) ||
+        sourceEntry.selectionState?.[normalizedAppId]?.appName ||
+        normalizedAppId;
 
       if (sourceEntry && filteredResponse) {
         const updatedSelectionState = {
           ...(sourceEntry.selectionState || {}),
           [normalizedAppId]: {
             appId: normalizedAppId,
-            appName: sourceEntry.selectionState?.[normalizedAppId]?.appName || normalizedAppId,
+            appName,
             selected: 1,
           },
         };
