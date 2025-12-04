@@ -24,6 +24,26 @@ const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
 let metadataFieldsReadyPromise = Promise.resolve();
 let metadataSnapshot = new Map();
+const aggregationHintsByApp = new Map();
+
+const getAggregationHint = (appId) => aggregationHintsByApp.get(appId) || {};
+
+const updateAggregationHint = (appId, windowDays, chunkSizeUsed) => {
+  if (!appId || !Number.isFinite(windowDays)) {
+    return;
+  }
+
+  const existing = aggregationHintsByApp.get(appId) || {};
+  const preferredChunkSize =
+    Number.isFinite(chunkSizeUsed) && chunkSizeUsed > 0
+      ? chunkSizeUsed
+      : existing.preferredChunkSize;
+
+  aggregationHintsByApp.set(appId, {
+    maxWindowDays: Math.max(existing.maxWindowDays || 0, windowDays),
+    preferredChunkSize,
+  });
+};
 
 const buildMetadataRecordKey = (appId, windowDays) => `${appId}::${windowDays}`;
 
@@ -629,6 +649,17 @@ const fetchAndPopulate = (
 
     let clientErrorWithoutRecovery = false;
     let requestSummary = { requestCount: 1 };
+    const { maxWindowDays, preferredChunkSize } = getAggregationHint(entry.appId);
+    const startingWindowHint = Number.isFinite(preferredChunkSize)
+      ? preferredChunkSize
+      : maxWindowDays;
+    const shouldSkipLargeWindow = Number.isFinite(startingWindowHint) && startingWindowHint < windowDays;
+
+    if (shouldSkipLargeWindow) {
+      metadataLogger.info(
+        `Using prior aggregation window ${startingWindowHint}d for app ${entry.appId}; skipping ${windowDays}d base request due to earlier size/timeout limits.`,
+      );
+    }
 
     try {
       requestSummary = await runAggregationWithFallbackWindows({
@@ -653,6 +684,8 @@ const fetchAndPopulate = (
         },
         onWindowSplit: (windowSize, payloadCount) =>
           logAggregationSplit('Metadata fields', windowSize, payloadCount, entry?.appId),
+        maxWindowHint: shouldSkipLargeWindow ? startingWindowHint : undefined,
+        preferredChunkSize,
       });
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
@@ -666,6 +699,7 @@ const fetchAndPopulate = (
 
       updateMetadataSnapshotEntry(entry, windowDays, visitorFields, accountFields, manualAppNames);
       updateAppSelectionMetadataFields(entry.appId, windowDays, visitorFields, accountFields);
+      updateAggregationHint(entry.appId, windowDays, requestSummary?.chunkSizeUsed);
 
       visitorCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
       accountCells[windowDays].classList.remove(OVER_LIMIT_CLASS);
