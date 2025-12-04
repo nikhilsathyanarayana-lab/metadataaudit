@@ -5,6 +5,7 @@ import { dedupeAndSortFields, yieldToBrowser } from './dataHelpers.js';
 export const metadata_visitors = [];
 export const metadata_accounts = [];
 export const metadata_api_calls = [];
+export const metadata_pending_api_calls = [];
 const metadataVisitorAggregation = new Map();
 const metadataAccountAggregation = new Map();
 
@@ -12,12 +13,14 @@ if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
   window.metadata_accounts = metadata_accounts;
   window.metadata_api_calls = metadata_api_calls;
+  window.metadata_pending_api_calls = metadata_pending_api_calls;
 }
 
 export const clearDeepDiveCollections = () => {
   metadata_visitors.splice(0, metadata_visitors.length);
   metadata_accounts.splice(0, metadata_accounts.length);
   metadata_api_calls.splice(0, metadata_api_calls.length);
+  metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
   metadataVisitorAggregation.clear();
   metadataAccountAggregation.clear();
 };
@@ -93,6 +96,69 @@ export const processDeepDiveResponseItems = async (response, onItem) => {
     }
   }
 };
+
+const findPendingCallIndex = (appId) =>
+  metadata_pending_api_calls.findIndex((entry) => entry?.appId === appId);
+
+const upsertPendingCall = (entry, overrides = {}) => {
+  if (!entry?.appId) {
+    return null;
+  }
+
+  const nextRecord = {
+    appId: entry.appId,
+    subId: entry.subId || '',
+    status: 'queued',
+    queuedAt: new Date().toISOString(),
+    startedAt: '',
+    completedAt: '',
+    error: '',
+    ...overrides,
+  };
+
+  const existingIndex = findPendingCallIndex(entry.appId);
+
+  if (existingIndex === -1) {
+    metadata_pending_api_calls.push(nextRecord);
+    return nextRecord;
+  }
+
+  metadata_pending_api_calls[existingIndex] = {
+    ...metadata_pending_api_calls[existingIndex],
+    ...nextRecord,
+  };
+
+  return metadata_pending_api_calls[existingIndex];
+};
+
+export const registerPendingMetadataCall = (entry) => upsertPendingCall(entry);
+
+export const markPendingMetadataCallStarted = (entry) =>
+  upsertPendingCall(entry, { status: 'in-flight', startedAt: new Date().toISOString() });
+
+export const resolvePendingMetadataCall = (entry, status = 'completed', error = '') => {
+  if (!entry?.appId) {
+    return null;
+  }
+
+  const existingIndex = findPendingCallIndex(entry.appId);
+
+  if (existingIndex === -1) {
+    return null;
+  }
+
+  metadata_pending_api_calls[existingIndex] = {
+    ...metadata_pending_api_calls[existingIndex],
+    status: status || 'completed',
+    error: error || '',
+    completedAt: new Date().toISOString(),
+  };
+
+  return metadata_pending_api_calls[existingIndex];
+};
+
+export const getOutstandingMetadataCalls = () =>
+  metadata_pending_api_calls.filter((call) => call?.status === 'queued' || call?.status === 'in-flight');
 
 export const updateMetadataApiCalls = (entry, status, error = '', datasetCount = 0) => {
   if (!entry?.appId) {
