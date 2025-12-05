@@ -3,6 +3,7 @@ import {
   appSelectionGlobalKey,
   deepDiveGlobalKey,
   metadataFieldGlobalKey,
+  LOOKBACK_OPTIONS,
   TARGET_LOOKBACK,
 } from './constants.js';
 import { extractAppIds } from '../../services/appUtils.js';
@@ -53,10 +54,11 @@ const normalizeSelectionMetadata = (metadataFields) => {
   }, {});
 };
 
-const extractMetadataFieldsForApp = (metadataFields, appId) => {
+const extractMetadataFieldsForApp = (metadataFields, appId, lookback = TARGET_LOOKBACK) => {
   const fields = metadataFields?.[appId];
+  const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
 
-  if (!fields || fields.windowDays !== TARGET_LOOKBACK) {
+  if (!fields || fields.windowDays !== targetLookback) {
     return { visitorFields: [], accountFields: [] };
   }
 
@@ -97,7 +99,7 @@ export const getGlobalCollection = (key) => {
   return [];
 };
 
-export const loadAppSelections = () => {
+export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   const selections = normalizeAppSelections(getGlobalCollection(appSelectionGlobalKey));
 
   return selections.flatMap((entry) => {
@@ -112,7 +114,7 @@ export const loadAppSelections = () => {
       appId,
       domain: entry.domain,
       integrationKey: entry.integrationKey,
-      ...extractMetadataFieldsForApp(entry.metadataFields, appId),
+      ...extractMetadataFieldsForApp(entry.metadataFields, appId, lookback),
     }));
   });
 };
@@ -239,10 +241,11 @@ export const syncMetadataRecordsAppName = (appId, appName, metadataRecords) => {
 };
 
 export const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) => {
+  const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const grouped = new Map();
 
   records.forEach((record) => {
-    if (record.windowDays !== targetLookback) {
+    if (record.windowDays !== lookback) {
       return;
     }
 
@@ -279,7 +282,7 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
     return groupedRecords;
   }
 
-  const selections = loadAppSelections();
+  const selections = loadAppSelections(lookback);
   return selections.map((entry) => ({
     appId: entry.appId,
     subId: entry.subId,
@@ -290,10 +293,11 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
 };
 
 export const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
+  const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const mapped = new Map();
 
   records
-    .filter((record) => record.windowDays === targetLookback)
+    .filter((record) => record.windowDays === lookback)
     .forEach((record) => {
       if (!record?.appId || !record?.domain || !record?.integrationKey) {
         return;
