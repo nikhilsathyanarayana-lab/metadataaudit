@@ -139,6 +139,9 @@ const upsertPendingCall = (entry, overrides = {}) => {
 
 export const registerPendingMetadataCall = (entry) => upsertPendingCall(entry);
 
+export const updatePendingMetadataCallRequestCount = (entry, requestCount = 1) =>
+  upsertPendingCall(entry, { requestCount: normalizeRequestCount(requestCount) });
+
 export const markPendingMetadataCallStarted = (entry) =>
   upsertPendingCall(entry, { status: 'in-flight', startedAt: new Date().toISOString() });
 
@@ -227,7 +230,7 @@ export const collectDeepDiveMetadataFields = async (response, accumulator, entry
     datasetCount += 1;
   });
 
-  target.datasetCount = datasetCount;
+  target.datasetCount = (target.datasetCount || 0) + datasetCount;
 
   return target;
 };

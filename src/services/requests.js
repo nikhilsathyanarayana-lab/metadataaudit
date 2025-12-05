@@ -128,6 +128,38 @@ export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
   },
 });
 
+export const buildChunkedMetaEventsPayloads = (appId, windowDays, chunkSize = 30) => {
+  const normalizedWindow = Number(windowDays);
+
+  if (!appId || !normalizedWindow || chunkSize <= 0) {
+    return [];
+  }
+
+  const payloads = [];
+  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
+
+  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
+    const startOffset = (chunkIndex - 1) * chunkSize;
+    const remaining = normalizedWindow - startOffset;
+    const chunkDays = Math.min(chunkSize, remaining);
+    const first = `dateAdd(now(), -${startOffset}, "days")`;
+    const payload = buildMetaEventsPayload(appId, chunkDays);
+    const timeSeries = payload?.request?.pipeline?.[0]?.source?.timeSeries;
+
+    if (timeSeries) {
+      timeSeries.first = first;
+      timeSeries.count = -chunkDays;
+      timeSeries.period = 'dayRange';
+    }
+
+    payload.request.requestId = `${payload.request.requestId || payload.request.name || 'meta-events'}-chunk-${chunkIndex}`;
+
+    payloads.push(payload);
+  }
+
+  return payloads;
+};
+
 export const buildCookieHeaderValue = (rawCookie) => {
   const trimmed = rawCookie.trim();
 
@@ -680,6 +712,7 @@ export const fetchAggregation = async (
 export default {
   buildAggregationUrl,
   buildChunkedAppListingPayloads,
+  buildChunkedMetaEventsPayloads,
   buildMetadataFieldsForAppPayload,
   buildAppListingPayload,
   buildMetaEventsPayload,
