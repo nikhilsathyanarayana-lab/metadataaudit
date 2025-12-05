@@ -171,20 +171,23 @@ export const setupLookbackControls = (onChange, initialLookback = TARGET_LOOKBAC
   const applyState = (nextLookback) => {
     buttons.forEach((button) => {
       const buttonLookback = Number.parseInt(button.dataset.lookback, 10);
-      const isUnavailable = button.hasAttribute('data-unavailable');
+      const isUnavailable = !LOOKBACK_OPTIONS.includes(buttonLookback);
       const isActive = buttonLookback === nextLookback;
 
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', String(isActive));
 
+      button.classList.toggle('is-disabled', isUnavailable);
+      button.toggleAttribute('data-unavailable', isUnavailable);
+
       if (isUnavailable) {
-        button.classList.add('is-disabled');
         button.disabled = true;
         button.setAttribute('aria-disabled', 'true');
         return;
       }
 
       button.disabled = isActive;
+      button.removeAttribute('aria-disabled');
     });
   };
 
