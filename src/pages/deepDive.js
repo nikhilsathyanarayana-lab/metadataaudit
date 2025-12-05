@@ -1,5 +1,5 @@
 // Orchestrates the deep dive experience by connecting data helpers, aggregation, and UI flows.
-import { buildMetaEventsPayload, postAggregationWithIntegrationKey } from '../services/requests.js';
+import { buildChunkedMetaEventsPayloads, buildMetaEventsPayload, runAggregationWithFallbackWindows } from '../services/requests.js';
 import { applyManualAppNames, loadManualAppNames } from '../services/appNames.js';
 import {
   DEEP_DIVE_CONCURRENCY,
@@ -33,6 +33,7 @@ import {
   resolvePendingMetadataCall,
   summarizePendingMetadataCallProgress,
   updateMetadataCollections,
+  updatePendingMetadataCallRequestCount,
 } from './deepDive/aggregation.js';
 import {
   installDeepDiveGlobalErrorHandlers,
@@ -130,28 +131,39 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
     await yieldToBrowser();
     markPendingMetadataCallStarted(entry);
-    let payload;
-    let response = null;
+    let requestSummary = { requestCount: 1 };
     let apiCompleted = false;
     try {
-      payload = buildMetaEventsPayload(entry.appId, targetLookback);
-      logDeepDive('info', 'Built metadata events payload', {
-        appId: entry.appId,
-        subId: entry.subId,
-        targetLookback,
-        payload,
+      const onWindowSplit = (windowSize, payloadCount) => {
+        logDeepDive('info', 'Splitting deep dive request into smaller windows', {
+          appId: entry.appId,
+          windowSize,
+          payloadCount,
+        });
+        updatePendingMetadataCallRequestCount(entry, payloadCount);
+        syncApiProgress();
+        scheduleDomUpdate(() => {
+          setApiStatus?.(
+            `Splitting ${windowSize}-day deep dive into ${payloadCount} request${payloadCount === 1 ? '' : 's'}…`,
+          );
+        });
+      };
+
+      requestSummary = await runAggregationWithFallbackWindows({
+        entry,
+        totalWindowDays: targetLookback,
+        buildBasePayload: (windowSize) => buildMetaEventsPayload(entry.appId, windowSize),
+        buildChunkedPayloads: (windowSize, chunkSize) =>
+          buildChunkedMetaEventsPayloads(entry.appId, windowSize, chunkSize),
+        aggregateResults: (collector, response) => collector.push(response),
+        onWindowSplit,
       });
 
-      logDeepDive('info', 'Dispatching deep dive request', {
-        appId: entry.appId,
-        subId: entry.subId,
-        integrationKey: entry.integrationKey,
-      });
+      updatePendingMetadataCallRequestCount(entry, requestSummary?.requestCount || 1);
+      syncApiProgress();
 
-      response = await postAggregationWithIntegrationKey(entry, payload);
-
-      if (!response || typeof response !== 'object') {
-        throw new Error('Aggregation response was empty or malformed.');
+      if (!Array.isArray(requestSummary?.aggregatedResults)) {
+        throw requestSummary?.lastError || new Error('Aggregation response was empty or malformed.');
       }
 
       apiCompleted = true;
@@ -162,21 +174,22 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         );
       });
 
-      const normalizedFields = await collectDeepDiveMetadataFields(
-        response,
-        deepDiveAccumulator,
-        entry,
-      );
+      let normalizedFields = null;
+      let datasetCount = 0;
 
-      const datasetCount = Number.isFinite(normalizedFields?.datasetCount)
-        ? normalizedFields.datasetCount
-        : 0;
+      for (const response of requestSummary.aggregatedResults) {
+        normalizedFields = await collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
+        datasetCount = Number.isFinite(normalizedFields?.datasetCount)
+          ? normalizedFields.datasetCount
+          : datasetCount;
+      }
 
       upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
       updateMetadataApiCalls(entry, 'success', '', datasetCount);
       resolvePendingMetadataCall(entry, 'completed');
-      await updateMetadataCollections(response, entry);
-      response = null;
+      for (const response of requestSummary.aggregatedResults) {
+        await updateMetadataCollections(response, entry);
+      }
       successCount += 1;
       completedProcessingSteps += 1;
       syncProcessingProgress();
@@ -184,6 +197,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         scheduleDomUpdate(() => onSuccessfulCall());
       }
     } catch (error) {
+      updatePendingMetadataCallRequestCount(entry, requestSummary?.requestCount || 1);
+      syncApiProgress();
       const timedOut = error?.name === 'AbortError' || /timed out/i.test(error?.message || '');
       const detail = timedOut
         ? 'Deep dive request timed out after 60 seconds.'
@@ -212,8 +227,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         logDeepDive('error', 'Deep dive request failed', { appId: entry.appId, error });
       }
     } finally {
-      payload = null;
-      response = null;
+      requestSummary = null;
     }
   };
 
