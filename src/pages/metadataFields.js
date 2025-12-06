@@ -253,13 +253,13 @@ const setupProgressTracker = (initialTotalCalls) => {
     }
 
     if (!totalCalls) {
-      progressText.textContent = 'No API calls to make.';
+      progressText.textContent = 'No API requests queued.';
       return;
     }
 
     const boundedSent = Math.min(sentCalls, totalCalls);
     const boundedResponses = Math.min(responses, totalCalls);
-    progressText.textContent = `API calls: sent ${boundedSent} / responses ${boundedResponses} of ${totalCalls}`;
+    progressText.textContent = `API request windows: sent ${boundedSent} / responses ${boundedResponses} of ${totalCalls}`;
   };
 
   const addCalls = (additionalCalls) => {
