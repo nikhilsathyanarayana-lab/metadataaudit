@@ -19,6 +19,19 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   3. Open `http://localhost:8000/index.html` for Integration API testing or `http://localhost:8000/cookie_method.html` for the cookie workbook.
 - **Auth inputs**: Provide either an integration key with read access or a `pendo.sess.jwt2` cookie (only needed for the cookie flow). Use any modern browser that supports the Fetch API.
 
+## Local storage and cached state
+- **SubID launch data (`subidLaunchData`)**: `initSubIdForm()` serializes each SubID + domain + integration key row before redirecting to app selection so users can refresh or navigate without losing entries. Empty rows are pruned on save to keep the cache small.
+- **App selection responses (`appSelectionResponses`)**: `initAppSelection()` hydrates previously cached SubIDs, populates app lists, and persists the full integration responses so downstream pages can render without refetching. Seven-day metadata previews are merged into this cache when available to keep Deep Dive defaults aligned.
+- **Manual app names (`manualAppNames`)**: The app name modal on `metadata_fields.html` writes overrides through `appNames.js`, updating both in-memory caches and previously saved metadata rows so exports reflect the chosen labels even after refreshes.
+- **Metadata field records (`metadataFieldRecords`, version 1)**: `metadata_fields.html` stores normalized visitor/account metadata for each app and lookback window. The snapshot is versioned and includes the integration key and domain used so stale entries can be discarded safely.
+- **Deep Dive aggregates (`deepDiveMetaEvents`)**: `deep_dive.html` reuses the metadata selections and cached Deep Dive results exposed via `window.deepDiveData` to avoid redundant scans. Use the console helper `window.deepDiveData` to confirm what is currently cached before clearing `localStorage`.
+
+## API call queues and progress bars
+- **Metadata fields progress text**: `setupProgressTracker()` on `metadata_fields.html` counts dispatched vs. completed Engage aggregation calls. Payload splits (for oversized datasets) increment the total call count so the progress text reflects the additional requests.
+- **Deep Dive queueing**: `runDeepDiveScan()` registers every pending metadata request before dispatch and updates `metadata_pending_api_calls` as windows are split, started, and resolved. Progress indicators pull from these pending call summaries, ensuring the UI stays in sync even if retries or splits change the total request volume mid-run.
+- **Request pacing**: Deep Dive requests run with a concurrency of two and staggered 3-second delays per concurrency bucket to reduce API pressure. The spacing is calculated from the request index so batches stay predictable regardless of list size.
+- **Developer diagnostics**: `window.showPendingDeepDiveRequests()` surfaces queued or in-flight Deep Dive calls in a console table, while `window.metadata_api_calls` lists completion/error records for each request. Use these helpers to correlate UI progress bars with actual network activity when debugging.
+
 ## Integration API workflow
 1. **index.html**
    - `bootstrapShared()` injects shared modal templates.
