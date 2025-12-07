@@ -16,7 +16,7 @@ import { initNavigation } from '../pages/navigation.js';
 
 const parseStoredRecords = (key) => {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = sessionStorage.getItem(key);
 
     if (!raw) {
       return null;

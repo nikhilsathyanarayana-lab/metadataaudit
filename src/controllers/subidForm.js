@@ -121,7 +121,7 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
 
 const clearStoredRunData = () => {
   ['subidLaunchData', 'appSelectionResponses', 'metadataFieldRecords'].forEach((key) =>
-    localStorage.removeItem(key),
+    sessionStorage.removeItem(key),
   );
 };
 
@@ -302,9 +302,9 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
 
 export const persistSubIdLaunchData = (serializedRows) => {
   if (serializedRows.length > 0) {
-    localStorage.setItem(storageKey, JSON.stringify(serializedRows));
+    sessionStorage.setItem(storageKey, JSON.stringify(serializedRows));
   } else {
-    localStorage.removeItem(storageKey);
+    sessionStorage.removeItem(storageKey);
   }
 };
 

@@ -35,7 +35,7 @@ export const initAppSelection = async () => {
 
   const resetCachedResponses = () => {
     cachedResponses = [];
-    localStorage.removeItem(responseStorageKey);
+    sessionStorage.removeItem(responseStorageKey);
   };
 
   const showError = (message) => {
@@ -74,7 +74,7 @@ export const initAppSelection = async () => {
 
   const parseStoredLaunchData = () => {
     try {
-      const raw = localStorage.getItem(storageKey);
+      const raw = sessionStorage.getItem(storageKey);
       if (!raw) {
         return [];
       }
@@ -172,7 +172,7 @@ export const initAppSelection = async () => {
   };
 
   const persistResponses = (responses) => {
-    localStorage.setItem(responseStorageKey, JSON.stringify(responses));
+    sessionStorage.setItem(responseStorageKey, JSON.stringify(responses));
   };
 
   const filterResponseList = (list, allowedAppIds) => {
@@ -454,7 +454,7 @@ export const initAppSelection = async () => {
       if (cachedResponses.length) {
         persistResponses(cachedResponses);
       } else {
-        localStorage.removeItem(responseStorageKey);
+        sessionStorage.removeItem(responseStorageKey);
       }
 
       if (!isActiveRequest()) {

@@ -50,7 +50,7 @@ const loadMetadataSnapshot = () => {
   metadataSnapshot = new Map();
 
   try {
-    const raw = localStorage.getItem(metadataFieldStorageKey);
+    const raw = sessionStorage.getItem(metadataFieldStorageKey);
 
     if (!raw) {
       return metadataSnapshot;
@@ -129,7 +129,7 @@ const persistMetadataSnapshot = () => {
     records: Array.from(metadataSnapshot.values()),
   };
 
-  localStorage.setItem(metadataFieldStorageKey, JSON.stringify(serialized));
+  sessionStorage.setItem(metadataFieldStorageKey, JSON.stringify(serialized));
 };
 
 const updateMetadataSnapshotEntry = (
@@ -171,7 +171,7 @@ const updateAppSelectionMetadataFields = (
   }
 
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = sessionStorage.getItem(storageKey);
 
     if (!raw) {
       return;
@@ -212,7 +212,7 @@ const updateAppSelectionMetadataFields = (
       };
     });
 
-    localStorage.setItem(storageKey, JSON.stringify(updatedSelections));
+    sessionStorage.setItem(storageKey, JSON.stringify(updatedSelections));
   } catch (error) {
     metadataLogger.error('Unable to update stored app selections with metadata fields:', error);
   }
@@ -324,7 +324,7 @@ const showMessage = (region, message, tone = 'info') => {
 
 const parseStoredSelection = () => {
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = sessionStorage.getItem(storageKey);
     if (!raw) {
       return [];
     }
