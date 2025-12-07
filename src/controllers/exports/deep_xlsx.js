@@ -413,10 +413,10 @@ const buildWorkbook = (
     applyOverviewFormatting,
   );
 
-  const completedAppIds = new Set(
+  const statusByApp = new Map(
     deepDiveRecords
-      .filter((record) => record?.status === 'success' && record?.appId)
-      .map((record) => record.appId),
+      .filter((record) => record?.appId)
+      .map((record) => [record.appId, { status: record.status || 'unknown', error: record.error || '' }]),
   );
 
   const groupedSelections = formatSelections.reduce((acc, selection) => {
@@ -435,19 +435,55 @@ const buildWorkbook = (
     logXlsx('error', 'No grouped format selections found; no app worksheets will be generated.');
   }
 
-  let skippedAppCount = 0;
+  const hasValueDataForApp = (appId) => {
+    if (!appId) {
+      return false;
+    }
+
+    for (const [key, entry] of valueLookup.entries()) {
+      if (key.split(':')[1] === appId && (entry?.total || entry?.counts?.size)) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const describeCompleteness = (appId) => {
+    const status = statusByApp.get(appId);
+    const hasValues = hasValueDataForApp(appId);
+
+    if (status?.status === 'success' && hasValues) {
+      return { label: 'Complete', hasValues };
+    }
+
+    if (status?.status === 'success' && !hasValues) {
+      return { label: 'Complete - no values captured', hasValues };
+    }
+
+    if (hasValues) {
+      return { label: 'Partial - values captured without successful scan', hasValues };
+    }
+
+    return { label: 'Incomplete - no values captured', hasValues };
+  };
+
+  const incompleteApps = [];
   groupedSelections.forEach((appSelection) => {
     const lookup = index.get(appSelection.appId);
     const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
 
-    if (completedAppIds.size > 0 && !completedAppIds.has(appSelection.appId)) {
-      logXlsx(
-        'error',
-        `Skipping worksheet for app ${appSelection.appId} (subId: ${subId || 'N/A'}) because scan is incomplete.`,
-      );
-      skippedAppCount += 1;
-      return;
+    const completeness = describeCompleteness(appSelection.appId);
+    if (completeness.label !== 'Complete') {
+      incompleteApps.push({
+        appId: appSelection.appId,
+        appName,
+        subId,
+        label: completeness.label,
+        hasValues: completeness.hasValues,
+        status: statusByApp.get(appSelection.appId) || null,
+      });
     }
 
     const rows = appSelection.rows.map((selection) => {
@@ -461,6 +497,7 @@ const buildWorkbook = (
           'Metadata field': selection.fieldName,
           'Expected format': selection.format,
           'Regex pattern': selection.regexPattern,
+          'Data completeness': completeness.label,
           'Top values': stats.topValues,
           'Unique values': stats.uniqueValueCount,
           'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
@@ -476,6 +513,7 @@ const buildWorkbook = (
         'Expected format': selection.format,
         'Regex pattern': selection.regexPattern,
         Type: selection.type === 'account' ? 'Account' : 'Visitor',
+        'Data completeness': completeness.label,
         'Top values': stats.topValues,
         'Unique values': stats.uniqueValueCount,
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
@@ -491,12 +529,6 @@ const buildWorkbook = (
       sheetLabel,
     });
   });
-
-  if (skippedAppCount > 0) {
-    const message = `${skippedAppCount} app worksheet(s) skipped because the deep-dive scan did not complete.`;
-    logXlsx('error', message);
-    throw new Error(message);
-  }
 
   const fieldAnalysisRows = fieldAnalysisEntries
     .sort((first, second) => (second.uniqueValueCount || 0) - (first.uniqueValueCount || 0))
@@ -520,7 +552,7 @@ const buildWorkbook = (
     );
   });
 
-  return workbook;
+  return { workbook, incompleteApps };
 };
 
 export const exportDeepDiveXlsx = async () => {
@@ -563,9 +595,9 @@ export const exportDeepDiveXlsx = async () => {
     accountSelections: accountSelections.length,
   });
 
-  let workbook;
+  let workbookResult;
   try {
-    workbook = buildWorkbook(
+    workbookResult = buildWorkbook(
       [...visitorSelections, ...accountSelections],
       metadataRecords,
       deepDiveRecords,
@@ -574,6 +606,36 @@ export const exportDeepDiveXlsx = async () => {
   } catch (error) {
     reportDeepDiveError('Unable to build deep-dive workbook', error);
     return;
+  }
+
+  const { workbook, incompleteApps = [] } = workbookResult || {};
+
+  if (!workbook) {
+    reportDeepDiveError('Deep-dive workbook could not be created. Please try again.', null);
+    return;
+  }
+
+  if (incompleteApps.length > 0) {
+    const incompleteSummary = incompleteApps
+      .map((app) => {
+        const name = app.appName || app.appId || 'Unknown app';
+        const valueNote = app.hasValues ? 'values present' : 'no values captured';
+        const statusNote = app.status?.status ? `status: ${app.status.status}` : 'status unknown';
+        const errorNote = app.status?.error ? `error: ${app.status.error}` : null;
+        return [name, `(subId: ${app.subId || 'N/A'})`, app.label, statusNote, valueNote, errorNote]
+          .filter(Boolean)
+          .join(' - ');
+      })
+      .join('; ');
+
+    const message = `Some apps did not complete scanning but were included in the export: ${incompleteSummary}`;
+    logXlsx('warn', message, { incompleteApps });
+
+    const processingProgressText = document.getElementById('deep-dive-processing-progress');
+    if (processingProgressText) {
+      processingProgressText.textContent = message;
+      processingProgressText.setAttribute('role', 'alert');
+    }
   }
 
   logXlsx('info', 'Deep-dive workbook assembled; starting download');
