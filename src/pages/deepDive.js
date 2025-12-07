@@ -446,6 +446,19 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   completedApiCalls = Math.max(completedApiCalls, resolvedCalls);
   totalApiCalls = Math.max(totalApiCalls, finalTotal);
 
+  const completionLabel = outstandingAfter.length
+    ? `Deep dive finished with ${outstandingAfter.length} outstanding request${
+        outstandingAfter.length === 1 ? '' : 's'
+      }.`
+    : 'Deep dive complete.';
+
+  scheduleDomUpdate(() => {
+    updateApiProgress?.(completedApiCalls, totalApiCalls);
+    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+    setApiStatus?.(completionLabel);
+    setProcessingStatus?.(completionLabel);
+  });
+
   logDeepDive('info', 'Deep dive scan completed', {
     completedCalls: completedApiCalls,
     successCount,
