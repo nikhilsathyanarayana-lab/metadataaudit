@@ -587,6 +587,15 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const failedApiCalls = metadata_api_calls.filter((call) => call?.status !== 'success');
   if (failedApiCalls.length) {
+    const failedMessage = `${failedApiCalls.length} deep dive request${
+      failedApiCalls.length === 1 ? '' : 's'
+    } failed; rerun the scan to avoid incomplete exports.`;
+
+    scheduleDomUpdate(() => {
+      setApiError?.(failedMessage);
+      setProcessingError?.(failedMessage);
+    });
+
     logDeepDive('warn', 'Deep dive recorded failed API calls; exports will mark these apps incomplete', {
       failedCalls: failedApiCalls.map((call) => ({
         appId: call.appId,
