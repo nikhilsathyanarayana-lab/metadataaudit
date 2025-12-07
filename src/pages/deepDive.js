@@ -50,6 +50,9 @@ import { exportDeepDiveXlsx } from '../controllers/exports/deep_xlsx.js';
 
 export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandlers, reportDeepDiveError };
 
+const STALLED_REQUEST_THRESHOLD_MS = 45_000;
+const STALL_WATCHDOG_INTERVAL_MS = 5_000;
+
 const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSuccessfulCall, onComplete) => {
   clearDeepDiveCollections();
 
@@ -108,6 +111,71 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     totalApiCalls: getTotalApiCalls(),
     targetLookback,
   });
+
+  const entryLookup = new Map(queue.map((entry) => [entry.appId, entry]));
+  const pendingResolvers = new Map();
+
+  const watchdogController = (() => {
+    let watchdogId = null;
+
+    const resolveStalledCall = (call, ageMs) => {
+      const entry = entryLookup.get(call.appId) || call;
+      const stalledMessage = `Deep dive request stalled after ${Math.round(ageMs / 1000)} seconds.`;
+      const resolver = pendingResolvers.get(call.appId);
+
+      resolvePendingMetadataCall(entry, 'failed', stalledMessage);
+      updateMetadataApiCalls(entry, 'error', stalledMessage);
+
+      completedProcessingSteps += 1;
+      syncApiProgress();
+      syncProcessingProgress();
+
+      logDeepDive('warn', 'Detected stalled deep dive request', {
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+        ageMs: Math.round(ageMs),
+      });
+
+      scheduleDomUpdate(() => {
+        setApiError?.(stalledMessage);
+        setProcessingError?.(stalledMessage);
+      });
+
+      if (resolver?.cancel) {
+        resolver.cancel('stalled');
+      }
+    };
+
+    const checkForStalledCalls = () => {
+      const now = Date.now();
+
+      metadata_pending_api_calls
+        .filter((call) => call && (call.status === 'queued' || call.status === 'in-flight'))
+        .forEach((call) => {
+          const queuedAtMs = Date.parse(call.queuedAt);
+          const ageMs = Number.isFinite(queuedAtMs) ? now - queuedAtMs : 0;
+
+          if (ageMs >= STALLED_REQUEST_THRESHOLD_MS) {
+            resolveStalledCall(call, ageMs);
+          }
+        });
+    };
+
+    return {
+      start: () => {
+        if (!watchdogId) {
+          watchdogId = setInterval(checkForStalledCalls, STALL_WATCHDOG_INTERVAL_MS);
+        }
+      },
+      stop: () => {
+        if (watchdogId) {
+          clearInterval(watchdogId);
+          watchdogId = null;
+        }
+      },
+    };
+  })();
 
   if (!getTotalApiCalls()) {
     syncApiProgress();
@@ -264,6 +332,24 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     new Promise((resolve) => {
       const chunkIndex = Math.floor(index / Math.max(DEEP_DIVE_CONCURRENCY, 1));
       const delayMs = chunkIndex * DEEP_DIVE_REQUEST_SPACING_MS;
+      const resolver = {
+        resolved: false,
+        cancelled: false,
+        cancel: (reason = '') => {
+          resolver.cancelled = true;
+          resolver.reason = reason;
+          resolver.safeResolve();
+        },
+        safeResolve: () => {
+          if (resolver.resolved) {
+            return;
+          }
+
+          resolver.resolved = true;
+          pendingResolvers.delete(entry.appId);
+          resolve();
+        },
+      };
 
       logDeepDive('debug', 'Scheduling deep dive request', {
         appId: entry.appId,
@@ -272,11 +358,22 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         delayMs,
       });
 
+      pendingResolvers.set(entry.appId, resolver);
+
       setTimeout(async () => {
+        if (resolver.cancelled) {
+          logDeepDive('warn', 'Skipping cancelled deep dive request', {
+            appId: entry.appId,
+            subId: entry.subId,
+            reason: resolver.reason || 'unknown',
+          });
+          return;
+        }
+
         try {
           await processEntry(entry);
         } finally {
-          resolve();
+          resolver.safeResolve();
         }
       }, delayMs);
     });
@@ -289,7 +386,13 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     concurrency: DEEP_DIVE_CONCURRENCY,
   });
 
-  await Promise.all(scheduledRequests);
+  watchdogController.start();
+
+  try {
+    await Promise.all(scheduledRequests);
+  } finally {
+    watchdogController.stop();
+  }
 
   const outstandingAfter = getOutstandingMetadataCalls();
   logDeepDive('info', 'Deep dive request scheduling complete', {
@@ -363,13 +466,20 @@ const exposeDeepDiveDebugCommands = () => {
       return [];
     }
 
-    const summarized = outstanding.map((call) => ({
-      appId: call.appId,
-      subId: call.subId,
-      status: call.status,
-      queuedAt: call.queuedAt,
-      startedAt: call.startedAt,
-    }));
+    const summarized = outstanding.map((call) => {
+      const queuedAtMs = Date.parse(call.queuedAt);
+      const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
+
+      return {
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+        queuedAt: call.queuedAt,
+        startedAt: call.startedAt,
+        ageMs: Math.round(ageMs),
+        stalled: ageMs >= STALLED_REQUEST_THRESHOLD_MS,
+      };
+    });
 
     console.table(summarized);
     return outstanding;
