@@ -478,6 +478,40 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     }
   }
 
+  const cancelledPendingCalls = metadata_pending_api_calls.filter(
+    (call) => call && call.status !== 'completed' && call.status !== 'failed',
+  );
+
+  if (cancelledPendingCalls.length) {
+    const cancellationMessage = 'Deep dive cancelled before pending requests finished.';
+
+    cancelledPendingCalls.forEach((call) => {
+      const entry = entryLookup.get(call.appId) || call;
+
+      resolvePendingMetadataCall(entry, 'failed', cancellationMessage);
+      updateMetadataApiCalls(entry, 'error', cancellationMessage);
+      completedProcessingSteps += normalizeRequestCount(call);
+    });
+
+    const { completed, total } = summarizePendingMetadataCallProgress();
+    completedApiCalls = Math.max(completedApiCalls, completed);
+    totalApiCalls = Math.max(totalApiCalls, total);
+
+    syncApiProgress();
+    syncProcessingProgress();
+
+    scheduleDomUpdate(() => {
+      updateApiProgress?.(completedApiCalls, totalApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
+      setApiError?.(cancellationMessage);
+      setProcessingError?.(cancellationMessage);
+    });
+
+    logDeepDive('warn', 'Marked cancelled deep dive requests as failed', {
+      cancelledCallCount: cancelledPendingCalls.length,
+    });
+  }
+
   const outstandingAfter = getOutstandingMetadataCalls();
   logDeepDive('info', 'Deep dive request scheduling complete', {
     scheduledCount: scheduledRequests.length,
