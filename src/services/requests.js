@@ -343,6 +343,8 @@ export const runAggregationWithFallbackWindows = async ({
   onWindowSplit,
   maxWindowHint,
   preferredChunkSize,
+  onRequestsPlanned,
+  onRequestsSettled,
 }) => {
   const fallbackWindows = normalizeFallbackWindows(totalWindowDays);
   const logger = entry?.appId ? createLogger(`Request-${entry.appId}`) : requestLogger;
@@ -385,6 +387,8 @@ export const runAggregationWithFallbackWindows = async ({
 
     const aggregatedResults = [];
 
+    const plannedRequestCount = payloads.length;
+
     try {
       const scheduleAggregationRequest = (payload, index) => new Promise((resolve, reject) => {
         setTimeout(() => {
@@ -394,7 +398,8 @@ export const runAggregationWithFallbackWindows = async ({
         }, index * 3000);
       });
 
-      requestCount += payloads.length;
+      onRequestsPlanned?.(plannedRequestCount, windowSize);
+      requestCount += plannedRequestCount;
 
       const responses = await Promise.all(
         payloads.map((payload, index) => scheduleAggregationRequest(payload, index)),
@@ -405,10 +410,12 @@ export const runAggregationWithFallbackWindows = async ({
         .forEach(({ response }) => aggregate(aggregatedResults, response, windowSize));
 
       const chunkSizeUsed = payloads.length > 1 ? chunkSize : null;
+      onRequestsSettled?.(plannedRequestCount, windowSize);
 
       return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
     } catch (error) {
       lastError = error;
+      onRequestsSettled?.(plannedRequestCount, windowSize);
 
       if (!isTooMuchDataOrTimeout(error)) {
         const propagatedError = error;

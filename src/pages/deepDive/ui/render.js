@@ -338,13 +338,13 @@ export const setupProgressTracker = () => {
 
   const updateApiProgress = (completed = 0, total = 0) => {
     if (!total) {
-      setApiStatus('No API calls queued.');
+      setApiStatus('No API requests queued.');
       return;
     }
 
     const boundedCompleted = Math.min(completed, total);
     const remaining = Math.max(total - boundedCompleted, 0);
-    setApiStatus(`API calls: ${boundedCompleted}/${total} (${remaining} left)`);
+    setApiStatus(`API request windows: ${boundedCompleted}/${total} (${remaining} windows left)`);
   };
 
   const updateProcessingProgress = (completed = 0, total = 0) => {
@@ -361,7 +361,7 @@ export const setupProgressTracker = () => {
   updateApiProgress(0, 0);
   updateProcessingProgress(0, 0);
 
-  const setApiError = (message) => setApiStatus(message || 'API call failed.', 'error');
+  const setApiError = (message) => setApiStatus(message || 'API request failed.', 'error');
   const setProcessingError = (message) =>
     setProcessingStatus(message || 'Response handling failed.', 'error');
 
