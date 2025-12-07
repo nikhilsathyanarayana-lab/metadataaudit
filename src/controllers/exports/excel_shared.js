@@ -160,8 +160,13 @@ export const sanitizeSheetName = (name, existingNames = new Set()) => {
 const HEADER_STYLE = {
   font: {
     bold: true,
-    size: 14,
-    color: { argb: 'FFE83E8C' },
+    size: 16,
+    color: { argb: 'FFFFFFFF' },
+  },
+  fill: {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE83E8C' },
   },
 };
 
@@ -179,6 +184,7 @@ export const applyHeaderFormatting = (worksheet) => {
 
   headerRow.eachCell((cell) => {
     cell.font = { ...(cell.font || {}), ...HEADER_STYLE.font };
+    cell.fill = HEADER_STYLE.fill;
   });
 
   logXlsx('debug', `Applied header formatting to ${headerRow.cellCount} column(s)`);
