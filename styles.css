@@ -33,7 +33,16 @@ body {
 .nav-inner {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .nav-link {
@@ -57,6 +66,70 @@ body {
   color: var(--pendo-pink);
   background: #fff0f5;
   border-color: rgba(224, 0, 108, 0.35);
+}
+
+.debug-toggle {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 12px;
+  background: #fff7fb;
+  border: 1px solid rgba(224, 0, 108, 0.18);
+  color: var(--pendo-charcoal);
+  font-weight: 700;
+  box-shadow: 0 6px 18px rgba(224, 0, 108, 0.08);
+}
+
+.debug-toggle:focus-within {
+  outline: 2px solid rgba(224, 0, 108, 0.45);
+  outline-offset: 2px;
+}
+
+.debug-toggle-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  border-radius: 14px;
+  background: #ececec;
+  transition: background 0.2s ease;
+}
+
+.debug-toggle-control.is-enabled {
+  background: rgba(224, 0, 108, 0.35);
+}
+
+.debug-toggle input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.debug-toggle-slider {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  transform: translateX(0);
+  transition: transform 0.2s ease;
+}
+
+.debug-toggle input:checked + .debug-toggle-slider {
+  transform: translateX(18px);
+}
+
+.debug-toggle-status {
+  min-width: 1.75rem;
+  text-align: center;
+  color: var(--pendo-pink);
 }
 
 .page-messages,

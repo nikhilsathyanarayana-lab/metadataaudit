@@ -12,6 +12,7 @@ import {
   installDeepDiveGlobalErrorHandlers,
   reportDeepDiveError,
 } from '../pages/deepDive.js';
+import { initNavigation } from '../pages/navigation.js';
 
 const parseStoredRecords = (key) => {
   try {
@@ -57,6 +58,7 @@ installDeepDiveGlobalErrorHandlers();
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    initNavigation();
     await bootstrapShared({
       enableJsonExport: true,
       additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },

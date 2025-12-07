@@ -67,6 +67,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
   const queue = entries.slice();
   queue.forEach(registerPendingMetadataCall);
+  logDeepDive('info', 'Prepared deep dive request queue', {
+    queuedEntries: queue.length,
+    requestedLookback: lookback,
+    targetLookback,
+  });
   let { total: totalApiCalls, completed: completedApiCalls } =
     summarizePendingMetadataCallProgress();
   let completedProcessingSteps = 0;
@@ -129,6 +134,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       targetLookback,
     });
 
+    const startTime = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     await yieldToBrowser();
     markPendingMetadataCallStarted(entry);
     let requestSummary = { requestCount: 1 };
@@ -193,6 +199,20 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       successCount += 1;
       completedProcessingSteps += 1;
       syncProcessingProgress();
+      const durationMs =
+        (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
+        startTime;
+      logDeepDive('info', 'Deep dive entry completed', {
+        appId: entry.appId,
+        subId: entry.subId,
+        lookbackDays: targetLookback,
+        requestCount: requestSummary?.requestCount || 1,
+        responseCount: requestSummary?.aggregatedResults?.length || 0,
+        datasetCount,
+        visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
+        accountFieldCount: normalizedFields?.accountFields?.size || 0,
+        durationMs: Math.round(durationMs),
+      });
       if (onSuccessfulCall) {
         scheduleDomUpdate(() => onSuccessfulCall());
       }
@@ -215,6 +235,15 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       completedProcessingSteps += 1;
       syncProcessingProgress();
 
+      logDeepDive('info', 'Deep dive entry marked as failed', {
+        appId: entry.appId,
+        subId: entry.subId,
+        lookbackDays: targetLookback,
+        apiCompleted,
+        timedOut,
+        requestCount: requestSummary?.requestCount || 1,
+      });
+
       const targetSetter = apiCompleted ? setProcessingError : setApiError;
       const errorTargetLabel = apiCompleted ? 'response handling' : 'API';
       scheduleDomUpdate(() => {
@@ -236,6 +265,13 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       const chunkIndex = Math.floor(index / Math.max(DEEP_DIVE_CONCURRENCY, 1));
       const delayMs = chunkIndex * DEEP_DIVE_REQUEST_SPACING_MS;
 
+      logDeepDive('debug', 'Scheduling deep dive request', {
+        appId: entry.appId,
+        subId: entry.subId,
+        chunkIndex,
+        delayMs,
+      });
+
       setTimeout(async () => {
         try {
           await processEntry(entry);
@@ -247,7 +283,29 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const scheduledRequests = queue.map((entry, index) => scheduleDeepDiveRequest(entry, index));
 
+  logDeepDive('debug', 'Queued deep dive requests for execution', {
+    scheduledCount: scheduledRequests.length,
+    spacingMs: DEEP_DIVE_REQUEST_SPACING_MS,
+    concurrency: DEEP_DIVE_CONCURRENCY,
+  });
+
   await Promise.all(scheduledRequests);
+
+  const outstandingAfter = getOutstandingMetadataCalls();
+  logDeepDive('info', 'Deep dive request scheduling complete', {
+    scheduledCount: scheduledRequests.length,
+    outstandingCalls: outstandingAfter.length,
+  });
+
+  if (outstandingAfter.length) {
+    logDeepDive('warn', 'Outstanding deep dive requests detected after scan resolution', {
+      outstandingCalls: outstandingAfter.map((call) => ({
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+      })),
+    });
+  }
 
   if (successCount) {
     scheduleDomUpdate(() => {
