@@ -256,7 +256,11 @@ const appendWorksheetFromRows = (workbook, rows, fallbackMessage, label, sheetNa
   const worksheet = workbook.addWorksheet(sanitizeSheetName(label, sheetNames));
 
   if (!rows.length) {
-    logXlsx('info', 'Building fallback deep-dive sheet because no rows were available', fallbackMessage);
+    logXlsx(
+      'error',
+      `No rows available for worksheet ${label}; generating fallback sheet to avoid blank export`,
+      fallbackMessage,
+    );
     worksheet.addRow(['Note']);
     worksheet.addRow([fallbackMessage]);
     applyHeaderFormatting(worksheet);
