@@ -490,8 +490,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         return ageMs >= calculateStallThreshold(call);
       });
 
-      if ((total > 0 && completed >= total) || stalledOutstanding.length) {
-        resolve();
+      const queueDrained = requestQueue.length === 0 && activeRequests === 0;
+      const finished = total > 0 && completed >= total && queueDrained;
+
+      if (finished || stalledOutstanding.length) {
+        resolve(stalledOutstanding.length ? 'stalled' : 'completed');
         return;
       }
 
@@ -503,21 +506,18 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   watchdogController.start();
 
-  let allRequestsCompleted = false;
-  const scheduledResolution = Promise.all(scheduledRequests).then(() => {
-    allRequestsCompleted = true;
-  });
+  const scheduledResolution = Promise.all(scheduledRequests).then(() => 'scheduled');
+
+  let raceOutcome = null;
 
   try {
-    await Promise.race([scheduledResolution, completionGuard]);
+    raceOutcome = await Promise.race([scheduledResolution, completionGuard]);
   } finally {
     watchdogController.stop();
-    if (!allRequestsCompleted) {
+    if (raceOutcome === 'stalled') {
       pendingResolvers.forEach((resolver) => resolver.cancel?.('completion-guard'));
     }
-    if (allRequestsCompleted) {
-      await scheduledResolution.catch(() => {});
-    }
+    await scheduledResolution.catch(() => {});
   }
 
   const cancelledPendingCalls = metadata_pending_api_calls.filter(
