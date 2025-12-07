@@ -32,30 +32,33 @@ export const parseExamples = (response, subId) => {
 
   candidateLists.flat().forEach((record) => {
     const appId = record?.appId || '';
-    const fieldExamples = record?.fields || {};
-    const accountExamples = record?.account || {};
+    const visitorExamples = record?.examples?.visitor || record?.examples?.metadata?.visitor || {};
+    const accountExamples = record?.examples?.account || record?.examples?.metadata?.account || {};
 
-    Object.entries(fieldExamples).forEach(([field, examples]) => {
-      rows.push({
-        SubID: subId,
-        AppID: appId,
-        Field: field,
-        Example: examples?.value,
-        Count: examples?.count,
+    const appendExamples = (examples) => {
+      Object.entries(examples).forEach(([field, exampleList]) => {
+        const candidates = Array.isArray(exampleList) ? exampleList : [exampleList];
+
+        candidates.forEach((example) => {
+          const value = example?.value ?? example;
+          const count = example?.count ?? '';
+          const normalizedValue = value ?? '';
+
+          rows.push({
+            SubID: subId,
+            AppID: appId,
+            Field: field,
+            Example: typeof normalizedValue === 'string' ? normalizedValue : JSON.stringify(normalizedValue),
+            Count: count,
+          });
+        });
       });
-    });
+    };
 
-    Object.entries(accountExamples).forEach(([key, value]) =>
-      rows.push({
-        SubID: subId,
-        AppID: appId,
-        Field: key,
-        Example: typeof value === 'string' ? value : JSON.stringify(value),
-        Count: '',
-      }),
-    );
+    appendExamples(visitorExamples);
+    appendExamples(accountExamples);
 
-    if (!Object.keys(fieldExamples).length && !Object.keys(accountExamples).length) {
+    if (!Object.keys(visitorExamples).length && !Object.keys(accountExamples).length) {
       rows.push({
         SubID: subId,
         AppID: 'n/a',
