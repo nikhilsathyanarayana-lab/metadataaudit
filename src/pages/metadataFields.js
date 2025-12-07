@@ -556,26 +556,47 @@ const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncApp
 };
 
 const parseMetadataFields = (apiResponse) => {
-  const candidateArrays = [apiResponse?.results, apiResponse?.data];
-  if (Array.isArray(apiResponse)) {
-    candidateArrays.push(apiResponse);
-  }
-
-  const flattened = candidateArrays.filter(Array.isArray).flat();
   const visitorFields = new Set();
   const accountFields = new Set();
 
-  flattened.forEach((item) => {
-    if (!item || typeof item !== 'object') {
+  const addFields = (fields, target) => {
+    if (!Array.isArray(fields)) {
       return;
     }
 
-    const visitorList = Array.isArray(item.visitorMetadata) ? item.visitorMetadata : [];
-    const accountList = Array.isArray(item.accountMetadata) ? item.accountMetadata : [];
+    fields.forEach((field) => {
+      if (typeof field === 'string' || typeof field === 'number') {
+        const normalized = String(field).trim();
 
-    visitorList.forEach((field) => visitorFields.add(field));
-    accountList.forEach((field) => accountFields.add(field));
-  });
+        if (normalized) {
+          target.add(normalized);
+        }
+      }
+    });
+  };
+
+  const collectFromItem = (item) => {
+    if (!item) {
+      return;
+    }
+
+    if (Array.isArray(item)) {
+      item.forEach(collectFromItem);
+      return;
+    }
+
+    if (typeof item !== 'object') {
+      return;
+    }
+
+    addFields(item.visitorFields ?? item.visitorMetadata, visitorFields);
+    addFields(item.accountFields ?? item.accountMetadata, accountFields);
+
+    collectFromItem(item.results);
+    collectFromItem(item.data);
+  };
+
+  collectFromItem(apiResponse);
 
   return {
     visitorFields: Array.from(visitorFields),
