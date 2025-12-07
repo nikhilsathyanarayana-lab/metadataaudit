@@ -50,8 +50,15 @@ import { exportDeepDiveXlsx } from '../controllers/exports/deep_xlsx.js';
 
 export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandlers, reportDeepDiveError };
 
-const STALLED_REQUEST_THRESHOLD_MS = 45_000;
 const STALL_WATCHDOG_INTERVAL_MS = 5_000;
+const API_CALL_TIMEOUT_MS = 60_000;
+
+const calculateStallThreshold = (call) => {
+  const queueIndex = metadata_pending_api_calls.findIndex((item) => item?.appId === call?.appId);
+  const position = queueIndex === -1 ? 1 : queueIndex + 1;
+
+  return API_CALL_TIMEOUT_MS + position * DEEP_DIVE_REQUEST_SPACING_MS;
+};
 
 const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSuccessfulCall, onComplete) => {
   clearDeepDiveCollections();
@@ -118,9 +125,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   const watchdogController = (() => {
     let watchdogId = null;
 
-    const resolveStalledCall = (call, ageMs) => {
+    const resolveStalledCall = (call, ageMs, thresholdMs) => {
       const entry = entryLookup.get(call.appId) || call;
-      const stalledMessage = `Deep dive request stalled after ${Math.round(ageMs / 1000)} seconds.`;
+      const stalledMessage =
+        `Deep dive request stalled after ${Math.round(ageMs / 1000)} seconds ` +
+        `(threshold: ${Math.round(thresholdMs / 1000)} seconds).`;
       const resolver = pendingResolvers.get(call.appId);
 
       resolvePendingMetadataCall(entry, 'failed', stalledMessage);
@@ -135,6 +144,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         subId: call.subId,
         status: call.status,
         ageMs: Math.round(ageMs),
+        stallThresholdMs: Math.round(thresholdMs),
       });
 
       scheduleDomUpdate(() => {
@@ -155,9 +165,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         .forEach((call) => {
           const queuedAtMs = Date.parse(call.queuedAt);
           const ageMs = Number.isFinite(queuedAtMs) ? now - queuedAtMs : 0;
+          const stallThresholdMs = calculateStallThreshold(call);
 
-          if (ageMs >= STALLED_REQUEST_THRESHOLD_MS) {
-            resolveStalledCall(call, ageMs);
+          if (ageMs >= stallThresholdMs) {
+            resolveStalledCall(call, ageMs, stallThresholdMs);
           }
         });
     };
@@ -477,7 +488,8 @@ const exposeDeepDiveDebugCommands = () => {
         queuedAt: call.queuedAt,
         startedAt: call.startedAt,
         ageMs: Math.round(ageMs),
-        stalled: ageMs >= STALLED_REQUEST_THRESHOLD_MS,
+        stallThresholdMs: calculateStallThreshold(call),
+        stalled: ageMs >= calculateStallThreshold(call),
       };
     });
 
