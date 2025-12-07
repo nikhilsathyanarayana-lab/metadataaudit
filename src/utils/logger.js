@@ -47,6 +47,10 @@ export const createLogger = (scope = 'App', options = {}) => {
     const normalizedLevel = normalizeLevel(level);
     const debugEnabled = isFlagEnabled(debugFlag);
 
+    if (!debugEnabled && normalizedLevel !== 'error') {
+      return;
+    }
+
     const logger = resolveLogger(normalizedLevel);
     const formattedPrefix = formatPrefix(prefix, normalizedLevel, debugEnabled);
     logger(formattedPrefix, ...messages);
