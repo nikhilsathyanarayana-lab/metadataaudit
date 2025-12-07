@@ -519,6 +519,59 @@ const exposeDeepDiveDebugCommands = () => {
     return outstanding;
   };
 
+  window.validateData = () => {
+    const records = loadDeepDiveRecords();
+    const successApps = new Set(records.filter((record) => record?.status === 'success').map((r) => r.appId));
+
+    const jsonAppSummaries = new Map();
+    const recordCounts = {
+      visitors: metadata_visitors.length,
+      accounts: metadata_accounts.length,
+    };
+
+    const ensureSummary = (appId) => {
+      if (!jsonAppSummaries.has(appId)) {
+        jsonAppSummaries.set(appId, {
+          appId,
+          hasJsonData: true,
+          visitorRows: 0,
+          accountRows: 0,
+          hasSuccessRecord: successApps.has(appId),
+        });
+      }
+      return jsonAppSummaries.get(appId);
+    };
+
+    metadata_visitors.forEach(({ appId }) => {
+      const summary = ensureSummary(appId);
+      summary.visitorRows += 1;
+    });
+
+    metadata_accounts.forEach(({ appId }) => {
+      const summary = ensureSummary(appId);
+      summary.accountRows += 1;
+    });
+
+    const summaries = [...jsonAppSummaries.values()];
+
+    if (!summaries.length && !records.length) {
+      console.info('No deep dive data loaded yet.');
+      return [];
+    }
+
+    console.info(
+      `Deep dive JSON rows — visitors: ${recordCounts.visitors}, accounts: ${recordCounts.accounts}. Success records: ${successApps.size}.`,
+    );
+    console.table(
+      summaries.map((summary) => ({
+        ...summary,
+        hasSuccessRecord: successApps.has(summary.appId),
+      })),
+    );
+
+    return summaries;
+  };
+
   logDeepDive('info', 'Deep dive pending request inspector installed.');
 };
 
