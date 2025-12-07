@@ -406,12 +406,45 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     concurrency: DEEP_DIVE_CONCURRENCY,
   });
 
+  const completionGuard = new Promise((resolve) => {
+    const checkForCompletion = () => {
+      const { completed, total } = summarizePendingMetadataCallProgress();
+      const outstanding = getOutstandingMetadataCalls();
+      const stalledOutstanding = outstanding.filter((call) => {
+        const queuedAtMs = Date.parse(call.queuedAt);
+        const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
+
+        return ageMs >= calculateStallThreshold(call);
+      });
+
+      if ((total > 0 && completed >= total) || stalledOutstanding.length) {
+        resolve();
+        return;
+      }
+
+      setTimeout(checkForCompletion, STALL_WATCHDOG_INTERVAL_MS);
+    };
+
+    checkForCompletion();
+  });
+
   watchdogController.start();
 
+  let allRequestsCompleted = false;
+  const scheduledResolution = Promise.all(scheduledRequests).then(() => {
+    allRequestsCompleted = true;
+  });
+
   try {
-    await Promise.all(scheduledRequests);
+    await Promise.race([scheduledResolution, completionGuard]);
   } finally {
     watchdogController.stop();
+    if (!allRequestsCompleted) {
+      pendingResolvers.forEach((resolver) => resolver.cancel?.('completion-guard'));
+    }
+    if (allRequestsCompleted) {
+      await scheduledResolution.catch(() => {});
+    }
   }
 
   const outstandingAfter = getOutstandingMetadataCalls();
