@@ -113,6 +113,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
     });
 
+  const normalizeRequestCount = (summary) => {
+    const count = Number.isFinite(summary?.requestCount) ? summary.requestCount : 1;
+
+    return Math.max(count, 1);
+  };
+
   logDeepDive('info', 'Starting deep dive scan', {
     requestedEntries: entries.length,
     totalApiCalls: getTotalApiCalls(),
@@ -135,7 +141,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       resolvePendingMetadataCall(entry, 'failed', stalledMessage);
       updateMetadataApiCalls(entry, 'error', stalledMessage);
 
-      completedProcessingSteps += 1;
+      completedProcessingSteps += normalizeRequestCount(call);
       syncApiProgress();
       syncProcessingProgress();
 
@@ -220,8 +226,9 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           windowSize,
           payloadCount,
         });
-        updatePendingMetadataCallRequestCount(entry, payloadCount);
+        updatePendingMetadataCallRequestCount(entry, normalizeRequestCount({ requestCount: payloadCount }));
         syncApiProgress();
+        syncProcessingProgress();
         scheduleDomUpdate(() => {
           setApiStatus?.(
             `Splitting ${windowSize}-day deep dive into ${payloadCount} request${payloadCount === 1 ? '' : 's'}…`,
@@ -239,8 +246,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         onWindowSplit,
       });
 
-      updatePendingMetadataCallRequestCount(entry, requestSummary?.requestCount || 1);
+      const resolvedRequestCount = normalizeRequestCount(requestSummary);
+
+      updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
       syncApiProgress();
+      syncProcessingProgress();
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
         throw requestSummary?.lastError || new Error('Aggregation response was empty or malformed.');
@@ -250,7 +260,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       syncApiProgress();
       scheduleDomUpdate(() => {
         setProcessingStatus?.(
-          `Handling response ${completedProcessingSteps + 1}/${getTotalApiCalls()}.`,
+          `Handling response ${completedProcessingSteps + resolvedRequestCount}/${getTotalApiCalls()}.`,
         );
       });
 
@@ -271,16 +281,17 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         await updateMetadataCollections(response, entry);
       }
       successCount += 1;
-      completedProcessingSteps += 1;
+      completedProcessingSteps += resolvedRequestCount;
       syncProcessingProgress();
       const durationMs =
         (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
         startTime;
+
       logDeepDive('info', 'Deep dive entry completed', {
         appId: entry.appId,
         subId: entry.subId,
         lookbackDays: targetLookback,
-        requestCount: requestSummary?.requestCount || 1,
+        requestCount: resolvedRequestCount,
         responseCount: requestSummary?.aggregatedResults?.length || 0,
         datasetCount,
         visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
@@ -291,8 +302,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         scheduleDomUpdate(() => onSuccessfulCall());
       }
     } catch (error) {
-      updatePendingMetadataCallRequestCount(entry, requestSummary?.requestCount || 1);
+      const resolvedRequestCount = normalizeRequestCount(requestSummary);
+
+      updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
       syncApiProgress();
+      syncProcessingProgress();
       const timedOut = error?.name === 'AbortError' || /timed out/i.test(error?.message || '');
       const detail = timedOut
         ? 'Deep dive request timed out after 60 seconds.'
@@ -306,7 +320,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       if (!apiCompleted) {
         syncApiProgress();
       }
-      completedProcessingSteps += 1;
+      completedProcessingSteps += resolvedRequestCount;
       syncProcessingProgress();
 
       logDeepDive('info', 'Deep dive entry marked as failed', {
@@ -315,7 +329,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         lookbackDays: targetLookback,
         apiCompleted,
         timedOut,
-        requestCount: requestSummary?.requestCount || 1,
+        requestCount: resolvedRequestCount,
       });
 
       const targetSetter = apiCompleted ? setProcessingError : setApiError;
