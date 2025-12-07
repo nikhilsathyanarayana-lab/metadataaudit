@@ -343,8 +343,7 @@ export const setupProgressTracker = () => {
     }
 
     const boundedCompleted = Math.min(completed, total);
-    const remaining = Math.max(total - boundedCompleted, 0);
-    setApiStatus(`API calls: ${boundedCompleted}/${total}, ${remaining} remaining`);
+    setApiStatus(`API calls: ${boundedCompleted}/${total}`);
   };
 
   const updateProcessingProgress = (completed = 0, total = 0, apiCompleted = total) => {
@@ -363,8 +362,7 @@ export const setupProgressTracker = () => {
       normalizedTotal,
       boundedApiCompleted,
     );
-    const remaining = Math.max(normalizedTotal - boundedCompleted, 0);
-    setProcessingStatus(`Responses: ${boundedCompleted}/${normalizedTotal} (${remaining} remaining)`);
+    setProcessingStatus(`Responses: ${boundedCompleted}/${normalizedTotal}`);
   };
 
   updateApiProgress(0, 0);
