@@ -110,57 +110,58 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
   return { openIntegrationModal, closeIntegrationModal, setIntegrationKeyForRow };
 };
 
-export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, updateLaunchButtonState) => {
-  const { fieldsContainer } = elements;
-  let subIdCount = 0;
+const createRowSerializer = (fieldsContainer, integrationKeys) => () =>
+  Array.from(fieldsContainer.querySelectorAll('.subid-row'))
+    .map((row) => {
+      const subIdInput = row.querySelector('input[name="subid[]"]');
+      const domainSelect = row.querySelector('.domain-select');
+      const integrationKey = integrationKeys.get(row.dataset.subidRow || '') || '';
 
-  const serializeLaunchRows = () =>
-    Array.from(fieldsContainer.querySelectorAll('.subid-row'))
-      .map((row) => {
-        const subIdInput = row.querySelector('input[name="subid[]"]');
-        const domainSelect = row.querySelector('.domain-select');
-        const integrationKey = integrationKeys.get(row.dataset.subidRow || '') || '';
+      return {
+        subId: subIdInput?.value.trim() || '',
+        domain: domainSelect?.value || '',
+        integrationKey,
+      };
+    })
+    .filter(({ subId, integrationKey }) => subId && integrationKey);
 
-        return {
-          subId: subIdInput?.value.trim() || '',
-          domain: domainSelect?.value || '',
-          integrationKey,
-        };
-      })
-      .filter(({ subId, integrationKey }) => subId && integrationKey);
+const createRowNumberingUpdater = (fieldsContainer) => () => {
+  Array.from(fieldsContainer.querySelectorAll('.subid-row')).forEach((row, index) => {
+    const label = row.querySelector('label');
+    const input = row.querySelector('input[name="subid[]"]');
+    const displayIndex = index + 1;
 
-  const handleAddSubId = () => addSubIdField();
+    if (input) {
+      input.id = `subid-${displayIndex}`;
+    }
 
-  const renumberRows = () => {
-    Array.from(fieldsContainer.querySelectorAll('.subid-row')).forEach((row, index) => {
-      const label = row.querySelector('label');
-      const input = row.querySelector('input[name="subid[]"]');
-      const displayIndex = index + 1;
-
-      if (input) {
-        input.id = `subid-${displayIndex}`;
+    if (label) {
+      label.textContent = `SubID ${displayIndex}`;
+      if (input?.id) {
+        label.setAttribute('for', input.id);
       }
+    }
+  });
+};
 
-      if (label) {
-        label.textContent = `SubID ${displayIndex}`;
-        if (input?.id) {
-          label.setAttribute('for', input.id);
-        }
-      }
-    });
-  };
+const createAddRemoveButtonManager = (
+  fieldsContainer,
+  integrationKeys,
+  renumberRows,
+  updateLaunchButtonState,
+) => {
+  let handleAddSubId = null;
 
-  const refreshAddButtonPlacement = () => {
+  const attachAddButton = () => {
     const existingButton = fieldsContainer.querySelector('.add-subid-btn');
 
     if (existingButton) {
-      existingButton.removeEventListener('click', handleAddSubId);
       existingButton.remove();
     }
 
     const rows = fieldsContainer.querySelectorAll('.subid-row');
 
-    if (rows.length === 0) {
+    if (!rows.length || !handleAddSubId) {
       return;
     }
 
@@ -179,11 +180,29 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
     row.remove();
 
     renumberRows();
-    refreshAddButtonPlacement();
+    attachAddButton();
     updateLaunchButtonState();
   };
 
-  function addSubIdField() {
+  const registerAddHandler = (handler) => {
+    handleAddSubId = handler;
+    attachAddButton();
+  };
+
+  return { attachAddButton, removeSubIdField, registerAddHandler };
+};
+
+const createSubIdRowFactory = (
+  fieldsContainer,
+  integrationKeys,
+  openIntegrationModal,
+  updateLaunchButtonState,
+  renumberRows,
+  addRemoveButtonManager,
+) => {
+  let subIdCount = 0;
+
+  return function addSubIdField() {
     subIdCount += 1;
     const rowId = `row-${subIdCount}`;
 
@@ -216,7 +235,7 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
     inputGroup.append(domainSelect, input, integrationButton);
 
     if (fieldsContainer.children.length > 0) {
-      const removeButton = createRemoveButton(() => removeSubIdField(rowId));
+      const removeButton = createRemoveButton(() => addRemoveButtonManager.removeSubIdField(rowId));
       inputGroup.appendChild(removeButton);
     }
 
@@ -233,9 +252,33 @@ export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, 
     input.addEventListener('blur', updateLaunchButtonState);
 
     renumberRows();
-    refreshAddButtonPlacement();
+    addRemoveButtonManager.attachAddButton();
     updateLaunchButtonState();
-  }
+  };
+};
+
+export const setupSubIdRows = (elements, integrationKeys, openIntegrationModal, updateLaunchButtonState) => {
+  const { fieldsContainer } = elements;
+
+  const renumberRows = createRowNumberingUpdater(fieldsContainer);
+  const serializeLaunchRows = createRowSerializer(fieldsContainer, integrationKeys);
+  const addRemoveButtonManager = createAddRemoveButtonManager(
+    fieldsContainer,
+    integrationKeys,
+    renumberRows,
+    updateLaunchButtonState,
+  );
+
+  const addSubIdField = createSubIdRowFactory(
+    fieldsContainer,
+    integrationKeys,
+    openIntegrationModal,
+    updateLaunchButtonState,
+    renumberRows,
+    addRemoveButtonManager,
+  );
+
+  addRemoveButtonManager.registerAddHandler(addSubIdField);
 
   addSubIdField();
 
