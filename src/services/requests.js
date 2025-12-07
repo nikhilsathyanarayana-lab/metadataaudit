@@ -171,6 +171,7 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
 export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
+    requestId: `meta-events-${appId}-${windowDays}d`,
     name: 'account-visitor-only',
     pipeline: [
       {
