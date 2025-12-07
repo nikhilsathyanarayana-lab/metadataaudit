@@ -411,15 +411,22 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
     return acc;
   }, new Map());
 
-  groupedSelections.forEach((appSelection) => {
-    if (completedAppIds.size > 0 && !completedAppIds.has(appSelection.appId)) {
-      logXlsx('debug', `Skipping worksheet for app ${appSelection.appId} because scan is incomplete.`);
-      return;
-    }
+  if (groupedSelections.size === 0) {
+    logXlsx('error', 'No grouped format selections found; no app worksheets will be generated.');
+  }
 
+  groupedSelections.forEach((appSelection) => {
     const lookup = index.get(appSelection.appId);
     const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
+
+    if (completedAppIds.size > 0 && !completedAppIds.has(appSelection.appId)) {
+      logXlsx(
+        'warn',
+        `Skipping worksheet for app ${appSelection.appId} (subId: ${subId || 'N/A'}) because scan is incomplete.`,
+      );
+      return;
+    }
 
     const rows = appSelection.rows.map((selection) => {
       const stats = getValueStats(selection, valueLookup);
