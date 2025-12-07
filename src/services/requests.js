@@ -36,6 +36,57 @@ const logAggregationRequestPayload = (endpoint, payload, status, responseBody) =
   });
 };
 
+/**
+ * Factory for chunked payload builders. Normalizes windows, iterates chunk windows,
+ * applies time-series adjustments, and decorates request IDs with chunk suffixes.
+ * The provided callbacks keep individual payload shapes specific to each requester.
+ */
+export const createChunkedPayloadBuilder = ({
+  parseArgs,
+  buildBasePayload,
+  applyTimeSeriesUpdates,
+  applyRequestIdSuffix,
+}) => (...args) => {
+  const { windowDays, chunkSize = 30, ...context } = typeof parseArgs === 'function'
+    ? parseArgs(args)
+    : {};
+  const normalizedWindow = Number(windowDays);
+
+  if (!normalizedWindow || chunkSize <= 0) {
+    return [];
+  }
+
+  const payloads = [];
+  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
+
+  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
+    const startOffset = (chunkIndex - 1) * chunkSize;
+    const remaining = normalizedWindow - startOffset;
+    const chunkDays = Math.min(chunkSize, remaining);
+
+    const payload = typeof buildBasePayload === 'function'
+      ? buildBasePayload({ ...context, windowDays: normalizedWindow, chunkDays, chunkIndex })
+      : null;
+
+    if (!payload) {
+      continue;
+    }
+
+    applyTimeSeriesUpdates?.(payload, {
+      ...context,
+      chunkDays,
+      startOffset,
+      windowDays: normalizedWindow,
+    });
+
+    applyRequestIdSuffix?.(payload, { ...context, chunkIndex });
+
+    payloads.push(payload);
+  }
+
+  return payloads;
+};
+
 export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appIds) => {
   const label = contextLabel || 'Aggregation';
   const normalizedWindow = Number(windowDays);
@@ -143,37 +194,25 @@ export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
   },
 });
 
-export const buildChunkedMetaEventsPayloads = (appId, windowDays, chunkSize = 30) => {
-  const normalizedWindow = Number(windowDays);
-
-  if (!appId || !normalizedWindow || chunkSize <= 0) {
-    return [];
-  }
-
-  const payloads = [];
-  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
-
-  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
-    const startOffset = (chunkIndex - 1) * chunkSize;
-    const remaining = normalizedWindow - startOffset;
-    const chunkDays = Math.min(chunkSize, remaining);
-    const first = `dateAdd(now(), -${startOffset}, "days")`;
-    const payload = buildMetaEventsPayload(appId, chunkDays);
+export const buildChunkedMetaEventsPayloads = createChunkedPayloadBuilder({
+  parseArgs: ([appId, windowDays, chunkSize = 30]) => ({ appId, windowDays, chunkSize }),
+  buildBasePayload: ({ appId, chunkDays }) => (appId ? buildMetaEventsPayload(appId, chunkDays) : null),
+  applyTimeSeriesUpdates: (payload, { chunkDays, startOffset }) => {
     const timeSeries = payload?.request?.pipeline?.[0]?.source?.timeSeries;
+    const first = `dateAdd(now(), -${startOffset}, "days")`;
 
     if (timeSeries) {
       timeSeries.first = first;
       timeSeries.count = -chunkDays;
       timeSeries.period = 'dayRange';
     }
-
-    payload.request.requestId = `${payload.request.requestId || payload.request.name || 'meta-events'}-chunk-${chunkIndex}`;
-
-    payloads.push(payload);
-  }
-
-  return payloads;
-};
+  },
+  applyRequestIdSuffix: (payload, { chunkIndex }) => {
+    if (payload?.request) {
+      payload.request.requestId = `${payload.request.requestId || payload.request.name || 'meta-events'}-chunk-${chunkIndex}`;
+    }
+  },
+});
 
 export const buildCookieHeaderValue = (rawCookie) => {
   const trimmed = rawCookie.trim();
@@ -216,39 +255,29 @@ export const buildAppListingPayload = (windowDays = 7, requestId = 'app-discover
   },
 });
 
-export const buildChunkedAppListingPayloads = (
-  windowDays,
-  chunkSize = 30,
-  requestIdPrefix = 'app-discovery',
-) => {
-  const normalizedWindow = Number(windowDays);
-
-  if (!normalizedWindow || chunkSize <= 0) {
-    return [];
-  }
-
-  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
-  const payloads = [];
-
-  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
-    const startOffset = (chunkIndex - 1) * chunkSize;
-    const remaining = normalizedWindow - startOffset;
-    const chunkDays = Math.min(chunkSize, remaining);
-    const first = `dateAdd(now(), -${startOffset}, "days")`;
-    const payload = buildAppListingPayload(chunkDays, `${requestIdPrefix}-chunk-${chunkIndex}`);
+export const buildChunkedAppListingPayloads = createChunkedPayloadBuilder({
+  parseArgs: ([windowDays, chunkSize = 30, requestIdPrefix = 'app-discovery']) => ({
+    windowDays,
+    chunkSize,
+    requestIdPrefix,
+  }),
+  buildBasePayload: ({ chunkDays }) => buildAppListingPayload(chunkDays),
+  applyTimeSeriesUpdates: (payload, { chunkDays, startOffset }) => {
     const timeSeries = payload?.request?.pipeline?.[0]?.source?.timeSeries;
+    const first = `dateAdd(now(), -${startOffset}, "days")`;
 
     if (timeSeries) {
       timeSeries.first = first;
       timeSeries.count = -chunkDays;
       timeSeries.period = 'dayRange';
     }
-
-    payloads.push(payload);
-  }
-
-  return payloads;
-};
+  },
+  applyRequestIdSuffix: (payload, { requestIdPrefix, chunkIndex }) => {
+    if (payload?.request) {
+      payload.request.requestId = `${requestIdPrefix}-chunk-${chunkIndex}`;
+    }
+  },
+});
 
 export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
   response: { mimeType: 'application/json' },
@@ -304,23 +333,12 @@ export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
  * @param {number} [chunkSize=30] Number of days per chunk.
  * @returns {object[]} Array of payloads covering the requested window in chunks.
  */
-export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize = 30) => {
-  const normalizedWindow = Number(windowDays);
-
-  if (!appId || !normalizedWindow || chunkSize <= 0) {
-    return [];
-  }
-
-  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
-  const payloads = [];
-  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
-    const startOffset = (chunkIndex - 1) * chunkSize;
-    const remaining = normalizedWindow - startOffset;
-    const chunkDays = Math.min(chunkSize, remaining);
+export const buildChunkedMetadataFieldPayloads = createChunkedPayloadBuilder({
+  parseArgs: ([appId, windowDays, chunkSize = 30]) => ({ appId, windowDays, chunkSize }),
+  buildBasePayload: ({ appId, windowDays }) => (appId ? buildMetadataFieldsForAppPayload(appId, windowDays) : null),
+  applyTimeSeriesUpdates: (payload, { chunkDays, startOffset }) => {
     const count = -chunkDays;
     const first = `dateAdd(now(), -${startOffset}, "days")`;
-
-    const payload = buildMetadataFieldsForAppPayload(appId, windowDays);
     const spawn = payload?.request?.pipeline?.[0]?.spawn;
 
     if (Array.isArray(spawn)) {
@@ -337,16 +355,13 @@ export const buildChunkedMetadataFieldPayloads = (appId, windowDays, chunkSize =
         }
       });
     }
-
+  },
+  applyRequestIdSuffix: (payload, { chunkIndex }) => {
     if (payload?.request) {
       payload.request.requestId = `${payload.request.requestId || payload.request.name || 'metadata-fields'}-chunk-${chunkIndex}`;
     }
-
-    payloads.push(payload);
-  }
-
-  return payloads;
-};
+  },
+});
 
 export const runAggregationWithFallbackWindows = async ({
   entry,
