@@ -1,4 +1,6 @@
-import { metadata_accounts, metadata_visitors } from '../../pages/deepDive/aggregation.js';
+import { buildDeepDiveExportState, snapshotDeepDiveCollection } from './deep_state.js';
+import { logDeepDive } from '../../pages/deepDive/constants.js';
+import { reportDeepDiveError } from '../../pages/deepDive/ui/render.js';
 
 export const downloadDeepDiveJson = (data, filename) => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -14,6 +16,39 @@ export const downloadDeepDiveJson = (data, filename) => {
 };
 
 export const exportDeepDiveJson = () => {
-  downloadDeepDiveJson(metadata_visitors, 'metadata-deep-dive-visitors.json');
-  downloadDeepDiveJson(metadata_accounts, 'metadata-deep-dive-accounts.json');
+  logDeepDive('info', 'Starting deep-dive JSON export flow');
+
+  let exportState;
+  try {
+    exportState = buildDeepDiveExportState();
+  } catch (error) {
+    reportDeepDiveError('Unable to prepare deep-dive JSON export.', error);
+    return;
+  }
+
+  const payload = {
+    visitors: snapshotDeepDiveCollection(exportState.visitors),
+    accounts: snapshotDeepDiveCollection(exportState.accounts),
+    records: snapshotDeepDiveCollection(exportState.deepDiveRecords),
+    apiCalls: snapshotDeepDiveCollection(exportState.apiCalls),
+  };
+
+  if (!payload.visitors.length && !payload.accounts.length && !payload.records.length) {
+    const message = 'No deep-dive metadata is available to export yet.';
+    logDeepDive('warn', message, payload);
+    reportDeepDiveError(message, null);
+    return;
+  }
+
+  try {
+    logDeepDive('debug', 'Exporting deep-dive JSON payload', {
+      visitors: payload.visitors.length,
+      accounts: payload.accounts.length,
+      records: payload.records.length,
+      apiCalls: payload.apiCalls.length,
+    });
+    downloadDeepDiveJson(payload, 'metadata-deep-dive.json');
+  } catch (error) {
+    reportDeepDiveError('Unable to generate deep-dive JSON download.', error);
+  }
 };

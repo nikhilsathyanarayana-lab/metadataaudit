@@ -7,8 +7,7 @@ import {
   sanitizeFileName,
   sanitizeSheetName,
 } from './excel_shared.js';
-import { dedupeMetadataRecords, loadDeepDiveRecords, loadMetadataRecords } from '../../pages/deepDive/dataHelpers.js';
-import { metadata_accounts, metadata_api_calls, metadata_visitors } from '../../pages/deepDive/aggregation.js';
+import { buildDeepDiveExportState, snapshotDeepDiveCollection } from './deep_state.js';
 import { reportDeepDiveError } from '../../pages/deepDive/ui/render.js';
 
 const TOP_VALUE_LIMIT = 3;
@@ -215,18 +214,7 @@ const getValueStats = (selection, valueLookup) => {
   };
 };
 
-const snapshotCollection = (collection) => {
-  try {
-    return typeof structuredClone === 'function'
-      ? structuredClone(collection)
-      : JSON.parse(JSON.stringify(collection));
-  } catch (error) {
-    logXlsx('warn', 'Falling back to direct collection reference for snapshot', error);
-    return collection;
-  }
-};
-
-const buildValueLookup = (visitorData = metadata_visitors, accountData = metadata_accounts) => {
+const buildValueLookup = (visitorData = [], accountData = []) => {
   const lookup = new Map();
 
   const addValueCount = (type, appId, field, rawValue, count = 0) => {
@@ -330,11 +318,11 @@ const applyOverviewFormatting = (worksheet) => {
   logXlsx('debug', `Applied overview formatting to ${headerRow.cellCount} header cell(s)`);
 };
 
-const buildLookbackIndex = (records) => {
+const buildLookbackIndex = (records, metadataApiCalls = []) => {
   const index = new Map();
   const subIds = new Set();
   const appIds = new Set();
-  const datasetCountsFromCalls = buildDatasetCountLookup(metadata_api_calls);
+  const datasetCountsFromCalls = buildDatasetCountLookup(metadataApiCalls);
   const datasetTotals = new Map(datasetCountsFromCalls.totalsBySub);
   let totalDatasets = datasetCountsFromCalls.total;
 
@@ -382,11 +370,13 @@ const buildWorkbook = (
   metadataRecords,
   deepDiveRecords = [],
   valueLookupParam = buildValueLookup(),
+  metadataApiCalls = [],
 ) => {
   const workbook = new window.ExcelJS.Workbook();
   const sheetNames = new Set();
   const { index, distinctApps, subIds, datasetTotals, totalDatasets } = buildLookbackIndex(
     metadataRecords,
+    metadataApiCalls,
   );
   const totalDatasetCount = totalDatasets || 0;
   const valueLookup = valueLookupParam || new Map();
@@ -559,15 +549,15 @@ export const exportDeepDiveXlsx = async () => {
   logXlsx('info', 'Starting deep-dive XLSX export flow');
   const visitorTable = document.getElementById('visitor-deep-dive-table');
   const accountTable = document.getElementById('account-deep-dive-table');
-  const deepDiveRecords = loadDeepDiveRecords();
-  const metadataRecords = dedupeMetadataRecords(loadMetadataRecords(), deepDiveRecords);
-  const visitorSnapshot = snapshotCollection(metadata_visitors);
-  const accountSnapshot = snapshotCollection(metadata_accounts);
+  const { deepDiveRecords, metadataRecords, visitors, accounts, apiCalls } =
+    buildDeepDiveExportState();
+  const visitorSnapshot = snapshotDeepDiveCollection(visitors);
+  const accountSnapshot = snapshotDeepDiveCollection(accounts);
 
   logXlsx('debug', 'Collected metadata records for export', {
     metadataRecords: metadataRecords.length,
-    visitors: metadata_visitors.length,
-    accounts: metadata_accounts.length,
+    visitors: visitorSnapshot.length,
+    accounts: accountSnapshot.length,
   });
 
   const defaultFileName = buildDefaultFileName(metadataRecords);
@@ -602,6 +592,7 @@ export const exportDeepDiveXlsx = async () => {
       metadataRecords,
       deepDiveRecords,
       buildValueLookup(visitorSnapshot, accountSnapshot),
+      apiCalls,
     );
   } catch (error) {
     reportDeepDiveError('Unable to build deep-dive workbook', error);
