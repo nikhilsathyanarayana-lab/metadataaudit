@@ -24,6 +24,7 @@ import {
   collectDeepDiveMetadataFields,
   ensureDeepDiveAccumulatorEntry,
   getOutstandingMetadataCalls,
+  getMetadataShapeAnomalies,
   metadata_accounts,
   metadata_api_calls,
   metadata_visitors,
@@ -601,6 +602,49 @@ const exposeDeepDiveDebugCommands = () => {
         hasSuccessRecord: successApps.has(summary.appId),
       })),
     );
+
+    const shapeAnomalies = getMetadataShapeAnomalies();
+    const unexpectedShapes = [];
+
+    const appendAnomalies = (type, anomalies) => {
+      anomalies.forEach((anomaly) => {
+        unexpectedShapes.push({
+          type,
+          appId: anomaly.appId,
+          subId: anomaly.subId,
+          source: anomaly.source,
+          shape: anomaly.shape,
+          sample: anomaly.sample,
+        });
+      });
+    };
+
+    appendAnomalies('visitor', shapeAnomalies.visitor);
+    appendAnomalies('account', shapeAnomalies.account);
+
+    const formatSample = (sample) => {
+      try {
+        return JSON.stringify(sample);
+      } catch (error) {
+        return String(sample);
+      }
+    };
+
+    if (unexpectedShapes.length) {
+      console.info('Unexpected deep dive metadata shapes detected during aggregation:');
+      console.table(
+        unexpectedShapes.map((anomaly) => ({
+          type: anomaly.type,
+          appId: anomaly.appId,
+          subId: anomaly.subId,
+          source: anomaly.source,
+          shape: anomaly.shape,
+          sample: formatSample(anomaly.sample)?.slice(0, 200),
+        })),
+      );
+    } else {
+      console.info('No unexpected metadata shapes observed during aggregation.');
+    }
 
     return summaries;
   };

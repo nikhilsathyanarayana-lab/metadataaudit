@@ -1,5 +1,5 @@
 // Aggregation helpers for metadata visitors/accounts and field collection.
-import { DEEP_DIVE_AGGREGATION_BATCH_SIZE, TARGET_LOOKBACK } from './constants.js';
+import { DEEP_DIVE_AGGREGATION_BATCH_SIZE, TARGET_LOOKBACK, logDeepDive } from './constants.js';
 import { dedupeAndSortFields, yieldToBrowser } from './dataHelpers.js';
 
 export const metadata_visitors = [];
@@ -8,6 +8,7 @@ export const metadata_api_calls = [];
 export const metadata_pending_api_calls = [];
 const metadataVisitorAggregation = new Map();
 const metadataAccountAggregation = new Map();
+const metadataShapeSamples = { visitor: new Map(), account: new Map() };
 
 if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
@@ -23,6 +24,8 @@ export const clearDeepDiveCollections = () => {
   metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
   metadataVisitorAggregation.clear();
   metadataAccountAggregation.clear();
+  metadataShapeSamples.visitor.clear();
+  metadataShapeSamples.account.clear();
 };
 
 export const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
@@ -48,8 +51,112 @@ export const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
   return existing;
 };
 
+const isPlainObject = (candidate) => candidate && typeof candidate === 'object' && !Array.isArray(candidate);
+
+const describeMetadataShape = (candidate) => {
+  if (Array.isArray(candidate)) {
+    const first = candidate.find((entry) => entry !== null && typeof entry !== 'undefined');
+
+    if (!first) {
+      return 'array(empty)';
+    }
+
+    if (typeof first === 'object') {
+      const keys = Object.keys(first);
+      return `array<object{${keys.join(',')}}>`;
+    }
+
+    return `array<${typeof first}>`;
+  }
+
+  if (candidate === null) {
+    return 'null';
+  }
+
+  if (typeof candidate === 'object') {
+    return 'object';
+  }
+
+  return typeof candidate;
+};
+
+const summarizeShapeSample = (candidate) => {
+  if (Array.isArray(candidate)) {
+    const firstEntry = candidate.find((entry) => entry !== null && typeof entry !== 'undefined');
+    const keys = firstEntry && typeof firstEntry === 'object' ? Object.keys(firstEntry) : null;
+    return { length: candidate.length, sample: firstEntry ?? null, keys };
+  }
+
+  if (candidate && typeof candidate === 'object') {
+    const keys = Object.keys(candidate);
+    const preview = keys.slice(0, 3).reduce((acc, key) => ({ ...acc, [key]: candidate[key] }), {});
+    return { keys, preview };
+  }
+
+  return candidate ?? null;
+};
+
+const recordUnexpectedMetadataShape = (type, candidate, context = {}) => {
+  const bucket = metadataShapeSamples[type];
+
+  if (!bucket) {
+    return;
+  }
+
+  const shape = describeMetadataShape(candidate);
+  const shapeKey = `${context.appId || 'unknown'}::${context.source || 'unknown'}::${shape}`;
+
+  if (bucket.has(shapeKey)) {
+    return;
+  }
+
+  const sample = summarizeShapeSample(candidate);
+  bucket.set(shapeKey, {
+    appId: context.appId || '',
+    subId: context.subId || '',
+    source: context.source || '',
+    shape,
+    sample,
+  });
+
+  logDeepDive('warn', 'Unexpected deep dive metadata shape detected', {
+    type,
+    appId: context.appId,
+    subId: context.subId,
+    source: context.source,
+    shape,
+    sample,
+  });
+};
+
+export const getMetadataShapeAnomalies = () => ({
+  visitor: Array.from(metadataShapeSamples.visitor.values()),
+  account: Array.from(metadataShapeSamples.account.values()),
+});
+
+const extractMetadataObject = (metadata = {}, item = {}, type, entry = {}) => {
+  const paths = [
+    { value: metadata[type], source: `metadata.${type}` },
+    { value: item[type], source: type },
+    { value: metadata[`${type}Metadata`], source: `metadata.${type}Metadata` },
+    { value: item[`${type}Metadata`], source: `${type}Metadata` },
+  ];
+
+  for (const { value, source } of paths) {
+    if (isPlainObject(value)) {
+      return value;
+    }
+
+    if (typeof value !== 'undefined') {
+      recordUnexpectedMetadataShape(type, value, { ...entry, source });
+    }
+  }
+
+  return null;
+};
+
 const appendFieldsFromMetadataObject = (metadataObject, targetSet) => {
-  if (!metadataObject || typeof metadataObject !== 'object' || Array.isArray(metadataObject)) {
+  if (!isPlainObject(metadataObject)) {
     return;
   }
 
@@ -213,8 +320,8 @@ export const collectDeepDiveMetadataFields = async (response, accumulator, entry
 
   await processDeepDiveResponseItems(response, async (item) => {
     const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-    const visitorMetadata = metadata.visitor || item.visitor;
-    const accountMetadata = metadata.account || item.account;
+    const visitorMetadata = extractMetadataObject(metadata, item, 'visitor', entry);
+    const accountMetadata = extractMetadataObject(metadata, item, 'account', entry);
 
     appendFieldsFromMetadataObject(visitorMetadata, target.visitorFields);
     appendFieldsFromMetadataObject(accountMetadata, target.accountFields);
@@ -403,15 +510,15 @@ export const updateMetadataCollections = async (response, entry) => {
 
   await processDeepDiveResponseItems(response, async (item) => {
     const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-    const visitorMetadata = metadata.visitor || item.visitor;
-    const accountMetadata = metadata.account || item.account;
+    const visitorMetadata = extractMetadataObject(metadata, item, 'visitor', entry);
+    const accountMetadata = extractMetadataObject(metadata, item, 'account', entry);
 
-    if (visitorMetadata && typeof visitorMetadata === 'object' && !Array.isArray(visitorMetadata)) {
+    if (visitorMetadata) {
       const visitorId = item.visitorId || metadata.visitorId || '';
       updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
     }
 
-    if (accountMetadata && typeof accountMetadata === 'object' && !Array.isArray(accountMetadata)) {
+    if (accountMetadata) {
       updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
     }
   });
