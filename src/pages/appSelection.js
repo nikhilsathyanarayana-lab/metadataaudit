@@ -11,6 +11,7 @@ export const initAppSelection = async () => {
   const proceedButton = document.getElementById('app-selection-continue');
   const tableBody = document.getElementById('app-selection-table-body') || document.querySelector('.data-table tbody');
   const headerCheckbox = document.getElementById('app-selection-toggle-all');
+  const selectionCount = document.getElementById('app-selection-selection-count');
   const messageRegion = document.getElementById('app-selection-messages');
   const progressBanner = document.getElementById('app-selection-progress');
   const windowSelect = document.getElementById('app-selection-window');
@@ -215,11 +216,22 @@ export const initAppSelection = async () => {
     return filteredAppIds.length ? filtered : null;
   };
 
+  const updateSelectionCount = () => {
+    if (!selectionCount) {
+      return;
+    }
+
+    const selectedCount = Array.from(getBodyCheckboxes()).filter((box) => box.checked).length;
+    const label = selectedCount === 1 ? 'app' : 'apps';
+    selectionCount.textContent = `${selectedCount} ${label} selected`;
+  };
+
   const handleProceedState = () => {
     const checkboxes = getBodyCheckboxes();
     const hasSelection = Array.from(checkboxes).some((box) => box.checked);
     proceedButton.disabled = !hasSelection;
     proceedButton.setAttribute('aria-disabled', String(!hasSelection));
+    updateSelectionCount();
   };
 
   const syncSelectAllState = () => {
@@ -304,6 +316,7 @@ export const initAppSelection = async () => {
       tableBody.appendChild(row);
       proceedButton.disabled = true;
       proceedButton.setAttribute('aria-disabled', 'true');
+      updateSelectionCount();
       return;
     }
 
@@ -348,6 +361,7 @@ export const initAppSelection = async () => {
     if (!rows.length) {
       proceedButton.disabled = true;
       proceedButton.setAttribute('aria-disabled', 'true');
+      updateSelectionCount();
       return;
     }
 
@@ -376,6 +390,7 @@ export const initAppSelection = async () => {
 
     proceedButton.disabled = true;
     proceedButton.setAttribute('aria-disabled', 'true');
+    updateSelectionCount();
   };
 
   const fetchAndPopulate = async (windowDays = currentWindowDays) => {

@@ -49,7 +49,10 @@
             <option value="180">Last 180 days</option>
           </select>
         </div>
-        <button id="app-selection-continue" class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
+        <div class="app-selection-actions" id="app-selection-actions">
+          <button id="app-selection-continue" class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
+          <p id="app-selection-selection-count" class="selection-count" aria-live="polite">0 apps selected</p>
+        </div>
       </div>
 
       <div class="table-wrapper" id="app-selection-table-wrapper" role="region" aria-label="App selection table wrapper" tabindex="0">
