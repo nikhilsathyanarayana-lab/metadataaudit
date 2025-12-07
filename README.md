@@ -101,11 +101,21 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Expected input: None; invoked directly from the console.
   - Sample invocation: `window.showPendingDeepDiveRequests()`.
   - Output: Returns the outstanding pending call objects and prints a `console.table` showing `appId`, `subId`, `status`, and timestamps.
+- `window.showDeepDiveCallPlan()`
+  - Context: Deep Dive request planning visibility after a scan is staged on `deep_dive.html`.
+  - Expected input: None; used from the console once a deep dive run has begun.
+  - Sample invocation: `window.showDeepDiveCallPlan()`.
+  - Output: Returns the staged call plan array and prints a `console.table` with `appId`, `subId`, `lookbackDays`, `status`, `detail`, and timestamps to confirm queued requests.
 - `window.describeJsonFileStructure()`
   - Context: Quickly inspect the shape of exported Deep Dive JSON files without loading them into the UI.
   - Expected input: Invoked from the console; triggers a JSON file picker and parses the selected file.
   - Sample invocation: `window.describeJsonFileStructure()`.
   - Output: Logs a nested summary of the JSON structure (including array lengths and object keys) via `console.dir` and returns the summarized shape object.
+- `window.validateData()`
+  - Context: Deep Dive post-run validation to summarize metadata coverage and flag unexpected record shapes.
+  - Expected input: None; relies on cached deep dive and aggregation results already loaded on the page.
+  - Sample invocation: `window.validateData()`.
+  - Output: Returns an array of per-app summaries, prints console tables for coverage by app, and surfaces any shape anomalies detected in visitor or account metadata.
 
 ## Maintenance notes
 - Clear `localStorage` between runs to avoid stale SubID or manual naming data.
