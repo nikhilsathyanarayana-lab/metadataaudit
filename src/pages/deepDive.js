@@ -1,5 +1,6 @@
 // Orchestrates the deep dive experience by connecting data helpers, aggregation, and UI flows.
-import { buildChunkedMetaEventsPayloads, buildMetaEventsPayload, runAggregationWithFallbackWindows } from '../services/requests.js';
+import { buildChunkedMetaEventsPayloads, buildMetaEventsPayload } from '../services/payloads/index.js';
+import { runAggregationWithFallbackWindows } from '../services/requests/network.js';
 import { applyManualAppNames, loadManualAppNames } from '../services/appNames.js';
 import {
   DEEP_DIVE_CONCURRENCY,

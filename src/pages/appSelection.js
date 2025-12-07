@@ -1,6 +1,6 @@
 import { createLogger } from '../utils/logger.js';
 import { extractAppIds } from '../services/appUtils.js';
-import { fetchAppsForEntry } from '../services/requests.js';
+import { fetchAppsForEntry } from '../services/requests/network.js';
 import { loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
