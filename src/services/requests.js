@@ -19,7 +19,22 @@ const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const AGGREGATION_TIMEOUT_MESSAGE = /aggregation request timed out/i;
 export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 
-const requestLogger = createLogger('Requests');
+const requestLogger = createLogger('Requests', { debugFlag: 'DEBUG_DEEP_DIVE' });
+
+const isDeepDiveDebugEnabled = () => typeof window !== 'undefined' && window.DEBUG_DEEP_DIVE === true;
+
+const logAggregationRequestPayload = (endpoint, payload, status, responseBody) => {
+  if (!isDeepDiveDebugEnabled()) {
+    return;
+  }
+
+  requestLogger.info('Aggregation request payload (debug):', {
+    endpoint,
+    status: status ?? 'unknown status',
+    payload,
+    responseBody: responseBody ?? '',
+  });
+};
 
 export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appIds) => {
   const label = contextLabel || 'Aggregation';
@@ -604,6 +619,7 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
   if (!response?.ok) {
     const statusLabel = response?.status ?? 'unknown status';
     const detail = rawBody?.trim() ? `: ${rawBody.trim()}` : '';
+    logAggregationRequestPayload(endpoint, payload, statusLabel, rawBody);
     throw createAggregationError(`Aggregation request failed (${statusLabel})${detail}`.trim(), response?.status, rawBody);
   }
 
