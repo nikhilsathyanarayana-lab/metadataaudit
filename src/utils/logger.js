@@ -27,6 +27,18 @@ const isFlagEnabled = (flag) => {
   return false;
 };
 
+const getTimestamp = () => new Date().toISOString();
+
+const formatPrefix = (scopePrefix, level, debugEnabled) => {
+  const levelTag = `[${String(level).toUpperCase()}]`;
+
+  if (!debugEnabled) {
+    return `${scopePrefix} ${levelTag}`;
+  }
+
+  return `${scopePrefix} ${levelTag} [${getTimestamp()}]`;
+};
+
 export const createLogger = (scope = 'App', options = {}) => {
   const { debugFlag = 'DEBUG_LOGGING', gateNonErrorLevels = false } = options;
   const prefix = `[${scope}]`;
@@ -44,7 +56,8 @@ export const createLogger = (scope = 'App', options = {}) => {
     }
 
     const logger = resolveLogger(normalizedLevel);
-    logger(prefix, ...messages);
+    const formattedPrefix = formatPrefix(prefix, normalizedLevel, debugEnabled);
+    logger(formattedPrefix, ...messages);
   };
 
   return {
