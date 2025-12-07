@@ -633,6 +633,37 @@ const hydrateCachedExportCollections = () => {
     return false;
   }
 
+  const isValidExportRow = (row) =>
+    row && typeof row === 'object' && typeof row.appId === 'string' && row.appId.trim().length > 0;
+
+  const sanitizeSnapshot = (snapshot, source) => {
+    if (!Array.isArray(snapshot) || snapshot.length === 0) {
+      return [];
+    }
+
+    const validRows = snapshot.filter(isValidExportRow);
+
+    if (!validRows.length) {
+      logDeepDive('warn', 'Rejected cached deep dive export snapshot', {
+        source,
+        totalRows: snapshot.length,
+        sampleShape: summarizeJsonShape(snapshot.slice(0, 3)),
+      });
+      return [];
+    }
+
+    if (validRows.length !== snapshot.length) {
+      logDeepDive('warn', 'Filtered invalid rows from cached deep dive export snapshot', {
+        source,
+        totalRows: snapshot.length,
+        validRows: validRows.length,
+        sampleShape: summarizeJsonShape(snapshot.slice(0, 3)),
+      });
+    }
+
+    return validRows;
+  };
+
   const extractCachedCollection = (keys) => {
     const containers = [cachedDeepDive];
 
@@ -649,20 +680,26 @@ const hydrateCachedExportCollections = () => {
         const snapshot = container[key];
 
         if (Array.isArray(snapshot) && snapshot.length > 0) {
-          return snapshot;
+          return { snapshot, source: key };
         }
       }
     }
 
-    return [];
+    return null;
   };
 
-  const applySnapshot = (target, snapshot) => {
-    if (!Array.isArray(target) || !Array.isArray(snapshot) || snapshot.length === 0) {
+  const applySnapshot = (target, cachedCollection) => {
+    if (!Array.isArray(target) || !cachedCollection) {
       return false;
     }
 
-    target.splice(0, target.length, ...snapshot);
+    const sanitized = sanitizeSnapshot(cachedCollection.snapshot, cachedCollection.source);
+
+    if (!sanitized.length) {
+      return false;
+    }
+
+    target.splice(0, target.length, ...sanitized);
     return true;
   };
 
