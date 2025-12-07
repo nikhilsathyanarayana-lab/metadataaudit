@@ -338,13 +338,13 @@ export const setupProgressTracker = () => {
 
   const updateApiProgress = (completed = 0, total = 0) => {
     if (!total) {
-      setApiStatus('No API requests queued.');
+      setApiStatus('No API calls queued.');
       return;
     }
 
     const boundedCompleted = Math.min(completed, total);
     const remaining = Math.max(total - boundedCompleted, 0);
-    setApiStatus(`API request windows: ${boundedCompleted}/${total} (${remaining} windows left)`);
+    setApiStatus(`API calls: ${boundedCompleted}/${total}, ${remaining} remaining`);
   };
 
   const updateProcessingProgress = (completed = 0, total = 0) => {
