@@ -6,7 +6,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Integration API flow** for most audits. Users supply a SubID, domain, and integration key to pull metadata directly from the Engage API.
 - **Cookie-based workbook flow** for superuser cookie audits. Requests are routed through a PHP proxy to avoid CORS issues and staged for workbook exports.
 
-Both flows share page-level controllers written in vanilla JavaScript and store in-progress state in `localStorage` between screens.
+Both flows share page-level controllers written in vanilla JavaScript and store in-progress state in `sessionStorage` between screens.
 
 ## Quick start
 - **Hosted use**: The Integration API flow can run from any static host (e.g., GitHub Pages) because all requests go straight to the Engage API.
@@ -24,7 +24,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - **App selection responses (`appSelectionResponses`)**: `initAppSelection()` hydrates previously cached SubIDs, populates app lists, and persists the full integration responses so downstream pages can render without refetching. Seven-day metadata previews are merged into this cache when available to keep Deep Dive defaults aligned.
 - **Manual app names (`manualAppNames`)**: The app name modal on `metadata_fields.html` writes overrides through `appNames.js`, updating both in-memory caches and previously saved metadata rows so exports reflect the chosen labels even after refreshes.
 - **Metadata field records (`metadataFieldRecords`, version 1)**: `metadata_fields.html` stores normalized visitor/account metadata for each app and lookback window. The snapshot is versioned and includes the integration key and domain used so stale entries can be discarded safely.
-- **Deep Dive aggregates (`deepDiveMetaEvents`)**: `deep_dive.html` reuses the metadata selections and cached Deep Dive results exposed via `window.deepDiveData` to avoid redundant scans. Use the console helper `window.deepDiveData` to confirm what is currently cached before clearing `localStorage`.
+- **Deep Dive aggregates (`deepDiveMetaEvents`)**: `deep_dive.html` reuses the metadata selections and cached Deep Dive results exposed via `window.deepDiveData` to avoid redundant scans. Use the console helper `window.deepDiveData` to confirm what is currently cached before clearing `sessionStorage`.
 
 ## API call queues and progress bars
 - **Metadata fields progress text**: `setupProgressTracker()` on `metadata_fields.html` counts dispatched vs. completed Engage aggregation calls. Payload splits (for oversized datasets) increment the total call count so the progress text reflects the additional requests.
@@ -35,7 +35,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 ## Integration API workflow
 1. **index.html**
    - `bootstrapShared()` injects shared modal templates.
-   - `initSubIdForm()` builds SubID rows, validates domain and integration key inputs, stores valid entries in `localStorage` (`subidLaunchData`), and launches app discovery before redirecting to app selection.
+   - `initSubIdForm()` builds SubID rows, validates domain and integration key inputs, stores valid entries in `sessionStorage` (`subidLaunchData`), and launches app discovery before redirecting to app selection.
 2. **app_selection.html**
    - `bootstrapShared()` prepares shared modals.
    - `initAppSelection()` reads `subidLaunchData`, fetches app lists for each SubID + integration key pair, caches them under `appSelectionResponses`, renders the selectable table, and enables Continue when at least one app is chosen.
@@ -46,7 +46,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 4. **deep_dive.html**
    - `bootstrapShared()` keeps export modals available.
    - `initDeepDive()` reads `appSelectionResponses` and `metadataFieldRecords` from the shared namespace on page load, populates the 7-day metadata columns immediately, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and aligns results with manual app naming before enabling exports.
-   - JSON exports (`metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`) nest Sub ID → App ID and summarize each metadata field as value/count pairs. App names persist separately in `localStorage` under `manualAppNames`.
+   - JSON exports (`metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`) nest Sub ID → App ID and summarize each metadata field as value/count pairs. App names persist separately in `sessionStorage` under `manualAppNames`.
 
 ## Cookie workbook workflow
 - `cookie_method.html` uses `initWorkbookUi()` to collect SubID, environment, cookie, and optional examples settings.
@@ -73,7 +73,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 ## Console helpers
 - `window.deepDiveData`
   - Context: Loaded on `deep_dive.html` during bootstrap to expose cached selections and metadata lookups.
-  - Expected input: None; populated from `localStorage` keys (`appSelectionResponses`, `metadataFieldRecords`, `deepDiveMetaEvents`).
+  - Expected input: None; populated from `sessionStorage` keys (`appSelectionResponses`, `metadataFieldRecords`, `deepDiveMetaEvents`).
   - Sample invocation: `window.deepDiveData?.metadataFieldRecords?.length`.
   - Output: Object keyed by the storage entries above with their cached record arrays.
 - `window.metadata_visitors`
@@ -118,7 +118,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Output: Returns an array of per-app summaries, prints console tables for coverage by app, and surfaces any shape anomalies detected in visitor or account metadata.
 
 ## Maintenance notes
-- Clear `localStorage` between runs to avoid stale SubID or manual naming data.
+- Clear `sessionStorage` between runs to avoid stale SubID or manual naming data.
 - Keep secrets out of exports; integration keys and cookies are never written to disk.
 - XLSX downloads use the open-source ExcelJS build from the CDN so header styling applied in-browser persists in the saved workbook. Keep
   export tooling open-source unless otherwise directed.

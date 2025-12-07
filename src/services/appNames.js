@@ -5,7 +5,7 @@ let manualAppNameCache = null;
 
 const appNamesLogger = createLogger('AppNames');
 
-// Retrieves stored manual app name overrides from localStorage, caching results for reuse.
+// Retrieves stored manual app name overrides from sessionStorage, caching results for reuse.
 export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => {
   if (manualAppNameCache instanceof Map) {
     return manualAppNameCache;
@@ -14,7 +14,7 @@ export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => 
   manualAppNameCache = new Map();
 
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = sessionStorage.getItem(storageKey);
 
     if (!raw) {
       return manualAppNameCache;
@@ -30,7 +30,7 @@ export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => 
   return manualAppNameCache;
 };
 
-// Writes manual app name overrides to localStorage and updates the in-memory cache.
+// Writes manual app name overrides to sessionStorage and updates the in-memory cache.
 export const persistManualAppNames = (appNameMap, storageKey = MANUAL_APP_NAME_STORAGE_KEY) => {
   if (!(appNameMap instanceof Map)) {
     return;
@@ -39,7 +39,7 @@ export const persistManualAppNames = (appNameMap, storageKey = MANUAL_APP_NAME_S
   const serialized = Object.fromEntries(appNameMap.entries());
 
   try {
-    localStorage.setItem(storageKey, JSON.stringify(serialized));
+    sessionStorage.setItem(storageKey, JSON.stringify(serialized));
   } catch (error) {
     appNamesLogger.warn('Unable to persist manual app names to storage:', error);
   }

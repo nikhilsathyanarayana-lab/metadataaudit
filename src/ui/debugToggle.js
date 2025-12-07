@@ -14,9 +14,9 @@ const updateStatusText = (statusTarget, enabled) => {
 const applyPersistedPreference = (enabled) => {
   try {
     if (enabled) {
-      localStorage.setItem(STORAGE_KEY, 'true');
+      sessionStorage.setItem(STORAGE_KEY, 'true');
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   } catch (error) {
     toggleLogger.error('Unable to persist debug toggle preference.', error);
@@ -25,7 +25,7 @@ const applyPersistedPreference = (enabled) => {
 
 const readPersistedPreference = () => {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
+    return sessionStorage.getItem(STORAGE_KEY) === 'true';
   } catch (error) {
     toggleLogger.error('Unable to read debug toggle preference.', error);
     return false;
