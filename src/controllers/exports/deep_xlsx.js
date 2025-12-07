@@ -419,6 +419,7 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
     logXlsx('error', 'No grouped format selections found; no app worksheets will be generated.');
   }
 
+  let skippedAppCount = 0;
   groupedSelections.forEach((appSelection) => {
     const lookup = index.get(appSelection.appId);
     const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
@@ -426,9 +427,10 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
 
     if (completedAppIds.size > 0 && !completedAppIds.has(appSelection.appId)) {
       logXlsx(
-        'warn',
+        'error',
         `Skipping worksheet for app ${appSelection.appId} (subId: ${subId || 'N/A'}) because scan is incomplete.`,
       );
+      skippedAppCount += 1;
       return;
     }
 
@@ -473,6 +475,12 @@ const buildWorkbook = (formatSelections, metadataRecords, deepDiveRecords = []) 
       sheetLabel,
     });
   });
+
+  if (skippedAppCount > 0) {
+    const message = `${skippedAppCount} app worksheet(s) skipped because the deep-dive scan did not complete.`;
+    logXlsx('error', message);
+    throw new Error(message);
+  }
 
   const fieldAnalysisRows = fieldAnalysisEntries
     .sort((first, second) => (second.uniqueValueCount || 0) - (first.uniqueValueCount || 0))
@@ -537,11 +545,17 @@ export const exportDeepDiveXlsx = async () => {
     accountSelections: accountSelections.length,
   });
 
-  const workbook = buildWorkbook(
-    [...visitorSelections, ...accountSelections],
-    metadataRecords,
-    deepDiveRecords,
-  );
+  let workbook;
+  try {
+    workbook = buildWorkbook(
+      [...visitorSelections, ...accountSelections],
+      metadataRecords,
+      deepDiveRecords,
+    );
+  } catch (error) {
+    reportDeepDiveError('Unable to build deep-dive workbook', error);
+    return;
+  }
 
   logXlsx('info', 'Deep-dive workbook assembled; starting download');
 
