@@ -379,10 +379,68 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     }
   };
 
+  const requestQueue = [];
+  let activeRequests = 0;
+  let lastDispatchAtMs = 0;
+
+  const dispatchNextRequest = async () => {
+    if (activeRequests >= Math.max(DEEP_DIVE_CONCURRENCY, 1)) {
+      return;
+    }
+
+    const nextRequest = requestQueue.shift();
+    if (!nextRequest) {
+      return;
+    }
+
+    const { entry, resolver } = nextRequest;
+
+    if (resolver.resolved) {
+      dispatchNextRequest();
+      return;
+    }
+
+    activeRequests += 1;
+
+    const elapsedSinceLastDispatch = Date.now() - lastDispatchAtMs;
+    const delayMs = Math.max(DEEP_DIVE_REQUEST_SPACING_MS - Math.max(elapsedSinceLastDispatch, 0), 0);
+
+    logDeepDive('debug', 'Dispatching deep dive request', {
+      appId: entry.appId,
+      subId: entry.subId,
+      delayMs,
+      activeRequests,
+    });
+
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    lastDispatchAtMs = Date.now();
+
+    if (resolver.cancelled) {
+      logDeepDive('warn', 'Skipping cancelled deep dive request', {
+        appId: entry.appId,
+        subId: entry.subId,
+        reason: resolver.reason || 'unknown',
+      });
+      resolver.safeResolve();
+      activeRequests -= 1;
+      dispatchNextRequest();
+      return;
+    }
+
+    try {
+      await processEntry(entry);
+    } finally {
+      resolver.safeResolve();
+      activeRequests -= 1;
+      dispatchNextRequest();
+    }
+  };
+
   const scheduleDeepDiveRequest = (entry, index) =>
     new Promise((resolve) => {
-      const chunkIndex = Math.floor(index / Math.max(DEEP_DIVE_CONCURRENCY, 1));
-      const delayMs = chunkIndex * DEEP_DIVE_REQUEST_SPACING_MS;
       const resolver = {
         resolved: false,
         cancelled: false,
@@ -405,28 +463,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       logDeepDive('debug', 'Scheduling deep dive request', {
         appId: entry.appId,
         subId: entry.subId,
-        chunkIndex,
-        delayMs,
+        queueIndex: index,
       });
 
       pendingResolvers.set(entry.appId, resolver);
-
-      setTimeout(async () => {
-        if (resolver.cancelled) {
-          logDeepDive('warn', 'Skipping cancelled deep dive request', {
-            appId: entry.appId,
-            subId: entry.subId,
-            reason: resolver.reason || 'unknown',
-          });
-          return;
-        }
-
-        try {
-          await processEntry(entry);
-        } finally {
-          resolver.safeResolve();
-        }
-      }, delayMs);
+      requestQueue.push({ entry, resolver });
+      dispatchNextRequest();
     });
 
   const scheduledRequests = queue.map((entry, index) => scheduleDeepDiveRequest(entry, index));
