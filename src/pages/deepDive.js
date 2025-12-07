@@ -6,6 +6,7 @@ import {
   LOOKBACK_OPTIONS,
   TARGET_LOOKBACK,
   DEEP_DIVE_REQUEST_SPACING_MS,
+  deepDiveGlobalKey,
   logDeepDive,
 } from './deepDive/constants.js';
 import {
@@ -549,6 +550,65 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   }
 };
 
+const hydrateCachedExportCollections = () => {
+  const cachedDeepDive = typeof window !== 'undefined' ? window.deepDiveData?.[deepDiveGlobalKey] : null;
+
+  if (!cachedDeepDive || typeof cachedDeepDive !== 'object') {
+    return false;
+  }
+
+  const extractCachedCollection = (keys) => {
+    const containers = [cachedDeepDive];
+
+    if (cachedDeepDive.records && typeof cachedDeepDive.records === 'object') {
+      containers.push(cachedDeepDive.records);
+    }
+
+    for (const container of containers) {
+      if (!container || typeof container !== 'object') {
+        continue;
+      }
+
+      for (const key of keys) {
+        const snapshot = container[key];
+
+        if (Array.isArray(snapshot) && snapshot.length > 0) {
+          return snapshot;
+        }
+      }
+    }
+
+    return [];
+  };
+
+  const applySnapshot = (target, snapshot) => {
+    if (!Array.isArray(target) || !Array.isArray(snapshot) || snapshot.length === 0) {
+      return false;
+    }
+
+    target.splice(0, target.length, ...snapshot);
+    return true;
+  };
+
+  const hydratedVisitors = applySnapshot(
+    metadata_visitors,
+    extractCachedCollection(['metadata_visitors', 'visitors']),
+  );
+  const hydratedAccounts = applySnapshot(
+    metadata_accounts,
+    extractCachedCollection(['metadata_accounts', 'accounts']),
+  );
+
+  if (hydratedVisitors || hydratedAccounts) {
+    logDeepDive('info', 'Hydrated cached deep dive export collections', {
+      visitors: metadata_visitors.length,
+      accounts: metadata_accounts.length,
+    });
+  }
+
+  return hydratedVisitors || hydratedAccounts;
+};
+
 const exposeDeepDiveDebugCommands = () => {
   if (typeof window === 'undefined' || window.showPendingDeepDiveRequests) {
     return;
@@ -749,6 +809,7 @@ export const initDeepDive = async () => {
     const manualAppNames = loadManualAppNames();
     let metadataRecords = loadMetadataRecords();
     const deepDiveRecords = loadDeepDiveRecords();
+    hydrateCachedExportCollections();
     const rows = [];
     const renderedRows = [];
     const getRenderedRows = () => renderedRows;
@@ -766,7 +827,9 @@ export const initDeepDive = async () => {
     let selectedLookback = TARGET_LOOKBACK;
 
     const updateExportAvailability = () => {
-      setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0);
+      const hasAggregatedRows = metadata_visitors.length > 0 || metadata_accounts.length > 0;
+
+      setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0 || hasAggregatedRows);
     };
 
     const refreshTables = (lookback = selectedLookback) => {
