@@ -60,7 +60,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 
 ### Deep Dive diagnostics
 - **Enable verbose logging**: Open the console on `deep_dive.html` and set `window.DEBUG_DEEP_DIVE = true;` before starting a scan. Logs stream to the browser console and inherit the `[DeepDive]` prefix with timestamps when the flag is active.
-- **API lifecycle cues**: During a run you should see `Prepared deep dive request queue` (total calls staged), `Starting deep dive scan` (execution begins), `Scheduling deep dive request` / `Queued deep dive requests for execution` (async dispatch), and `Deep dive scan completed` (all calls resolved). Warnings such as `Detected stalled deep dive request` and `Outstanding deep dive requests detected after scan resolution` indicate items that exceeded the watchdog threshold or never finished.
+- **API lifecycle cues**: During a run you should see `Prepared deep dive request queue` (total calls staged), `Starting deep dive scan` (execution begins), `Scheduling deep dive request` / `Queued deep dive requests for execution` (async dispatch), and `Deep dive scan completed` (all calls resolved).
 - **Processing progress cues**: Each queued app emits `Processing deep dive entry`, followed by either `Deep dive entry completed` (success) or `Deep dive entry marked as failed` / `Deep dive request failed` when responses error. Splits logged as `Splitting deep dive request into smaller windows` show when oversized date ranges are divided for retries. Use these messages to correlate UI progress bars with background processing when capturing diagnostics.
 
 ### Deep Dive scan flow
@@ -73,26 +73,25 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 ```mermaid
 sequenceDiagram
   participant User as User/UI
-  participant Plan as Call plan and pending calls
+  participant Plan as Call plan & pending calls
   participant Scheduler as Queue dispatcher
   participant Engage as Engage API
   participant Cache as Local cache
 
-  User->>Plan: buildScanEntries for selected apps
-  Plan->>Plan: stageDeepDiveCallPlan
-  Plan->>Plan: registerPendingMetadataCall [queued]
-  User->>Scheduler: runDeepDiveScan with entries and lookback
-  Scheduler->>Scheduler: start stall watchdog / sync totals
-  Scheduler->>Plan: updateApiProgress (queued calls)
+  User->>Plan: buildScanEntries() for selected apps
+  Plan->>Plan: stageDeepDiveCallPlan() & registerPendingMetadataCall(status="queued")
+  User->>Scheduler: runDeepDiveScan(entries, lookback)
+  Scheduler->>Scheduler: start stall watchdog; sync totals
+  Scheduler->>Plan: updateApiProgress() (queued calls)
   loop Staggered dispatch
-    Scheduler->>Plan: markPendingMetadataCallStarted
-    Scheduler->>Engage: runAggregationWithFallbackWindows
-    Engage-->>Scheduler: aggregated results (split when needed)
-    Scheduler->>Plan: resolvePendingMetadataCall [completed|failed]
-    Scheduler->>Cache: collectDeepDiveMetadataFields + updateMetadataCollections
-    Scheduler->>User: updateProcessingProgress
+    Scheduler->>Plan: markPendingMetadataCallStarted()
+    Scheduler->>Engage: runAggregationWithFallbackWindows()
+    Engage-->>Scheduler: aggregatedResults (+ splits when needed)
+    Scheduler->>Plan: resolvePendingMetadataCall(status="completed"/"failed")
+    Scheduler->>Cache: collectDeepDiveMetadataFields(); updateMetadataCollections()
+    Scheduler->>User: updateProcessingProgress()
   end
-  Scheduler->>User: setApiStatus Deep dive scan completed
+  Scheduler->>User: setApiStatus('Deep dive scan completed')
 ```
 
 ## Console helpers
