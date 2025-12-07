@@ -305,6 +305,21 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         status: call.status,
       })),
     });
+
+    const { completed, total } = summarizePendingMetadataCallProgress();
+    completedApiCalls = Math.max(completedApiCalls, completed);
+    totalApiCalls = Math.max(totalApiCalls, total);
+
+    const outstandingMessage = `${outstandingAfter.length} deep-dive request${
+      outstandingAfter.length === 1 ? '' : 's'
+    } are still queued; reload or retry.`;
+
+    scheduleDomUpdate(() => {
+      updateApiProgress?.(completedApiCalls, totalApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+      setApiError?.(outstandingMessage);
+      setProcessingError?.(outstandingMessage);
+    });
   }
 
   if (successCount) {
