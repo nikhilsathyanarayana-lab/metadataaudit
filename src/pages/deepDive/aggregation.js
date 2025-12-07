@@ -274,9 +274,11 @@ export const resolvePendingMetadataCall = (entry, status = 'completed', error = 
 };
 
 export const getOutstandingMetadataCalls = () =>
-  metadata_pending_api_calls.filter((call) => call?.status === 'queued' || call?.status === 'in-flight');
+  metadata_pending_api_calls.filter(
+    (call) => call?.status === 'queued' || call?.status === 'in-flight' || call?.status === 'failed',
+  );
 
-const isResolvedCall = (call) => call?.status === 'completed' || call?.status === 'failed';
+const isResolvedCall = (call) => call?.status === 'completed';
 
 export const summarizePendingMetadataCallProgress = () =>
   metadata_pending_api_calls.reduce(
