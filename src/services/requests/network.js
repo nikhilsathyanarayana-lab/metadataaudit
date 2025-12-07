@@ -3,7 +3,7 @@ import { createLogger } from '../../utils/logger.js';
 import { buildAppListingPayload, buildChunkedAppListingPayloads } from '../payloads/index.js';
 import { createAggregationError, isTooMuchDataOrTimeout } from './errors.js';
 
-const requestLogger = createLogger('Requests', { debugFlag: 'DEBUG_DEEP_DIVE' });
+const requestLogger = createLogger('Requests', { debugFlag: 'DEBUG_DEEP_DIVE', alwaysInfo: true });
 const isDeepDiveDebugEnabled = () => typeof window !== 'undefined' && window.DEBUG_DEEP_DIVE === true;
 
 const logAggregationRequestPayload = (endpoint, payload, status, responseBody) => {
@@ -127,13 +127,43 @@ export const runAggregationWithFallbackWindows = async ({
     const plannedRequestCount = payloads.length;
 
     try {
-      const scheduleAggregationRequest = (payload, index) => new Promise((resolve, reject) => {
-        setTimeout(() => {
-          postAggregationWithIntegrationKey(entry, payload, fetchImpl)
-            .then((response) => resolve({ index, response }))
-            .catch(reject);
-        }, index * 3000);
-      });
+      const scheduleAggregationRequest = (payload, index) =>
+        new Promise((resolve, reject) => {
+          const requestId = payload?.request?.requestId || `window-${windowSize}-${index + 1}`;
+          const payloadLength = typeof payload === 'string' ? payload.length : JSON.stringify(payload || {}).length;
+          const startTime = Date.now();
+
+          requestLogger.debug('Dispatching aggregation request.', {
+            requestId,
+            windowSize,
+            chunkSize,
+            payloadLength,
+          });
+
+          setTimeout(() => {
+            postAggregationWithIntegrationKey(entry, payload, fetchImpl)
+              .then((response) => {
+                const durationMs = Date.now() - startTime;
+                requestLogger.debug('Aggregation response received.', {
+                  requestId,
+                  windowSize,
+                  durationMs,
+                  response,
+                });
+                resolve({ index, response });
+              })
+              .catch((error) => {
+                const durationMs = Date.now() - startTime;
+                requestLogger.debug('Aggregation request failed.', {
+                  requestId,
+                  windowSize,
+                  durationMs,
+                  error,
+                });
+                reject(error);
+              });
+          }, index * 3000);
+        });
 
       onRequestsPlanned?.(plannedRequestCount, windowSize);
       requestCount += plannedRequestCount;

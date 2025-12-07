@@ -40,14 +40,19 @@ const formatPrefix = (scopePrefix, level, debugEnabled) => {
 };
 
 export const createLogger = (scope = 'App', options = {}) => {
-  const { debugFlag = 'DEBUG_LOGGING' } = options;
+  const { debugFlag = 'DEBUG_LOGGING', alwaysInfo = false } = options;
   const prefix = `[${scope}]`;
 
   const logWithLevel = (level, ...messages) => {
     const normalizedLevel = normalizeLevel(level);
     const debugEnabled = isFlagEnabled(debugFlag);
 
-    if (!debugEnabled && normalizedLevel !== 'error') {
+    const shouldLog =
+      normalizedLevel === 'error' ||
+      debugEnabled ||
+      (alwaysInfo && normalizedLevel === 'info');
+
+    if (!shouldLog) {
       return;
     }
 
