@@ -178,7 +178,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     });
 
   const normalizeRequestCount = (summary) => {
-    const count = Number.isFinite(summary?.requestCount) ? summary.requestCount : 1;
+    const count = Number.isFinite(summary?.requestCount)
+      ? summary.requestCount
+      : Number.isFinite(summary)
+        ? summary
+        : 1;
 
     return Math.max(count, 1);
   };
@@ -230,7 +234,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           payloadCount,
         });
         updateDeepDiveCallPlanStatus(entry, 'Split', `Split into ${payloadCount} windows.`);
-        updatePendingMetadataCallRequestCount(entry, normalizeRequestCount({ requestCount: payloadCount }));
+        updatePendingMetadataCallRequestCount(entry, normalizeRequestCount(payloadCount));
         syncApiProgress();
         syncProcessingProgress();
         scheduleDomUpdate(() => {
