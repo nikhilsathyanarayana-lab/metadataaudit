@@ -1,10 +1,10 @@
 import {
   buildChunkedMetadataFieldPayloads,
   buildMetadataFieldsForAppPayload,
-  isTooMuchDataOrTimeout,
-  runAggregationWithFallbackWindows,
   logAggregationSplit,
-} from '../services/requests.js';
+} from '../services/payloads/index.js';
+import { isTooMuchDataOrTimeout, RESPONSE_TOO_LARGE_MESSAGE } from '../services/requests/errors.js';
+import { runAggregationWithFallbackWindows } from '../services/requests/network.js';
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { createLogger } from '../utils/logger.js';
@@ -17,7 +17,6 @@ import {
 const metadataLogger = createLogger('MetadataFields');
 
 const LOOKBACK_WINDOWS = [7, 30, 180];
-const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const OVER_LIMIT_CLASS = 'metadata-limit-exceeded';
 const storageKey = 'appSelectionResponses';
 const metadataFieldStorageKey = 'metadataFieldRecords';

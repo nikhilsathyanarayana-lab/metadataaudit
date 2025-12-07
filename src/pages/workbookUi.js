@@ -1,11 +1,5 @@
-import {
-  buildAggregationUrl,
-  buildAppListingPayload,
-  buildCookieHeaderValue,
-  buildExamplesPayload,
-  buildMetadataFieldsPayload,
-  fetchAggregation,
-} from '../services/requests.js';
+import { buildAppListingPayload, buildExamplesPayload, buildMetadataFieldsPayload } from '../services/payloads/index.js';
+import { buildAggregationUrl, buildCookieHeaderValue, fetchAggregation } from '../services/requests/network.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { createLogger } from '../utils/logger.js';
 
