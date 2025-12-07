@@ -50,39 +50,71 @@ import {
 import { setupManualAppNameModal, setupRegexFormatModal } from './deepDive/ui/modals.js';
 import { exportDeepDiveJson } from '../controllers/exports/deep_json.js';
 import { exportDeepDiveXlsx } from '../controllers/exports/deep_xlsx.js';
+import { exposeDeepDiveDebugCommands } from './deepDive/debug.js';
+import { summarizeJsonShape } from './deepDive/shapeUtils.js';
 
 export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandlers, reportDeepDiveError };
 
 const STALL_WATCHDOG_INTERVAL_MS = 5_000;
 const API_CALL_TIMEOUT_MS = 60_000;
 
-const summarizeJsonShape = (value, depth = 0, maxDepth = 4) => {
-  if (depth >= maxDepth) {
-    if (Array.isArray(value)) {
-      return `Array(${value.length})`;
-    }
+const deepDiveCallPlan = [];
 
-    return value === null ? 'null' : typeof value;
+const syncCallPlanToWindow = () => {
+  if (typeof window !== 'undefined') {
+    window.deepDiveCallPlan = deepDiveCallPlan;
   }
-
-  if (Array.isArray(value)) {
-    return {
-      type: 'array',
-      length: value.length,
-      samples: value.slice(0, 3).map((item) => summarizeJsonShape(item, depth + 1, maxDepth)),
-    };
-  }
-
-  if (value && typeof value === 'object') {
-    const shape = {};
-    Object.keys(value).forEach((key) => {
-      shape[key] = summarizeJsonShape(value[key], depth + 1, maxDepth);
-    });
-    return shape;
-  }
-
-  return value === null ? 'null' : typeof value;
 };
+
+const stageDeepDiveCallPlan = (entries, lookbackDays) => {
+  const timestamp = new Date().toISOString();
+
+  deepDiveCallPlan.splice(
+    0,
+    deepDiveCallPlan.length,
+    ...entries.map((entry) => ({
+      appId: entry.appId,
+      subId: entry.subId || '',
+      lookbackDays,
+      status: 'Queued',
+      detail: '',
+      plannedAt: timestamp,
+      updatedAt: timestamp,
+    })),
+  );
+
+  syncCallPlanToWindow();
+
+  if (entries.length) {
+    logDeepDive('info', 'Prepared deep dive call plan', { plannedCalls: entries.length, lookbackDays });
+  }
+
+  return deepDiveCallPlan;
+};
+
+const updateDeepDiveCallPlanStatus = (entry, status, detail = '') => {
+  const appId = typeof entry === 'string' ? entry : entry?.appId;
+
+  if (!appId) {
+    return null;
+  }
+
+  const target = deepDiveCallPlan.find((call) => call?.appId === appId);
+
+  if (!target) {
+    return null;
+  }
+
+  target.status = status;
+  target.detail = detail;
+  target.updatedAt = new Date().toISOString();
+
+  syncCallPlanToWindow();
+
+  return target;
+};
+
+syncCallPlanToWindow();
 
 const calculateStallThreshold = (call) => {
   const queueIndex = metadata_pending_api_calls.findIndex((item) => item?.appId === call?.appId);
@@ -107,6 +139,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
   const queue = entries.slice();
+  stageDeepDiveCallPlan(queue, targetLookback);
   queue.forEach(registerPendingMetadataCall);
   logDeepDive('info', 'Prepared deep dive request queue', {
     queuedEntries: queue.length,
@@ -171,6 +204,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
       resolvePendingMetadataCall(entry, 'failed', stalledMessage);
       updateMetadataApiCalls(entry, 'error', stalledMessage);
+      updateDeepDiveCallPlanStatus(entry, 'Error', stalledMessage);
 
       completedProcessingSteps += normalizeRequestCount(call);
       syncApiProgress();
@@ -257,6 +291,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           windowSize,
           payloadCount,
         });
+        updateDeepDiveCallPlanStatus(entry, 'Split', `Split into ${payloadCount} windows.`);
         updatePendingMetadataCallRequestCount(entry, normalizeRequestCount({ requestCount: payloadCount }));
         syncApiProgress();
         syncProcessingProgress();
@@ -308,6 +343,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
       updateMetadataApiCalls(entry, 'success', '', datasetCount);
       resolvePendingMetadataCall(entry, 'completed');
+      updateDeepDiveCallPlanStatus(entry, 'Completed');
       for (const response of requestSummary.aggregatedResults) {
         await updateMetadataCollections(response, entry);
       }
@@ -347,6 +383,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       upsertDeepDiveRecord(entry, normalizedFields, detail, targetLookback);
       updateMetadataApiCalls(entry, 'error', detail);
       resolvePendingMetadataCall(entry, 'failed', detail);
+      updateDeepDiveCallPlanStatus(entry, 'Error', detail);
 
       if (!apiCompleted) {
         syncApiProgress();
@@ -411,6 +448,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       delayMs,
       activeRequests,
     });
+
+    updateDeepDiveCallPlanStatus(entry, 'Calling');
 
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -532,6 +571,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
       resolvePendingMetadataCall(entry, 'failed', cancellationMessage);
       updateMetadataApiCalls(entry, 'error', cancellationMessage);
+      updateDeepDiveCallPlanStatus(entry, 'Error', cancellationMessage);
       completedProcessingSteps += normalizeRequestCount(call);
     });
 
@@ -744,188 +784,6 @@ const hydrateCachedExportCollections = () => {
   return hydratedVisitors || hydratedAccounts;
 };
 
-const exposeDeepDiveDebugCommands = () => {
-  if (typeof window === 'undefined' || window.showPendingDeepDiveRequests) {
-    return;
-  }
-
-  window.showPendingDeepDiveRequests = () => {
-    const outstanding = getOutstandingMetadataCalls();
-
-    if (!outstanding.length) {
-      console.info('No pending deep dive requests.');
-      return [];
-    }
-
-    const summarized = outstanding.map((call) => {
-      const queuedAtMs = Date.parse(call.queuedAt);
-      const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
-
-      return {
-        appId: call.appId,
-        subId: call.subId,
-        status: call.status,
-        queuedAt: call.queuedAt,
-        startedAt: call.startedAt,
-        ageMs: Math.round(ageMs),
-        stallThresholdMs: calculateStallThreshold(call),
-        stalled: ageMs >= calculateStallThreshold(call),
-      };
-    });
-
-    console.table(summarized);
-    return outstanding;
-  };
-
-  window.validateData = () => {
-    const records = loadDeepDiveRecords();
-    const successApps = new Set(records.filter((record) => record?.status === 'success').map((r) => r.appId));
-
-    const jsonAppSummaries = new Map();
-    const recordCounts = {
-      visitors: metadata_visitors.length,
-      accounts: metadata_accounts.length,
-    };
-
-    const ensureSummary = (appId) => {
-      if (!jsonAppSummaries.has(appId)) {
-        jsonAppSummaries.set(appId, {
-          appId,
-          hasJsonData: true,
-          visitorRows: 0,
-          accountRows: 0,
-          hasSuccessRecord: successApps.has(appId),
-        });
-      }
-      return jsonAppSummaries.get(appId);
-    };
-
-    metadata_visitors.forEach(({ appId }) => {
-      const summary = ensureSummary(appId);
-      summary.visitorRows += 1;
-    });
-
-    metadata_accounts.forEach(({ appId }) => {
-      const summary = ensureSummary(appId);
-      summary.accountRows += 1;
-    });
-
-    const summaries = [...jsonAppSummaries.values()];
-
-    if (!summaries.length && !records.length) {
-      console.info('No deep dive data loaded yet.');
-      return [];
-    }
-
-    console.info(
-      `Deep dive JSON rows — visitors: ${recordCounts.visitors}, accounts: ${recordCounts.accounts}. Success records: ${successApps.size}.`,
-    );
-    console.table(
-      summaries.map((summary) => ({
-        ...summary,
-        hasSuccessRecord: successApps.has(summary.appId),
-      })),
-    );
-
-    const shapeAnomalies = getMetadataShapeAnomalies();
-    const unexpectedShapes = [];
-
-    const appendAnomalies = (type, anomalies) => {
-      anomalies.forEach((anomaly) => {
-        unexpectedShapes.push({
-          type,
-          appId: anomaly.appId,
-          subId: anomaly.subId,
-          source: anomaly.source,
-          shape: anomaly.shape,
-          sample: anomaly.sample,
-        });
-      });
-    };
-
-    appendAnomalies('visitor', shapeAnomalies.visitor);
-    appendAnomalies('account', shapeAnomalies.account);
-
-    const formatSample = (sample) => {
-      try {
-        return JSON.stringify(sample);
-      } catch (error) {
-        return String(sample);
-      }
-    };
-
-    if (unexpectedShapes.length) {
-      console.info('Unexpected deep dive metadata shapes detected during aggregation:');
-      console.table(
-        unexpectedShapes.map((anomaly) => ({
-          type: anomaly.type,
-          appId: anomaly.appId,
-          subId: anomaly.subId,
-          source: anomaly.source,
-          shape: anomaly.shape,
-          sample: formatSample(anomaly.sample)?.slice(0, 200),
-        })),
-      );
-    } else {
-      console.info('No unexpected metadata shapes observed during aggregation.');
-    }
-
-    return summaries;
-  };
-
-  window.describeJsonFileStructure = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-    input.hidden = true;
-    document.body.appendChild(input);
-
-    const selectFile = () =>
-      new Promise((resolve, reject) => {
-        const cleanup = () => input.remove();
-
-        input.addEventListener('change', () => {
-          const [file] = input.files ?? [];
-          cleanup();
-
-          if (file) {
-            resolve(file);
-            return;
-          }
-
-          reject(new Error('No file selected.'));
-        });
-
-        input.addEventListener('cancel', () => {
-          cleanup();
-          reject(new Error('File selection was cancelled.'));
-        });
-      });
-
-    input.click();
-
-    const file = await selectFile();
-    const contents = await file.text();
-
-    let parsed;
-    try {
-      parsed = JSON.parse(contents);
-    } catch (error) {
-      console.error('Unable to parse JSON file.', error);
-      return null;
-    }
-
-    const shape = summarizeJsonShape(parsed);
-
-    console.info(`JSON structure for ${file.name}:`);
-    console.dir(shape, { depth: null });
-
-    return shape;
-  };
-
-  logDeepDive('info', 'Deep dive pending request inspector installed.');
-};
-
 export const initDeepDive = async () => {
   try {
     logDeepDive('info', 'Initializing deep dive experience');
@@ -936,7 +794,7 @@ export const initDeepDive = async () => {
       return;
     }
 
-    exposeDeepDiveDebugCommands();
+    exposeDeepDiveDebugCommands({ deepDiveCallPlan, calculateStallThreshold });
 
     const progressHandlers = setupProgressTracker();
     const startButton = document.getElementById('deep-dive-start');
@@ -1012,9 +870,10 @@ export const initDeepDive = async () => {
           renderedRowCount: renderedRows.length,
         });
 
-        const totalEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length;
-        progressHandlers.updateProcessingProgress(0, totalEntries, 0);
-        progressHandlers.updateApiProgress(0, totalEntries);
+        const plannedEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback);
+        stageDeepDiveCallPlan(plannedEntries, selectedLookback);
+        progressHandlers.updateProcessingProgress(0, plannedEntries.length, 0);
+        progressHandlers.updateApiProgress(0, plannedEntries.length);
         updateExportAvailability();
       } catch (error) {
         progressHandlers.setProcessingError?.('Unable to refresh deep dive tables.');
@@ -1033,8 +892,10 @@ export const initDeepDive = async () => {
         progressHandlers.setProcessingStatus?.('Waiting for the first API response…');
 
         try {
+          const scanEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback);
+          stageDeepDiveCallPlan(scanEntries, selectedLookback);
           await runDeepDiveScan(
-            buildScanEntries(metadataRecords, manualAppNames, selectedLookback),
+            scanEntries,
             selectedLookback,
             progressHandlers,
             rows,
