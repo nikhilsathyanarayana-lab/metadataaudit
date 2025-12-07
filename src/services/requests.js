@@ -5,6 +5,7 @@ import { extractAppIds } from './appUtils.js';
  * @typedef {Object} AppAggregationEntry
  * @property {string} domain The base domain for the aggregation request.
  * @property {string} integrationKey Pendo integration key for authentication.
+ * @property {string} [appId] Optional App ID for request context and logging.
  */
 
 /**
@@ -171,6 +172,7 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
 export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
   response: { location: 'request', mimeType: 'application/json' },
   request: {
+    requestId: `meta-events-${appId}-${windowDays}d`,
     name: 'account-visitor-only',
     pipeline: [
       {
@@ -591,13 +593,25 @@ const extractJwtToken = (cookieHeaderValue) => {
  * @returns {Promise<object>}
  */
 export const postAggregationWithIntegrationKey = async (entry, payload, fetchImpl = fetch) => {
-  const { domain, integrationKey } = entry || {};
+  const { domain, integrationKey, appId } = entry || {};
 
   if (!domain || !integrationKey) {
     throw new Error('Domain and integration key are required for the aggregation request.');
   }
 
-  const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation`;
+  const queryParams = [];
+  const requestId = payload?.request?.requestId;
+
+  if (appId) {
+    queryParams.push(`appId=${encodeURIComponent(appId)}`);
+  }
+
+  if (requestId) {
+    queryParams.push(`requestId=${encodeURIComponent(requestId)}`);
+  }
+
+  const querySuffix = queryParams.length ? `?${queryParams.join('&')}` : '';
+  const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation${querySuffix}`;
   let response;
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   let timedOut = false;
