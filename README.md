@@ -113,3 +113,14 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - XLSX downloads use the open-source ExcelJS build from the CDN so header styling applied in-browser persists in the saved workbook. Keep
   export tooling open-source unless otherwise directed.
 
+## Chrome DevTools network icon quick-reference
+- **Hollow square**: Generic fetch/XHR request. In the app you will mostly see these for the aggregation POSTs that power metadata scans.
+- **Orange gear/asterisk**: Automatic CORS preflight (`OPTIONS`) call Chrome triggers before the matching fetch. It appears when requests include custom headers or credentials.
+- **Blue page**: Document/HTML fetch (e.g., loading `index.html` or `deep_dive.html`).
+- **Green sheet**: Stylesheet downloads such as `styles.css` or `exports.css`.
+- **Yellow page**: JavaScript files, including modules in `/src` and bundled vendor scripts.
+- **Purple dots**: Fetch/XHR requests initiated by scripts (Chrome sometimes shows this instead of the hollow square depending on version).
+- **Grey cube**: Static assets like SVG/PNG screenshots stored under `Modals/` or other media files.
+
+Use the Initiator column alongside these icons to confirm whether a call is a CORS preflight (`Preflight`), a fetch originating from your code (`fetch`, `xmlhttprequest`), or a browser-driven navigation/document load.
+
