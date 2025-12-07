@@ -1,0 +1,483 @@
+// Executes the deep dive workflow: queue setup, request scheduling, response handling, and cleanup.
+import { buildChunkedMetaEventsPayloads, buildMetaEventsPayload } from '../../services/payloads/index.js';
+import { runAggregationWithFallbackWindows } from '../../services/requests/network.js';
+import {
+  clearDeepDiveCollections,
+  collectDeepDiveMetadataFields,
+  ensureDeepDiveAccumulatorEntry,
+  getOutstandingMetadataCalls,
+  metadata_api_calls,
+  markPendingMetadataCallStarted,
+  updateMetadataApiCalls,
+  registerPendingMetadataCall,
+  resolvePendingMetadataCall,
+  summarizePendingMetadataCallProgress,
+  updateMetadataCollections,
+  updatePendingMetadataCallRequestCount,
+} from '../deepDive/aggregation.js';
+import {
+  DEEP_DIVE_CONCURRENCY,
+  LOOKBACK_OPTIONS,
+  TARGET_LOOKBACK,
+  DEEP_DIVE_REQUEST_SPACING_MS,
+  logDeepDive,
+} from '../deepDive/constants.js';
+import { scheduleDomUpdate, upsertDeepDiveRecord, yieldToBrowser } from '../deepDive/dataHelpers.js';
+import { stageDeepDiveCallPlan, updateDeepDiveCallPlanStatus } from './plan.js';
+
+const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSuccessfulCall, onComplete) => {
+  clearDeepDiveCollections();
+
+  const updateApiProgress =
+    typeof progressHandlers === 'function' ? progressHandlers : progressHandlers?.updateApiProgress;
+  const updateProcessingProgress =
+    typeof progressHandlers === 'object' && progressHandlers !== null
+      ? progressHandlers.updateProcessingProgress
+      : null;
+  const setApiStatus = progressHandlers?.setApiStatus;
+  const setProcessingStatus = progressHandlers?.setProcessingStatus;
+  const setApiError = progressHandlers?.setApiError;
+  const setProcessingError = progressHandlers?.setProcessingError;
+
+  const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
+  const queue = entries.slice();
+  stageDeepDiveCallPlan(queue, targetLookback);
+  queue.forEach(registerPendingMetadataCall);
+  logDeepDive('info', 'Prepared deep dive request queue', {
+    queuedEntries: queue.length,
+    requestedLookback: lookback,
+    targetLookback,
+  });
+  let { total: totalApiCalls, completed: completedApiCalls } = summarizePendingMetadataCallProgress();
+  let completedProcessingSteps = 0;
+  let successCount = 0;
+  const deepDiveAccumulator = new Map();
+
+  const getTotalApiCalls = () => {
+    const { total } = summarizePendingMetadataCallProgress();
+    if (total > 0) {
+      totalApiCalls = total;
+    }
+    return totalApiCalls;
+  };
+
+  const syncApiProgress = () =>
+    scheduleDomUpdate(() => {
+      const { completed, total } = summarizePendingMetadataCallProgress();
+
+      if (total > 0) {
+        totalApiCalls = total;
+      }
+
+      completedApiCalls = Math.max(completedApiCalls, completed);
+      updateApiProgress?.(completedApiCalls, totalApiCalls);
+    });
+
+  const syncProcessingProgress = () =>
+    scheduleDomUpdate(() => {
+      updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
+    });
+
+  const normalizeRequestCount = (summary) => {
+    const count = Number.isFinite(summary?.requestCount)
+      ? summary.requestCount
+      : Number.isFinite(summary)
+        ? summary
+        : 1;
+
+    return Math.max(count, 1);
+  };
+
+  logDeepDive('info', 'Starting deep dive scan', {
+    requestedEntries: entries.length,
+    totalApiCalls: getTotalApiCalls(),
+    targetLookback,
+  });
+
+  const entryLookup = new Map(queue.map((entry) => [entry.appId, entry]));
+  const pendingResolvers = new Map();
+
+  let resolveMetadataCompletion;
+  const metadataCompletion = new Promise((resolve) => {
+    resolveMetadataCompletion = resolve;
+  });
+
+  if (!getTotalApiCalls()) {
+    syncApiProgress();
+    scheduleDomUpdate(() => {
+      setApiError?.(
+        'No metadata selections found. Run the Metadata Fields page first to capture app details.',
+      );
+      setProcessingStatus?.('Response queue idle.');
+    });
+    return;
+  }
+
+  scheduleDomUpdate(() => {
+    updateApiProgress?.(completedApiCalls, getTotalApiCalls());
+    updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
+    setApiStatus?.('Starting deep dive scan…');
+    setProcessingStatus?.('Waiting for the first API response…');
+  });
+
+  const processEntry = async (entry) => {
+    logDeepDive('info', 'Processing deep dive entry', {
+      appId: entry.appId,
+      subId: entry.subId,
+      targetLookback,
+    });
+
+    const startTime = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    await yieldToBrowser();
+    markPendingMetadataCallStarted(entry);
+    let requestSummary = { requestCount: 1 };
+    let apiCompleted = false;
+    try {
+      const onWindowSplit = (windowSize, payloadCount) => {
+        logDeepDive('info', 'Splitting deep dive request into smaller windows', {
+          appId: entry.appId,
+          windowSize,
+          payloadCount,
+        });
+        updateDeepDiveCallPlanStatus(entry, 'Split', `Split into ${payloadCount} windows.`);
+        updatePendingMetadataCallRequestCount(entry, normalizeRequestCount(payloadCount));
+        syncApiProgress();
+        syncProcessingProgress();
+        scheduleDomUpdate(() => {
+          setApiStatus?.(
+            `Splitting ${windowSize}-day deep dive into ${payloadCount} request${payloadCount === 1 ? '' : 's'}…`,
+          );
+        });
+      };
+
+      requestSummary = await runAggregationWithFallbackWindows({
+        entry,
+        totalWindowDays: targetLookback,
+        buildBasePayload: (windowSize) => buildMetaEventsPayload(entry.appId, windowSize),
+        buildChunkedPayloads: (windowSize, chunkSize) =>
+          buildChunkedMetaEventsPayloads(entry.appId, windowSize, chunkSize),
+        aggregateResults: (collector, response) => collector.push(response),
+        onWindowSplit,
+      });
+
+      const resolvedRequestCount = normalizeRequestCount(requestSummary);
+
+      updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
+      syncApiProgress();
+      syncProcessingProgress();
+
+      if (!Array.isArray(requestSummary?.aggregatedResults)) {
+        throw requestSummary?.lastError || new Error('Aggregation response was empty or malformed.');
+      }
+
+      apiCompleted = true;
+      syncApiProgress();
+      scheduleDomUpdate(() => {
+        setProcessingStatus?.(
+          `Handling response ${completedProcessingSteps + resolvedRequestCount}/${getTotalApiCalls()}.`,
+        );
+      });
+
+      let normalizedFields = null;
+      let datasetCount = 0;
+
+      for (const response of requestSummary.aggregatedResults) {
+        normalizedFields = await collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
+        datasetCount = Number.isFinite(normalizedFields?.datasetCount)
+          ? normalizedFields.datasetCount
+          : datasetCount;
+      }
+
+      upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
+      updateMetadataApiCalls(entry, 'success', '', datasetCount);
+      resolvePendingMetadataCall(entry, 'completed');
+      updateDeepDiveCallPlanStatus(entry, 'Completed');
+      for (const response of requestSummary.aggregatedResults) {
+        await updateMetadataCollections(response, entry);
+      }
+      successCount += 1;
+      completedProcessingSteps += resolvedRequestCount;
+      syncProcessingProgress();
+      const durationMs =
+        (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
+        startTime;
+
+      logDeepDive('info', 'Deep dive entry completed', {
+        appId: entry.appId,
+        subId: entry.subId,
+        lookbackDays: targetLookback,
+        requestCount: resolvedRequestCount,
+        responseCount: requestSummary?.aggregatedResults?.length || 0,
+        datasetCount,
+        visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
+        accountFieldCount: normalizedFields?.accountFields?.size || 0,
+        durationMs: Math.round(durationMs),
+      });
+      if (onSuccessfulCall) {
+        scheduleDomUpdate(() => onSuccessfulCall());
+      }
+    } catch (error) {
+      const resolvedRequestCount = normalizeRequestCount(requestSummary);
+
+      updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
+      syncApiProgress();
+      syncProcessingProgress();
+      const timedOut = error?.name === 'AbortError' || /timed out/i.test(error?.message || '');
+      const detail = timedOut
+        ? 'Deep dive request timed out after 60 seconds.'
+        : error?.message || 'Unable to fetch metadata events.';
+      const normalizedFields = ensureDeepDiveAccumulatorEntry(deepDiveAccumulator, entry);
+
+      upsertDeepDiveRecord(entry, normalizedFields, detail, targetLookback);
+      updateMetadataApiCalls(entry, 'error', detail);
+      resolvePendingMetadataCall(entry, 'failed', detail);
+      updateDeepDiveCallPlanStatus(entry, 'Error', detail);
+
+      if (!apiCompleted) {
+        syncApiProgress();
+      }
+      completedProcessingSteps += resolvedRequestCount;
+      syncProcessingProgress();
+
+      logDeepDive('info', 'Deep dive entry marked as failed', {
+        appId: entry.appId,
+        subId: entry.subId,
+        lookbackDays: targetLookback,
+        apiCompleted,
+        timedOut,
+        requestCount: resolvedRequestCount,
+      });
+
+      const targetSetter = apiCompleted ? setProcessingError : setApiError;
+      const errorTargetLabel = apiCompleted ? 'response handling' : 'API';
+      scheduleDomUpdate(() => {
+        targetSetter?.(`Deep dive ${errorTargetLabel} error for app ${entry.appId}: ${detail}`);
+      });
+
+      if (apiCompleted) {
+        logDeepDive('error', 'Deep dive response handling failed', { appId: entry.appId, error });
+      } else {
+        logDeepDive('error', 'Deep dive request failed', { appId: entry.appId, error });
+      }
+    } finally {
+      requestSummary = null;
+    }
+  };
+
+  const requestQueue = [];
+  let activeRequests = 0;
+  let lastDispatchAtMs = 0;
+
+  const tryResolveCompletion = () => {
+    const { completed, total } = summarizePendingMetadataCallProgress();
+    const queueDrained = requestQueue.length === 0 && activeRequests === 0;
+
+    if (total > 0 && completed >= total && queueDrained) {
+      resolveMetadataCompletion?.('completed');
+    }
+  };
+
+  const dispatchNextRequest = async () => {
+    if (activeRequests >= Math.max(DEEP_DIVE_CONCURRENCY, 1)) {
+      return;
+    }
+
+    const nextRequest = requestQueue.shift();
+    if (!nextRequest) {
+      return;
+    }
+
+    const { entry, resolver } = nextRequest;
+
+    if (resolver.resolved) {
+      dispatchNextRequest();
+      return;
+    }
+
+    activeRequests += 1;
+
+    const elapsedSinceLastDispatch = Date.now() - lastDispatchAtMs;
+    const delayMs = Math.max(DEEP_DIVE_REQUEST_SPACING_MS - Math.max(elapsedSinceLastDispatch, 0), 0);
+
+    logDeepDive('debug', 'Dispatching deep dive request', {
+      appId: entry.appId,
+      subId: entry.subId,
+      delayMs,
+      activeRequests,
+    });
+
+    updateDeepDiveCallPlanStatus(entry, 'Calling');
+
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    lastDispatchAtMs = Date.now();
+
+    if (resolver.cancelled) {
+      logDeepDive('warn', 'Skipping cancelled deep dive request', {
+        appId: entry.appId,
+        subId: entry.subId,
+        reason: resolver.reason || 'unknown',
+      });
+      resolver.safeResolve();
+      activeRequests -= 1;
+      dispatchNextRequest();
+      return;
+    }
+
+    try {
+      await processEntry(entry);
+    } finally {
+      resolver.safeResolve();
+      activeRequests -= 1;
+      tryResolveCompletion();
+      dispatchNextRequest();
+    }
+  };
+
+  const scheduleDeepDiveRequest = (entry, index) =>
+    new Promise((resolve) => {
+      const resolver = {
+        resolved: false,
+        cancelled: false,
+        cancel: (reason = '') => {
+          resolver.cancelled = true;
+          resolver.reason = reason;
+          resolver.safeResolve();
+        },
+        safeResolve: () => {
+          if (resolver.resolved) {
+            return;
+          }
+
+          resolver.resolved = true;
+          pendingResolvers.delete(entry.appId);
+          resolve();
+        },
+      };
+
+      logDeepDive('debug', 'Scheduling deep dive request', {
+        appId: entry.appId,
+        subId: entry.subId,
+        queueIndex: index,
+      });
+
+      pendingResolvers.set(entry.appId, resolver);
+      requestQueue.push({ entry, resolver });
+      dispatchNextRequest();
+    });
+
+  const scheduledRequests = queue.map((entry, index) => scheduleDeepDiveRequest(entry, index));
+
+  logDeepDive('debug', 'Queued deep dive requests for execution', {
+    scheduledCount: scheduledRequests.length,
+    spacingMs: DEEP_DIVE_REQUEST_SPACING_MS,
+    concurrency: DEEP_DIVE_CONCURRENCY,
+  });
+
+  const scheduledResolution = Promise.all(scheduledRequests).then(() => 'scheduled');
+
+  tryResolveCompletion();
+
+  await Promise.all([scheduledResolution, metadataCompletion]).catch(() => {});
+
+  const outstandingAfter = getOutstandingMetadataCalls();
+  logDeepDive('info', 'Deep dive request scheduling complete', {
+    scheduledCount: scheduledRequests.length,
+    outstandingCalls: outstandingAfter.length,
+  });
+
+  if (outstandingAfter.length) {
+    logDeepDive('warn', 'Outstanding deep dive requests detected after scan resolution', {
+      outstandingCalls: outstandingAfter.map((call) => ({
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+      })),
+    });
+
+    const { completed, total } = summarizePendingMetadataCallProgress();
+    completedApiCalls = Math.max(completedApiCalls, completed);
+    totalApiCalls = Math.max(totalApiCalls, total);
+
+    const outstandingMessage = `${outstandingAfter.length} deep-dive request${
+      outstandingAfter.length === 1 ? '' : 's'
+    } are still queued; reload or retry.`;
+
+    scheduleDomUpdate(() => {
+      updateApiProgress?.(completedApiCalls, totalApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
+      setApiError?.(outstandingMessage);
+      setProcessingError?.(outstandingMessage);
+    });
+  }
+
+  const failedApiCalls = metadata_api_calls.filter((call) => call?.status !== 'success');
+  if (failedApiCalls.length) {
+    const failedMessage = `Deep dive requests failed; rerun to avoid incomplete exports (${failedApiCalls.length} request${
+      failedApiCalls.length === 1 ? '' : 's'
+    } impacted).`;
+
+    scheduleDomUpdate(() => {
+      setApiError?.(failedMessage);
+      setProcessingError?.(failedMessage);
+    });
+
+    const failedPayload = {
+      failedCalls: failedApiCalls.map((call) => ({
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+        error: call.error,
+        recordedAt: call.recordedAt,
+      })),
+    };
+
+    logDeepDive('error', 'Deep dive recorded failed API calls; exports will mark these apps incomplete', failedPayload);
+    console.error('Deep dive recorded failed API calls; exports will mark these apps incomplete', failedPayload);
+  }
+
+  if (successCount) {
+    scheduleDomUpdate(() => {
+      setApiStatus?.(`Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`);
+    });
+  }
+
+  const { completed: resolvedCalls, total: finalTotal } = summarizePendingMetadataCallProgress();
+  completedApiCalls = Math.max(completedApiCalls, resolvedCalls);
+  totalApiCalls = Math.max(totalApiCalls, finalTotal);
+
+  const completionLabel = outstandingAfter.length
+    ? `Deep dive finished with ${outstandingAfter.length} outstanding request${
+        outstandingAfter.length === 1 ? '' : 's'
+      }.`
+    : 'Deep dive complete.';
+
+  scheduleDomUpdate(() => {
+    updateApiProgress?.(completedApiCalls, totalApiCalls);
+    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
+    setApiStatus?.(completionLabel);
+    setProcessingStatus?.(completionLabel);
+  });
+
+  logDeepDive('info', 'Deep dive scan completed', {
+    completedCalls: completedApiCalls,
+    successCount,
+    totalCalls: totalApiCalls,
+  });
+
+  const clearTransientCallData = () => metadata_api_calls.splice(0, metadata_api_calls.length);
+
+
+if (onComplete) {
+  scheduleDomUpdate(() => {
+    onComplete();
+    clearTransientCallData();
+  });
+} else {
+  clearTransientCallData();
+}
+};
+
+export { runDeepDiveScan };
