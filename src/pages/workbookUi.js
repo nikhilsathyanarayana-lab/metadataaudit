@@ -244,25 +244,74 @@ export const initWorkbookUi = () => {
     previewTimeout = setTimeout(() => applyPreviews(), 200);
   };
 
-  const parseMetadataFields = (response, subId, windowDays) => {
-    if (!response?.results) {
+  const parseMetadataFields = (fieldResponses, subId) => {
+    if (!Array.isArray(fieldResponses)) {
       return [];
     }
 
-    return response.results.flatMap((record) => {
-      const appId = record?.appId || '';
+    const rowsByField = new Map();
+    const windowColumns = new Set();
 
-      if (!record?.fields) {
-        return [];
+    const getRowForField = (appId, scope, fieldName) => {
+      const key = `${appId}|${scope}|${fieldName}`;
+      if (!rowsByField.has(key)) {
+        rowsByField.set(key, {
+          SubID: subId,
+          AppID: appId,
+          Scope: scope,
+          Field: fieldName,
+        });
       }
 
-      return Object.entries(record.fields).map(([field, counts]) => ({
-        SubID: subId,
-        AppID: appId,
-        Field: field,
-        ['Count ' + windowDays]: counts[windowDays],
-      }));
+      return rowsByField.get(key);
+    };
+
+    fieldResponses.forEach(({ windowDays, response }) => {
+      const windowLabel = `Seen in ${windowDays}d`;
+      windowColumns.add(windowLabel);
+
+      if (!Array.isArray(response?.results)) {
+        return;
+      }
+
+      response.results.forEach((record) => {
+        const appId = record?.appId ?? '';
+        const visitorFields = Array.isArray(record?.visitorFields) ? record.visitorFields : [];
+        const accountFields = Array.isArray(record?.accountFields) ? record.accountFields : [];
+
+        visitorFields.forEach((fieldName) => {
+          const row = getRowForField(appId, 'Visitor', fieldName);
+          row[windowLabel] = (row[windowLabel] || 0) + 1;
+        });
+
+        accountFields.forEach((fieldName) => {
+          const row = getRowForField(appId, 'Account', fieldName);
+          row[windowLabel] = (row[windowLabel] || 0) + 1;
+        });
+      });
     });
+
+    if (!rowsByField.size) {
+      return [
+        {
+          SubID: subId,
+          AppID: 'n/a',
+          Field: 'No metadata fields returned',
+          Note: 'No visitor or account metadata fields were returned for the requested window(s).',
+        },
+      ];
+    }
+
+    const windowLabels = Array.from(windowColumns);
+    rowsByField.forEach((row) => {
+      windowLabels.forEach((label) => {
+        if (!(label in row)) {
+          row[label] = 0;
+        }
+      });
+    });
+
+    return Array.from(rowsByField.values());
   };
 
   let workbookLibsPromise;
@@ -472,9 +521,7 @@ const summarizeError = (error) => {
         setStatus('meta', 'success', 'Skipped meta event examples per settings.');
       }
 
-      const fieldsRows = fieldResponses.flatMap(({ windowDays, response }) =>
-        parseMetadataFields(response, subIdValue, windowDays),
-      );
+      const fieldsRows = parseMetadataFields(fieldResponses, subIdValue);
 
       setStatus('excel', 'running', 'Building workbook…');
       await ensureWorkbookLibs();
