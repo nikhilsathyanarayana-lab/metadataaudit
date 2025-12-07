@@ -147,11 +147,6 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         stallThresholdMs: Math.round(thresholdMs),
       });
 
-      scheduleDomUpdate(() => {
-        setApiError?.(stalledMessage);
-        setProcessingError?.(stalledMessage);
-      });
-
       if (resolver?.cancel) {
         resolver.cancel('stalled');
       }
