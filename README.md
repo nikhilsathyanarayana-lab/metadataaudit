@@ -79,8 +79,7 @@ sequenceDiagram
   participant Cache as Local cache
 
   User->>Plan: buildScanEntries() for selected apps
-  Plan->>Plan: stageDeepDiveCallPlan()
-  Plan->>Plan: registerPendingMetadataCall(status='queued')
+  Plan->>Plan: stageDeepDiveCallPlan() & registerPendingMetadataCall(status="queued")
   User->>Scheduler: runDeepDiveScan(entries, lookback)
   Scheduler->>Scheduler: start stall watchdog; sync totals
   Scheduler->>Plan: updateApiProgress() (queued calls)
