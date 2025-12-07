@@ -55,7 +55,6 @@ import { summarizeJsonShape } from './deepDive/shapeUtils.js';
 
 export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandlers, reportDeepDiveError };
 
-const STALL_WATCHDOG_INTERVAL_MS = 5_000;
 const API_CALL_TIMEOUT_MS = 60_000;
 
 const deepDiveCallPlan = [];
@@ -195,6 +194,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const entryLookup = new Map(queue.map((entry) => [entry.appId, entry]));
   const pendingResolvers = new Map();
+
+  let resolveMetadataCompletion;
+  const metadataCompletion = new Promise((resolve) => {
+    resolveMetadataCompletion = resolve;
+  });
 
   if (!getTotalApiCalls()) {
     syncApiProgress();
@@ -362,6 +366,15 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   let activeRequests = 0;
   let lastDispatchAtMs = 0;
 
+  const tryResolveCompletion = () => {
+    const { completed, total } = summarizePendingMetadataCallProgress();
+    const queueDrained = requestQueue.length === 0 && activeRequests === 0;
+
+    if (total > 0 && completed >= total && queueDrained) {
+      resolveMetadataCompletion?.('completed');
+    }
+  };
+
   const dispatchNextRequest = async () => {
     if (activeRequests >= Math.max(DEEP_DIVE_CONCURRENCY, 1)) {
       return;
@@ -416,6 +429,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     } finally {
       resolver.safeResolve();
       activeRequests -= 1;
+      tryResolveCompletion();
       dispatchNextRequest();
     }
   };
@@ -460,75 +474,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     concurrency: DEEP_DIVE_CONCURRENCY,
   });
 
-  const completionGuard = new Promise((resolve) => {
-    const checkForCompletion = () => {
-      const { completed, total } = summarizePendingMetadataCallProgress();
-      const outstanding = getOutstandingMetadataCalls();
-      const stalledOutstanding = outstanding.filter((call) => {
-        const queuedAtMs = Date.parse(call.queuedAt);
-        const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
-
-        return ageMs >= calculateStallThreshold(call);
-      });
-
-      const queueDrained = requestQueue.length === 0 && activeRequests === 0;
-      const finished = total > 0 && completed >= total && queueDrained;
-
-      if (finished || stalledOutstanding.length) {
-        resolve(stalledOutstanding.length ? 'stalled' : 'completed');
-        return;
-      }
-
-      setTimeout(checkForCompletion, STALL_WATCHDOG_INTERVAL_MS);
-    };
-
-    checkForCompletion();
-  });
-
   const scheduledResolution = Promise.all(scheduledRequests).then(() => 'scheduled');
 
-  const completionOutcome = await completionGuard;
+  tryResolveCompletion();
 
-  if (completionOutcome === 'stalled') {
-    pendingResolvers.forEach((resolver) => resolver.cancel?.('completion-guard'));
-  }
-
-  await scheduledResolution.catch(() => {});
-
-  const cancelledPendingCalls = metadata_pending_api_calls.filter(
-    (call) => call && call.status !== 'completed' && call.status !== 'failed',
-  );
-
-  if (cancelledPendingCalls.length) {
-    const cancellationMessage = 'Deep dive cancelled before pending requests finished.';
-
-    cancelledPendingCalls.forEach((call) => {
-      const entry = entryLookup.get(call.appId) || call;
-
-      resolvePendingMetadataCall(entry, 'failed', cancellationMessage);
-      updateMetadataApiCalls(entry, 'error', cancellationMessage);
-      updateDeepDiveCallPlanStatus(entry, 'Error', cancellationMessage);
-      completedProcessingSteps += normalizeRequestCount(call);
-    });
-
-    const { completed, total } = summarizePendingMetadataCallProgress();
-    completedApiCalls = Math.max(completedApiCalls, completed);
-    totalApiCalls = Math.max(totalApiCalls, total);
-
-    syncApiProgress();
-    syncProcessingProgress();
-
-    scheduleDomUpdate(() => {
-      updateApiProgress?.(completedApiCalls, totalApiCalls);
-      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
-      setApiError?.(cancellationMessage);
-      setProcessingError?.(cancellationMessage);
-    });
-
-    logDeepDive('warn', 'Marked cancelled deep dive requests as failed', {
-      cancelledCallCount: cancelledPendingCalls.length,
-    });
-  }
+  await Promise.all([scheduledResolution, metadataCompletion]).catch(() => {});
 
   const outstandingAfter = getOutstandingMetadataCalls();
   logDeepDive('info', 'Deep dive request scheduling complete', {
