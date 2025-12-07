@@ -50,6 +50,7 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
   const { fieldsContainer, integrationModal, integrationBackdrop, integrationInput, integrationSave, integrationClosers } =
     elements;
   let activeIntegrationRowId = null;
+  let hasClearedStoredDataForSession = false;
 
   const { open: showIntegrationModal, close: hideIntegrationModal } = createModalControls(
     integrationModal,
@@ -57,14 +58,22 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
   );
 
   const setIntegrationKeyForRow = (rowId, key) => {
-    integrationKeys.set(rowId, key);
+    const normalizedKey = key.trim();
+    const existingKey = integrationKeys.get(rowId) || '';
+
+    if (normalizedKey && normalizedKey !== existingKey && !hasClearedStoredDataForSession) {
+      clearStoredRunData();
+      hasClearedStoredDataForSession = true;
+    }
+
+    integrationKeys.set(rowId, normalizedKey);
 
     const row = fieldsContainer.querySelector(`[data-subid-row="${rowId}"]`);
     const keyDisplay = row?.querySelector('.integration-key-value');
 
     if (row && keyDisplay) {
-      if (key.trim()) {
-        keyDisplay.textContent = `Integration key: ${key}`;
+      if (normalizedKey) {
+        keyDisplay.textContent = `Integration key: ${normalizedKey}`;
         keyDisplay.hidden = false;
       } else {
         keyDisplay.textContent = '';
@@ -108,6 +117,12 @@ export const bindIntegrationModal = (elements, integrationKeys, updateLaunchButt
   });
 
   return { openIntegrationModal, closeIntegrationModal, setIntegrationKeyForRow };
+};
+
+const clearStoredRunData = () => {
+  ['subidLaunchData', 'appSelectionResponses', 'metadataFieldRecords'].forEach((key) =>
+    localStorage.removeItem(key),
+  );
 };
 
 const createRowSerializer = (fieldsContainer, integrationKeys) => () =>
