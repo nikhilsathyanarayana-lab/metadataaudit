@@ -585,6 +585,19 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     });
   }
 
+  const failedApiCalls = metadata_api_calls.filter((call) => call?.status !== 'success');
+  if (failedApiCalls.length) {
+    logDeepDive('warn', 'Deep dive recorded failed API calls; exports will mark these apps incomplete', {
+      failedCalls: failedApiCalls.map((call) => ({
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+        error: call.error,
+        recordedAt: call.recordedAt,
+      })),
+    });
+  }
+
   if (successCount) {
     scheduleDomUpdate(() => {
       setApiStatus?.(`Completed ${successCount} deep dive request${successCount === 1 ? '' : 's'}.`);

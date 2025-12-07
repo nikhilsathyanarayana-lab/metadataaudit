@@ -442,20 +442,46 @@ const buildWorkbook = (
   const describeCompleteness = (appId) => {
     const status = statusByApp.get(appId);
     const hasValues = hasValueDataForApp(appId);
+    const statusLabel = status?.status || 'unknown';
+    const errorDetail = status?.error || '';
 
-    if (status?.status === 'success' && hasValues) {
-      return { label: 'Complete', hasValues };
+    if (statusLabel === 'success' && hasValues) {
+      return {
+        label: 'Complete',
+        hasValues,
+        statusLabel,
+        reason: 'Successful scan returned metadata values.',
+      };
     }
 
-    if (status?.status === 'success' && !hasValues) {
-      return { label: 'Complete - no values captured', hasValues };
+    if (statusLabel === 'success' && !hasValues) {
+      return {
+        label: 'Complete - no values captured',
+        hasValues,
+        statusLabel,
+        reason: 'Scan succeeded but no metadata values were recorded for this app.',
+      };
     }
 
     if (hasValues) {
-      return { label: 'Partial - values captured without successful scan', hasValues };
+      return {
+        label: 'Partial - values captured without successful scan',
+        hasValues,
+        statusLabel,
+        reason: `Values were captured but the latest scan status is ${statusLabel}${
+          errorDetail ? ` (error: ${errorDetail})` : ''
+        }.`,
+      };
     }
 
-    return { label: 'Incomplete - no values captured', hasValues };
+    return {
+      label: 'Incomplete - no values captured',
+      hasValues,
+      statusLabel,
+      reason: `No values were captured${
+        statusLabel !== 'unknown' ? ` and the latest scan status is ${statusLabel}` : ''
+      }${errorDetail ? ` (error: ${errorDetail})` : ''}.`,
+    };
   };
 
   const incompleteApps = [];
@@ -472,6 +498,8 @@ const buildWorkbook = (
         subId,
         label: completeness.label,
         hasValues: completeness.hasValues,
+        reason: completeness.reason,
+        statusLabel: completeness.statusLabel,
         status: statusByApp.get(appSelection.appId) || null,
       });
     }
@@ -612,8 +640,17 @@ export const exportDeepDiveXlsx = async () => {
         const name = app.appName || app.appId || 'Unknown app';
         const valueNote = app.hasValues ? 'values present' : 'no values captured';
         const statusNote = app.status?.status ? `status: ${app.status.status}` : 'status unknown';
+        const reasonNote = app.reason ? `reason: ${app.reason}` : null;
         const errorNote = app.status?.error ? `error: ${app.status.error}` : null;
-        return [name, `(subId: ${app.subId || 'N/A'})`, app.label, statusNote, valueNote, errorNote]
+        return [
+          name,
+          `(subId: ${app.subId || 'N/A'})`,
+          app.label,
+          statusNote,
+          valueNote,
+          reasonNote,
+          errorNote,
+        ]
           .filter(Boolean)
           .join(' - ');
       })
