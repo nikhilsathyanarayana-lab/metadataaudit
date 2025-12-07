@@ -636,7 +636,6 @@ const fetchAndPopulate = (
 
   const enqueueWorkItem = (item) => {
     workQueue.push(item);
-    recordDispatch();
   };
 
   const handleBaseRequest = async (item) => {
@@ -687,6 +686,16 @@ const fetchAndPopulate = (
           logAggregationSplit('Metadata fields', windowSize, payloadCount, entry?.appId),
         maxWindowHint: shouldSkipLargeWindow ? startingWindowHint : undefined,
         preferredChunkSize,
+        onRequestsPlanned: (plannedCount) => {
+          const extraCalls = Math.max(0, plannedCount - 1);
+          if (extraCalls > 0) {
+            addTotalCalls(extraCalls);
+          }
+          recordDispatch(plannedCount);
+        },
+        onRequestsSettled: (completedCount) => {
+          recordResponse(completedCount);
+        },
       });
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
@@ -729,15 +738,6 @@ const fetchAndPopulate = (
       visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
       accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
     } finally {
-      const totalRequests = Math.max(1, requestSummary?.requestCount || 1);
-      const additionalCalls = totalRequests - 1;
-
-      if (additionalCalls > 0) {
-        addTotalCalls(additionalCalls);
-        recordDispatch(additionalCalls);
-        recordResponse(additionalCalls);
-      }
-
       if (clientErrorWithoutRecovery) {
         abortedEntries.add(entryKey(entry));
         removePendingForEntry(entry);
@@ -764,7 +764,6 @@ const fetchAndPopulate = (
     promise
       .catch(() => {})
       .finally(() => {
-        recordResponse();
         inFlight.delete(promise);
       });
   };
