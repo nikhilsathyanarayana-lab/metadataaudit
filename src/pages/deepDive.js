@@ -27,6 +27,7 @@ import {
   getMetadataShapeAnomalies,
   metadata_accounts,
   metadata_api_calls,
+  metadata_pending_api_calls,
   metadata_visitors,
   markPendingMetadataCallStarted,
   updateMetadataApiCalls,
@@ -53,6 +54,34 @@ export { exportDeepDiveJson, exportDeepDiveXlsx, installDeepDiveGlobalErrorHandl
 
 const STALL_WATCHDOG_INTERVAL_MS = 5_000;
 const API_CALL_TIMEOUT_MS = 60_000;
+
+const summarizeJsonShape = (value, depth = 0, maxDepth = 4) => {
+  if (depth >= maxDepth) {
+    if (Array.isArray(value)) {
+      return `Array(${value.length})`;
+    }
+
+    return value === null ? 'null' : typeof value;
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      type: 'array',
+      length: value.length,
+      samples: value.slice(0, 3).map((item) => summarizeJsonShape(item, depth + 1, maxDepth)),
+    };
+  }
+
+  if (value && typeof value === 'object') {
+    const shape = {};
+    Object.keys(value).forEach((key) => {
+      shape[key] = summarizeJsonShape(value[key], depth + 1, maxDepth);
+    });
+    return shape;
+  }
+
+  return value === null ? 'null' : typeof value;
+};
 
 const calculateStallThreshold = (call) => {
   const queueIndex = metadata_pending_api_calls.findIndex((item) => item?.appId === call?.appId);
@@ -647,6 +676,56 @@ const exposeDeepDiveDebugCommands = () => {
     }
 
     return summaries;
+  };
+
+  window.describeJsonFileStructure = async () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.hidden = true;
+    document.body.appendChild(input);
+
+    const selectFile = () =>
+      new Promise((resolve, reject) => {
+        const cleanup = () => input.remove();
+
+        input.addEventListener('change', () => {
+          const [file] = input.files ?? [];
+          cleanup();
+
+          if (file) {
+            resolve(file);
+            return;
+          }
+
+          reject(new Error('No file selected.'));
+        });
+
+        input.addEventListener('cancel', () => {
+          cleanup();
+          reject(new Error('File selection was cancelled.'));
+        });
+      });
+
+    input.click();
+
+    const file = await selectFile();
+    const contents = await file.text();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(contents);
+    } catch (error) {
+      console.error('Unable to parse JSON file.', error);
+      return null;
+    }
+
+    const shape = summarizeJsonShape(parsed);
+
+    console.info(`JSON structure for ${file.name}:`);
+    console.dir(shape, { depth: null });
+
+    return shape;
   };
 
   logDeepDive('info', 'Deep dive pending request inspector installed.');

@@ -94,6 +94,11 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Expected input: None; invoked directly from the console.
   - Sample invocation: `window.showPendingDeepDiveRequests()`.
   - Output: Returns the outstanding pending call objects and prints a `console.table` showing `appId`, `subId`, `status`, and timestamps.
+- `window.describeJsonFileStructure()`
+  - Context: Quickly inspect the shape of exported Deep Dive JSON files without loading them into the UI.
+  - Expected input: Invoked from the console; triggers a JSON file picker and parses the selected file.
+  - Sample invocation: `window.describeJsonFileStructure()`.
+  - Output: Logs a nested summary of the JSON structure (including array lengths and object keys) via `console.dir` and returns the summarized shape object.
 
 ## Maintenance notes
 - Clear `localStorage` between runs to avoid stale SubID or manual naming data.
