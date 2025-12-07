@@ -63,6 +63,38 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - **API lifecycle cues**: During a run you should see `Prepared deep dive request queue` (total calls staged), `Starting deep dive scan` (execution begins), `Scheduling deep dive request` / `Queued deep dive requests for execution` (async dispatch), and `Deep dive scan completed` (all calls resolved). Warnings such as `Detected stalled deep dive request` and `Outstanding deep dive requests detected after scan resolution` indicate items that exceeded the watchdog threshold or never finished.
 - **Processing progress cues**: Each queued app emits `Processing deep dive entry`, followed by either `Deep dive entry completed` (success) or `Deep dive entry marked as failed` / `Deep dive request failed` when responses error. Splits logged as `Splitting deep dive request into smaller windows` show when oversized date ranges are divided for retries. Use these messages to correlate UI progress bars with background processing when capturing diagnostics.
 
+### Deep Dive scan flow
+- **Queue creation**: `buildScanEntries()` prepares one entry per selected app and lookback window, while `stageDeepDiveCallPlan()` and `registerPendingMetadataCall()` record each planned API call so progress bars have an initial total.
+- **Watchdog + staging**: `runDeepDiveScan()` logs the start, hydrates totals from `metadata_pending_api_calls`, and arms a stall watchdog so long-running or stuck calls are resolved with an error status.
+- **Staggered dispatch**: Requests are enqueued with `scheduleDeepDiveRequest()`; `dispatchNextRequest()` spaces them by the configured delay and enforces the concurrency cap before calling `markPendingMetadataCallStarted()`.
+- **API execution**: `runAggregationWithFallbackWindows()` issues the Engage aggregation request. When payloads are too large it triggers `onWindowSplit`, increasing the recorded request count and updating UI status text while making multiple API calls for the split windows.
+- **Response handling**: Successful responses flow through `collectDeepDiveMetadataFields()` and `updateMetadataCollections()`, log completion details, and resolve `metadata_pending_api_calls`. Failures capture whether the API call or response processing failed and mark the call plan status accordingly.
+
+```mermaid
+sequenceDiagram
+  participant User as User/UI
+  participant Plan as Call plan & pending calls
+  participant Scheduler as Queue dispatcher
+  participant Engage as Engage API
+  participant Cache as Local cache
+
+  User->>Plan: buildScanEntries() for selected apps
+  Plan->>Plan: stageDeepDiveCallPlan()
+  Plan->>Plan: registerPendingMetadataCall(status='queued')
+  User->>Scheduler: runDeepDiveScan(entries, lookback)
+  Scheduler->>Scheduler: start stall watchdog; sync totals
+  Scheduler->>Plan: updateApiProgress() (queued calls)
+  loop Staggered dispatch
+    Scheduler->>Plan: markPendingMetadataCallStarted()
+    Scheduler->>Engage: runAggregationWithFallbackWindows()
+    Engage-->>Scheduler: aggregatedResults (+ splits when needed)
+    Scheduler->>Plan: resolvePendingMetadataCall(status="completed"/"failed")
+    Scheduler->>Cache: collectDeepDiveMetadataFields(); updateMetadataCollections()
+    Scheduler->>User: updateProcessingProgress()
+  end
+  Scheduler->>User: setApiStatus('Deep dive scan completed')
+```
+
 ## Console helpers
 - `window.deepDiveData`
   - Context: Loaded on `deep_dive.html` during bootstrap to expose cached selections and metadata lookups.
