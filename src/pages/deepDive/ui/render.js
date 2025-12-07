@@ -347,19 +347,28 @@ export const setupProgressTracker = () => {
     setApiStatus(`API calls: ${boundedCompleted}/${total}, ${remaining} remaining`);
   };
 
-  const updateProcessingProgress = (completed = 0, total = 0) => {
+  const updateProcessingProgress = (completed = 0, total = 0, apiCompleted = total) => {
     if (!total) {
       setProcessingStatus('Response queue idle.');
       return;
     }
 
-    const boundedCompleted = Math.min(completed, total);
-    const remaining = Math.max(total - boundedCompleted, 0);
-    setProcessingStatus(`Responses: ${boundedCompleted}/${total} (${remaining} remaining)`);
+    const normalizedTotal = Math.max(Number.isFinite(total) ? total : 0, 0);
+    const boundedApiCompleted = Math.min(
+      Math.max(Number.isFinite(apiCompleted) ? apiCompleted : 0, 0),
+      normalizedTotal,
+    );
+    const boundedCompleted = Math.min(
+      Math.max(Number.isFinite(completed) ? completed : 0, 0),
+      normalizedTotal,
+      boundedApiCompleted,
+    );
+    const remaining = Math.max(normalizedTotal - boundedCompleted, 0);
+    setProcessingStatus(`Responses: ${boundedCompleted}/${normalizedTotal} (${remaining} remaining)`);
   };
 
   updateApiProgress(0, 0);
-  updateProcessingProgress(0, 0);
+  updateProcessingProgress(0, 0, 0);
 
   const setApiError = (message) => setApiStatus(message || 'API request failed.', 'error');
   const setProcessingError = (message) =>

@@ -110,7 +110,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const syncProcessingProgress = () =>
     scheduleDomUpdate(() => {
-      updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
+      updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
     });
 
   logDeepDive('info', 'Starting deep dive scan', {
@@ -201,7 +201,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   scheduleDomUpdate(() => {
     updateApiProgress?.(completedApiCalls, getTotalApiCalls());
-    updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
+    updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
     setApiStatus?.('Starting deep dive scan…');
     setProcessingStatus?.('Waiting for the first API response…');
   });
@@ -430,7 +430,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
     scheduleDomUpdate(() => {
       updateApiProgress?.(completedApiCalls, totalApiCalls);
-      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
       setApiError?.(outstandingMessage);
       setProcessingError?.(outstandingMessage);
     });
@@ -454,7 +454,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   scheduleDomUpdate(() => {
     updateApiProgress?.(completedApiCalls, totalApiCalls);
-    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
+    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
     setApiStatus?.(completionLabel);
     setProcessingStatus?.(completionLabel);
   });
@@ -597,7 +597,7 @@ export const initDeepDive = async () => {
         });
 
         const totalEntries = buildScanEntries(metadataRecords, manualAppNames, selectedLookback).length;
-        progressHandlers.updateProcessingProgress(0, totalEntries);
+        progressHandlers.updateProcessingProgress(0, totalEntries, 0);
         progressHandlers.updateApiProgress(0, totalEntries);
         updateExportAvailability();
       } catch (error) {
