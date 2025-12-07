@@ -513,16 +513,16 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const failedApiCalls = metadata_api_calls.filter((call) => call?.status !== 'success');
   if (failedApiCalls.length) {
-    const failedMessage = `${failedApiCalls.length} deep dive request${
+    const failedMessage = `Deep dive requests failed; rerun to avoid incomplete exports (${failedApiCalls.length} request${
       failedApiCalls.length === 1 ? '' : 's'
-    } failed; rerun the scan to avoid incomplete exports.`;
+    } impacted).`;
 
     scheduleDomUpdate(() => {
       setApiError?.(failedMessage);
       setProcessingError?.(failedMessage);
     });
 
-    logDeepDive('warn', 'Deep dive recorded failed API calls; exports will mark these apps incomplete', {
+    const failedPayload = {
       failedCalls: failedApiCalls.map((call) => ({
         appId: call.appId,
         subId: call.subId,
@@ -530,7 +530,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         error: call.error,
         recordedAt: call.recordedAt,
       })),
-    });
+    };
+
+    logDeepDive('error', 'Deep dive recorded failed API calls; exports will mark these apps incomplete', failedPayload);
+    console.error('Deep dive recorded failed API calls; exports will mark these apps incomplete', failedPayload);
   }
 
   if (successCount) {
