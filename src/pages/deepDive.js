@@ -483,16 +483,13 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const scheduledResolution = Promise.all(scheduledRequests).then(() => 'scheduled');
 
-  let raceOutcome = null;
+  const completionOutcome = await completionGuard;
 
-  try {
-    raceOutcome = await Promise.race([scheduledResolution, completionGuard]);
-  } finally {
-    if (raceOutcome === 'stalled') {
-      pendingResolvers.forEach((resolver) => resolver.cancel?.('completion-guard'));
-    }
-    await scheduledResolution.catch(() => {});
+  if (completionOutcome === 'stalled') {
+    pendingResolvers.forEach((resolver) => resolver.cancel?.('completion-guard'));
   }
+
+  await scheduledResolution.catch(() => {});
 
   const cancelledPendingCalls = metadata_pending_api_calls.filter(
     (call) => call && call.status !== 'completed' && call.status !== 'failed',
