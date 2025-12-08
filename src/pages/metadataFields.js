@@ -15,6 +15,14 @@ import {
   getManualAppName,
   setManualAppName,
 } from '../services/appNames.js';
+import {
+  clearPendingCallQueue,
+  markPendingCallStarted,
+  registerPendingCall,
+  resolvePendingCall,
+  summarizePendingCallProgress,
+  updatePendingCallRequestCount,
+} from './deepDive/aggregation.js';
 
 const metadataLogger = createLogger('MetadataFields');
 
@@ -242,57 +250,20 @@ const syncMetadataSnapshotAppName = (appId, appName, subId) => {
   }
 };
 
-const setupProgressTracker = (initialTotalCalls) => {
-  const progressText = document.getElementById('metadata-fields-progress-text');
-  let totalCalls = initialTotalCalls;
-  let sentCalls = 0;
-  let responses = 0;
+const updateQueueProgressText = (progressText) => {
+  if (!progressText) {
+    return;
+  }
 
-  const updateText = () => {
-    if (!progressText) {
-      return;
-    }
+  const { total, completed } = summarizePendingCallProgress();
 
-    if (!totalCalls) {
-      progressText.textContent = 'No API calls queued.';
-      return;
-    }
+  if (!total) {
+    progressText.textContent = 'No API calls queued.';
+    return;
+  }
 
-    const boundedSent = Math.min(sentCalls, totalCalls);
-    const boundedResponses = Math.min(responses, totalCalls);
-    progressText.textContent = `API calls sent ${boundedSent} / responses ${boundedResponses} of ${totalCalls}`;
-  };
-
-  const addCalls = (additionalCalls) => {
-    if (!Number.isFinite(additionalCalls) || additionalCalls <= 0) {
-      return;
-    }
-
-    totalCalls += additionalCalls;
-    updateText();
-  };
-
-  const recordDispatch = (count = 1) => {
-    if (!Number.isFinite(count) || count <= 0) {
-      return;
-    }
-
-    sentCalls += count;
-    updateText();
-  };
-
-  const recordResponse = (count = 1) => {
-    if (!Number.isFinite(count) || count <= 0) {
-      return;
-    }
-
-    responses += count;
-    updateText();
-  };
-
-  updateText();
-
-  return { updateText, addCalls, recordDispatch, recordResponse, getTotalCalls: () => totalCalls };
+  const boundedCompleted = Math.min(completed, total);
+  progressText.textContent = `API calls completed ${boundedCompleted} of ${total}`;
 };
 
 const createMessageRegion = () => ensureMessageRegion('metadata-fields-messages');
@@ -599,16 +570,22 @@ const fetchAndPopulate = (
   visitorRows,
   accountRows,
   messageRegion,
-  progressTracker,
   manualAppNames,
+  progressText,
 ) => {
   let queueIntervalId = null;
   const workQueue = [];
   const inFlight = new Set();
   const abortedEntries = new Set();
-  const { addCalls: addTotalCalls, recordDispatch, recordResponse } = progressTracker;
+  const queueEntries = new Map();
+  const updateProgressText = () => updateQueueProgressText(progressText);
+
+  clearPendingCallQueue();
+  updateProgressText();
 
   const entryKey = (entry) => `${entry.subId || ''}::${entry.domain || ''}::${entry.integrationKey || ''}`;
+  const queueKeyForItem = (entry, windowDays) =>
+    `metadata-fields::${entry.appId || entry.subId || entry.domain || entry.integrationKey || 'unknown'}::${windowDays}`;
 
   const getCells = (entry) => ({
     visitorCells: visitorRows.find((row) => row.entry === entry)?.cells,
@@ -621,31 +598,65 @@ const fetchAndPopulate = (
     const key = entryKey(entry);
     let removedCount = 0;
     for (let i = workQueue.length - 1; i >= 0; i -= 1) {
-      if (entryKey(workQueue[i].entry) === key) {
+      const queuedItem = workQueue[i];
+      if (entryKey(queuedItem.entry) === key) {
+        const pendingKey = queuedItem.queueKey;
         workQueue.splice(i, 1);
         removedCount += 1;
+
+        if (pendingKey) {
+          resolvePendingCall(pendingKey, 'failed', 'Aborted after client error.');
+          queueEntries.delete(pendingKey);
+        }
       }
     }
 
     if (removedCount > 0) {
-      recordResponse(removedCount);
+      updateProgressText();
     }
   };
 
   const enqueueWorkItem = (item) => {
-    workQueue.push(item);
+    const queueKey = queueKeyForItem(item.entry, item.windowDays);
+    const pendingCall = registerPendingCall({
+      ...item.entry,
+      queueKey,
+      operation: 'metadataFields',
+    });
+    queueEntries.set(queueKey, pendingCall);
+    workQueue.push({ ...item, queueKey });
+    updateProgressText();
   };
 
   const handleBaseRequest = async (item) => {
-    const { entry, windowDays } = item;
+    const { entry, windowDays, queueKey } = item;
+    const pendingKey = queueKey || queueKeyForItem(entry, windowDays);
+    const pendingCall =
+      queueEntries.get(pendingKey) ||
+      registerPendingCall({ ...entry, queueKey: pendingKey, operation: 'metadataFields' });
+    queueEntries.set(pendingKey, pendingCall);
+
     const { visitorCells, accountCells } = getCells(entry);
 
-    if (!visitorCells || !accountCells || isAborted(entry)) {
+    if (!visitorCells || !accountCells) {
+      resolvePendingCall(pendingCall, 'failed', 'Missing target cells.');
+      updateProgressText();
       return;
     }
 
+    if (isAborted(entry)) {
+      resolvePendingCall(pendingCall, 'failed', 'Aborted before dispatch.');
+      updateProgressText();
+      return;
+    }
+
+    markPendingCallStarted(pendingCall);
+    updateProgressText();
+
     let clientErrorWithoutRecovery = false;
     let requestSummary = { requestCount: 1 };
+    let requestStatus = 'completed';
+    let requestError = '';
     const { maxWindowDays, preferredChunkSize } = getAggregationHint(entry.appId);
     const startingWindowHint = Number.isFinite(preferredChunkSize)
       ? preferredChunkSize
@@ -685,14 +696,11 @@ const fetchAndPopulate = (
         maxWindowHint: shouldSkipLargeWindow ? startingWindowHint : undefined,
         preferredChunkSize,
         onRequestsPlanned: (plannedCount) => {
-          const extraCalls = Math.max(0, plannedCount - 1);
-          if (extraCalls > 0) {
-            addTotalCalls(extraCalls);
-          }
-          recordDispatch(plannedCount);
+          updatePendingCallRequestCount(pendingCall, plannedCount);
+          updateProgressText();
         },
-        onRequestsSettled: (completedCount) => {
-          recordResponse(completedCount);
+        onRequestsSettled: () => {
+          updateProgressText();
         },
       });
 
@@ -727,6 +735,9 @@ const fetchAndPopulate = (
         ? `Metadata request too large for app ${entry.appId} (${windowDays}d). Try a smaller window.`
         : `Metadata request failed for app ${entry.appId} (${windowDays}d): ${generalMessage}`;
 
+      requestStatus = 'failed';
+      requestError = failureMessage;
+
       showMessage(messageRegion, failureMessage, 'error');
 
       updateCellContent(visitorCells[windowDays], [], 'visitor');
@@ -736,6 +747,11 @@ const fetchAndPopulate = (
       visitorCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
       accountCells[windowDays].classList.toggle(OVER_LIMIT_CLASS, tooMuchData);
     } finally {
+      updatePendingCallRequestCount(pendingCall, requestSummary?.requestCount || 1);
+      resolvePendingCall(pendingCall, requestStatus, requestError);
+      queueEntries.delete(pendingKey);
+      updateProgressText();
+
       if (clientErrorWithoutRecovery) {
         abortedEntries.add(entryKey(entry));
         removePendingForEntry(entry);
@@ -797,15 +813,14 @@ export const initMetadataFields = () => {
     loadMetadataSnapshot();
     const manualAppNames = loadManualAppNames();
     const entries = buildAppEntries(manualAppNames);
-
-    const totalCalls = entries.length * LOOKBACK_WINDOWS.length;
-    const progressTracker = setupProgressTracker(totalCalls);
+    const progressText = document.getElementById('metadata-fields-progress-text');
+    updateQueueProgressText(progressText);
 
     if (!entries.length) {
       showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
       renderTableRows(visitorTableBody, []);
       renderTableRows(accountTableBody, []);
-      progressTracker.updateText();
+      updateQueueProgressText(progressText);
       return;
     }
 
@@ -835,7 +850,7 @@ export const initMetadataFields = () => {
       });
     }
 
-    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, progressTracker, manualAppNames);
+    await fetchAndPopulate(entries, visitorRows, accountRows, messageRegion, manualAppNames, progressText);
   })();
 
   return metadataFieldsReadyPromise;

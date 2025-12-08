@@ -5,6 +5,14 @@ import { fetchAppsForEntry } from '../services/requests/network.js';
 import { getManualAppName, loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
+import {
+  clearPendingCallQueue,
+  markPendingCallStarted,
+  registerPendingCall,
+  resolvePendingCall,
+  summarizePendingCallProgress,
+  updatePendingCallRequestCount,
+} from './deepDive/aggregation.js';
 
 const appSelectionLogger = createLogger('AppSelection');
 
@@ -50,6 +58,11 @@ export const initAppSelection = async () => {
     alert.className = 'alert';
     alert.textContent = message;
     messageRegion.appendChild(alert);
+  };
+
+  const refreshProgressFromQueue = () => {
+    const { total, completed } = summarizePendingCallProgress();
+    updateProgress(completed, total);
   };
 
   const clearError = () => {
@@ -408,6 +421,7 @@ export const initAppSelection = async () => {
     isFetching = true;
 
     try {
+      clearPendingCallQueue();
       resetCachedResponses();
       currentWindowDays = Number(windowDays) || defaultWindowDays;
 
@@ -435,39 +449,59 @@ export const initAppSelection = async () => {
       }
 
       clearError();
-      let totalRequests = 0;
-      let completedRequests = 0;
-      updateProgress(completedRequests, totalRequests);
-
-      const handleRequestsPlanned = (plannedCount) => {
-        if (!isActiveRequest()) {
-          return;
-        }
-
-        totalRequests += Math.max(0, plannedCount || 0);
-        updateProgress(completedRequests, totalRequests);
-      };
-
-      const handleRequestsSettled = (settledCount) => {
-        if (!isActiveRequest()) {
-          return;
-        }
-
-        completedRequests += Math.max(0, settledCount || 0);
-        updateProgress(completedRequests, totalRequests);
-      };
+      refreshProgressFromQueue();
 
       const responses = [];
       const failedSubIds = [];
       const timeoutSubIds = [];
 
       for (const entry of storedRows) {
-        const response = await fetchAppsForEntry(entry, currentWindowDays, undefined, {
-          onRequestsPlanned: handleRequestsPlanned,
-          onRequestsSettled: handleRequestsSettled,
+        const queueEntry = registerPendingCall({
+          ...entry,
+          queueKey: `app-selection::${entry.subId || entry.domain || entry.integrationKey || 'unknown'}`,
+          operation: 'appSelection',
         });
 
+        const handleRequestsPlanned = (plannedCount) => {
+          if (!isActiveRequest()) {
+            return;
+          }
+
+          updatePendingCallRequestCount(queueEntry, plannedCount);
+          refreshProgressFromQueue();
+        };
+
+        const handleRequestsSettled = (settledCount) => {
+          if (!isActiveRequest()) {
+            return;
+          }
+
+          if (settledCount) {
+            updatePendingCallRequestCount(queueEntry, settledCount);
+          }
+          refreshProgressFromQueue();
+        };
+
+        markPendingCallStarted(queueEntry);
+        let response;
+        try {
+          response = await fetchAppsForEntry(entry, currentWindowDays, undefined, {
+            onRequestsPlanned: handleRequestsPlanned,
+            onRequestsSettled: handleRequestsSettled,
+          });
+        } catch (error) {
+          response = { errorType: 'failed', errorHint: error?.message, requestCount: 1 };
+        }
+
+        const finalizePendingCall = (status, errorHint = '', requestCount = response?.requestCount) => {
+          const normalizedCount = Math.max(1, requestCount || queueEntry?.requestCount || 1);
+          updatePendingCallRequestCount(queueEntry, normalizedCount);
+          resolvePendingCall(queueEntry, status, errorHint || '');
+          refreshProgressFromQueue();
+        };
+
         if (!isActiveRequest()) {
+          finalizePendingCall('failed', 'Request superseded by a newer fetch.');
           return;
         }
 
@@ -475,12 +509,16 @@ export const initAppSelection = async () => {
 
         if (!response || response.errorType) {
           const targetList = response?.errorType === 'timeout' ? timeoutSubIds : failedSubIds;
+          finalizePendingCall('failed', response?.errorHint || response?.errorType);
           targetList.push({ label: subIdLabel, hint: response?.errorHint });
           continue;
         }
 
+        finalizePendingCall('completed', '', response?.requestCount);
         responses.push({ ...entry, response, windowDays: currentWindowDays });
       }
+
+      refreshProgressFromQueue();
 
       if (!isActiveRequest()) {
         return;

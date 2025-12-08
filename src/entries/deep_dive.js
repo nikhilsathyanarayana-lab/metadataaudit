@@ -13,6 +13,7 @@ import {
   reportDeepDiveError,
 } from '../pages/deepDive.js';
 import { renderNavigation } from '../pages/navigation.js';
+import { clearPendingCallQueue } from '../pages/deepDive/aggregation.js';
 
 const parseStoredRecords = (key) => {
   try {
@@ -59,6 +60,7 @@ installDeepDiveGlobalErrorHandlers();
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     renderNavigation('#nav-root', { activePage: 'integration' });
+    clearPendingCallQueue();
     await bootstrapShared({
       enableJsonExport: true,
       additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },
