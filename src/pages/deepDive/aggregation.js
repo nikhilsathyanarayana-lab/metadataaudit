@@ -306,6 +306,40 @@ export const getOutstandingPendingCalls = () =>
     (call) => call?.status === 'queued' || call?.status === 'in-flight' || call?.status === 'failed',
   );
 
+export const registerApiQueueInspector = () => {
+  if (typeof window === 'undefined' || window.showPendingApiQueue) {
+    return;
+  }
+
+  window.showPendingApiQueue = () => {
+    const outstanding = getOutstandingPendingCalls();
+
+    if (!outstanding.length) {
+      console.info('No pending API calls.');
+      return [];
+    }
+
+    const summarized = outstanding.map((call) => {
+      const queuedAtMs = Date.parse(call.queuedAt);
+      const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
+
+      return {
+        appId: call.appId,
+        subId: call.subId,
+        status: call.status,
+        queuedAt: call.queuedAt,
+        startedAt: call.startedAt,
+        ageMs: Math.round(ageMs),
+      };
+    });
+
+    console.table(summarized);
+    return outstanding;
+  };
+};
+
+registerApiQueueInspector();
+
 const isResolvedCall = (call) => call?.status === 'completed';
 
 export const summarizePendingCallProgress = () =>

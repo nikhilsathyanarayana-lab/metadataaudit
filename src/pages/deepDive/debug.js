@@ -1,4 +1,4 @@
-import { getOutstandingMetadataCalls, getMetadataShapeAnomalies, metadata_accounts, metadata_visitors } from './aggregation.js';
+import { getMetadataShapeAnomalies, metadata_accounts, metadata_visitors } from './aggregation.js';
 import { loadDeepDiveRecords } from './dataHelpers.js';
 import { logDeepDive } from './constants.js';
 import { summarizeJsonShape } from './shapeUtils.js';
@@ -15,37 +15,6 @@ export const exposeDeepDiveDebugCommands = ({ deepDiveCallPlan = [], calculateSt
   }
 
   const getStallThreshold = typeof calculateStallThreshold === 'function' ? calculateStallThreshold : () => null;
-
-  if (!window.showPendingDeepDiveRequests) {
-    window.showPendingDeepDiveRequests = () => {
-      const outstanding = getOutstandingMetadataCalls();
-
-      if (!outstanding.length) {
-        console.info('No pending deep dive requests.');
-        return [];
-      }
-
-      const summarized = outstanding.map((call) => {
-        const queuedAtMs = Date.parse(call.queuedAt);
-        const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
-        const stallThresholdMs = getStallThreshold(call);
-
-        return {
-          appId: call.appId,
-          subId: call.subId,
-          status: call.status,
-          queuedAt: call.queuedAt,
-          startedAt: call.startedAt,
-          ageMs: Math.round(ageMs),
-          stallThresholdMs,
-          stalled: Number.isFinite(stallThresholdMs) ? ageMs >= stallThresholdMs : false,
-        };
-      });
-
-      console.table(summarized);
-      return outstanding;
-    };
-  }
 
   if (!window.showDeepDiveCallPlan) {
     window.showDeepDiveCallPlan = () => {
