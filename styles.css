@@ -1021,6 +1021,46 @@ textarea:focus {
   margin: 0.35rem 0 0 0;
 }
 
+.debug-call-panel {
+  margin: 1rem auto 0;
+  max-width: 1200px;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+}
+
+.debug-call-panel__title {
+  margin: 0 0 0.35rem 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.debug-call-panel__summary {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+
+.debug-call-panel__subtitle {
+  margin: 0.75rem 0 0.35rem 0;
+  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.debug-call-panel__list {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 640px) {
   .header-row {
     flex-direction: column;
