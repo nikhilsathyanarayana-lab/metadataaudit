@@ -22,6 +22,11 @@ const dispatchGlobalEvent = (name, detail = {}) => {
 const notifyPendingCallObservers = () =>
   dispatchGlobalEvent('pending-calls-updated', { calls: metadata_pending_api_calls });
 
+const getPendingQueueSnapshot = () =>
+  metadata_pending_api_calls.filter(
+    (call) => call?.status === 'queued' || call?.status === 'in-flight' || call?.status === 'failed',
+  );
+
 const notifyRecordedCallObservers = () =>
   dispatchGlobalEvent('api-calls-updated', { calls: metadata_api_calls });
 
@@ -321,10 +326,17 @@ export const resolvePendingCall = (entry, status = 'completed', error = '') => {
   return metadata_pending_api_calls[existingIndex];
 };
 
-export const getOutstandingPendingCalls = () =>
-  metadata_pending_api_calls.filter(
-    (call) => call?.status === 'queued' || call?.status === 'in-flight' || call?.status === 'failed',
-  );
+export const getOutstandingPendingCalls = () => {
+  if (typeof window !== 'undefined' && typeof window.showPendingApiQueue === 'function') {
+    const outstanding = window.showPendingApiQueue();
+
+    if (Array.isArray(outstanding)) {
+      return outstanding;
+    }
+  }
+
+  return getPendingQueueSnapshot();
+};
 
 export const registerApiQueueInspector = () => {
   if (typeof window === 'undefined' || window.showPendingApiQueue) {
@@ -332,7 +344,7 @@ export const registerApiQueueInspector = () => {
   }
 
   window.showPendingApiQueue = () => {
-    const outstanding = getOutstandingPendingCalls();
+    const outstanding = getPendingQueueSnapshot();
 
     if (!outstanding.length) {
       console.info('No pending API calls.');
