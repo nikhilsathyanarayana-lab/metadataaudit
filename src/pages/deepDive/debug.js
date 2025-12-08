@@ -3,7 +3,7 @@ import { loadDeepDiveRecords } from './dataHelpers.js';
 import { logDeepDive } from './constants.js';
 import { summarizeJsonShape } from './shapeUtils.js';
 
-export const exposeDeepDiveDebugCommands = ({ deepDiveCallPlan = [], calculateStallThreshold } = {}) => {
+export const exposeDeepDiveDebugCommands = () => {
   if (typeof window === 'undefined') {
     return;
   }
@@ -12,29 +12,6 @@ export const exposeDeepDiveDebugCommands = ({ deepDiveCallPlan = [], calculateSt
   if (!debugEnabled) {
     logDeepDive('debug', 'Deep dive debug console commands are disabled.');
     return;
-  }
-
-  const getStallThreshold = typeof calculateStallThreshold === 'function' ? calculateStallThreshold : () => null;
-
-  if (!window.showDeepDiveCallPlan) {
-    window.showDeepDiveCallPlan = () => {
-      if (!deepDiveCallPlan.length) {
-        console.info('No deep dive call plan generated.');
-        return [];
-      }
-
-      const summarized = deepDiveCallPlan.map((call) => ({
-        appId: call.appId,
-        subId: call.subId,
-        lookbackDays: call.lookbackDays,
-        status: call.status,
-        detail: call.detail || '',
-        updatedAt: call.updatedAt || call.plannedAt,
-      }));
-
-      console.table(summarized);
-      return deepDiveCallPlan;
-    };
   }
 
   window.validateData = () => {
@@ -191,5 +168,5 @@ export const exposeDeepDiveDebugCommands = ({ deepDiveCallPlan = [], calculateSt
     return shape;
   };
 
-  logDeepDive('info', 'Deep dive pending request and call plan inspectors installed.');
+  logDeepDive('info', 'Deep dive pending request inspectors installed.');
 };

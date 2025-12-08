@@ -25,7 +25,7 @@ import {
   reportDeepDiveError,
 } from '../deepDive/ui/render.js';
 import { setupManualAppNameModal, setupRegexFormatModal } from '../deepDive/ui/modals.js';
-import { stageDeepDiveCallPlan, deepDiveCallPlan, calculateStallThreshold } from './plan.js';
+import { stageDeepDiveCallPlan } from './plan.js';
 import { runDeepDiveScan } from './runner.js';
 
 const hydrateCachedExportCollections = () => {
@@ -135,7 +135,7 @@ const initDeepDive = async () => {
       return;
     }
 
-    exposeDeepDiveDebugCommands({ deepDiveCallPlan, calculateStallThreshold });
+    exposeDeepDiveDebugCommands();
 
     const progressHandlers = setupProgressTracker();
     const startButton = document.getElementById('deep-dive-start');
