@@ -30,6 +30,9 @@ const getPendingQueueSnapshot = () =>
 const notifyRecordedCallObservers = () =>
   dispatchGlobalEvent('api-calls-updated', { calls: metadata_api_calls });
 
+const isDebugLoggingEnabled = () =>
+  typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
+
 let lastPendingSummarySignature = '';
 let lastPendingSummaryCount = 0;
 
@@ -444,10 +447,13 @@ export const registerApiQueueInspector = () => {
   }
 
   const inspector = () => {
+    const debugEnabled = isDebugLoggingEnabled();
     const outstanding = getPendingQueueSnapshot();
 
     if (!outstanding.length) {
-      console.info('No pending API calls.');
+      if (debugEnabled) {
+        logDeepDive('debug', 'No pending API calls.');
+      }
       return [];
     }
 
@@ -470,20 +476,24 @@ export const registerApiQueueInspector = () => {
     const signature = JSON.stringify(summarized);
     const hasChanges = signature !== lastPendingSummarySignature;
 
-    console.info(
-      'Pending API queue snapshot',
-      hasChanges ? '(updated)' : '(unchanged)',
-      `(${summarized.length} call${summarized.length === 1 ? '' : 's'})`,
-    );
+    if (debugEnabled) {
+      logDeepDive(
+        'debug',
+        'Pending API queue snapshot',
+        hasChanges ? '(updated)' : '(unchanged)',
+        `(${summarized.length} call${summarized.length === 1 ? '' : 's'})`,
+      );
 
-    if (hasChanges) {
-      console.groupCollapsed('Pending API queue details');
-      console.table(summarized);
-      console.groupEnd();
-      lastPendingSummarySignature = signature;
-      lastPendingSummaryCount = summarized.length;
-    } else {
-      console.info(`Skipping duplicate queue table; last summary covered ${lastPendingSummaryCount} call(s).`);
+      if (hasChanges) {
+        logDeepDive('debug', 'Pending API queue details', summarized);
+        lastPendingSummarySignature = signature;
+        lastPendingSummaryCount = summarized.length;
+      } else {
+        logDeepDive(
+          'debug',
+          `Skipping duplicate queue table; last summary covered ${lastPendingSummaryCount} call(s).`,
+        );
+      }
     }
 
     if (typeof window !== 'undefined') {
