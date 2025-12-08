@@ -255,6 +255,16 @@ const normalizeRequestCount = (value) => {
   return Number.isFinite(normalized) && normalized > 0 ? normalized : 1;
 };
 
+const normalizeWindowSize = (value, fallback) => {
+  const normalized = Number(value);
+
+  if (Number.isFinite(normalized) && normalized > 0) {
+    return normalized;
+  }
+
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : null;
+};
+
 const upsertPendingCall = (entry, overrides = {}) => {
   const key = normalizePendingKey(entry);
 
@@ -262,17 +272,21 @@ const upsertPendingCall = (entry, overrides = {}) => {
     return null;
   }
 
+  const lookbackDays = normalizeWindowSize(overrides.lookbackDays ?? entry?.lookbackDays, null);
+
   const nextRecord = {
     queueKey: key,
     appId: entry?.appId || key,
     subId: entry?.subId || '',
     operation: entry?.operation || '',
+    lookbackDays,
     status: 'queued',
     queuedAt: new Date().toISOString(),
     startedAt: '',
     completedAt: '',
     error: '',
     requestCount: normalizeRequestCount(overrides.requestCount ?? entry?.requestCount ?? 1),
+    plannedWindows: lookbackDays ? [{ windowSize: lookbackDays, planned: 1, settled: 0, reason: 'initial' }] : [],
     ...overrides,
   };
 
@@ -301,8 +315,58 @@ export const clearPendingCallQueue = () => {
 
 export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
 
+export const stagePendingCallTable = (entries, lookbackDays) => {
+  clearPendingCallQueue();
+
+  entries.forEach((entry) =>
+    registerPendingCall({ ...entry, lookbackDays }, { status: 'queued', lookbackDays }),
+  );
+
+  return metadata_pending_api_calls;
+};
+
 export const updatePendingCallRequestCount = (entry, requestCount = 1) =>
   upsertPendingCall(entry, { requestCount: normalizeRequestCount(requestCount) });
+
+export const updatePendingCallWindowPlan = (entry, plannedCount = 1, windowSize = null, reason = '') => {
+  const key = normalizePendingKey(entry);
+  const existingIndex = findPendingCallIndex(key);
+
+  if (existingIndex === -1) {
+    return null;
+  }
+
+  const normalizedPlanned = normalizeRequestCount(plannedCount);
+  const normalizedWindow = normalizeWindowSize(windowSize, metadata_pending_api_calls[existingIndex].lookbackDays);
+  const existing = metadata_pending_api_calls[existingIndex];
+  const plannedWindows = Array.isArray(existing.plannedWindows) ? [...existing.plannedWindows] : [];
+
+  if (normalizedWindow) {
+    const existingWindow = plannedWindows.find((plan) => plan.windowSize === normalizedWindow);
+
+    if (existingWindow) {
+      existingWindow.planned = Math.max(existingWindow.planned, normalizedPlanned);
+      existingWindow.reason = reason || existingWindow.reason || 'updated';
+    } else {
+      plannedWindows.push({
+        windowSize: normalizedWindow,
+        planned: normalizedPlanned,
+        settled: 0,
+        reason: reason || 'planned',
+      });
+    }
+  }
+
+  metadata_pending_api_calls[existingIndex] = {
+    ...existing,
+    requestCount: Math.max(existing.requestCount || 1, normalizedPlanned),
+    plannedWindows,
+  };
+
+  notifyPendingCallObservers();
+
+  return metadata_pending_api_calls[existingIndex];
+};
 
 export const markPendingCallStarted = (entry) =>
   upsertPendingCall(entry, { status: 'in-flight', startedAt: new Date().toISOString() });
@@ -326,6 +390,33 @@ export const resolvePendingCall = (entry, status = 'completed', error = '') => {
   return metadata_pending_api_calls[existingIndex];
 };
 
+export const settlePendingWindowPlan = (entry, settledCount = 0, windowSize = null) => {
+  const existingIndex = findPendingCallIndex(entry);
+
+  if (existingIndex === -1) {
+    return null;
+  }
+
+  const normalizedSettled = Math.max(Number(settledCount) || 0, 0);
+  const normalizedWindow = normalizeWindowSize(windowSize, metadata_pending_api_calls[existingIndex].lookbackDays);
+  const existing = metadata_pending_api_calls[existingIndex];
+  const plannedWindows = Array.isArray(existing.plannedWindows) ? [...existing.plannedWindows] : [];
+
+  if (normalizedWindow) {
+    const existingWindow = plannedWindows.find((plan) => plan.windowSize === normalizedWindow);
+
+    if (existingWindow) {
+      existingWindow.settled = Math.max(existingWindow.settled || 0, normalizedSettled);
+    } else {
+      plannedWindows.push({ windowSize: normalizedWindow, planned: normalizedSettled || 1, settled: normalizedSettled });
+    }
+  }
+
+  metadata_pending_api_calls[existingIndex] = { ...existing, plannedWindows };
+  notifyPendingCallObservers();
+  return metadata_pending_api_calls[existingIndex];
+};
+
 export const getOutstandingPendingCalls = () => {
   if (typeof window !== 'undefined' && typeof window.showPendingApiQueue === 'function') {
     const outstanding = window.showPendingApiQueue();
@@ -338,12 +429,18 @@ export const getOutstandingPendingCalls = () => {
   return getPendingQueueSnapshot();
 };
 
+export const hasQueuedPendingCalls = () =>
+  metadata_pending_api_calls.some((call) => call?.status === 'queued');
+
+export const getNextQueuedPendingCall = () =>
+  metadata_pending_api_calls.find((call) => call?.status === 'queued') || null;
+
 export const registerApiQueueInspector = () => {
   if (typeof window === 'undefined' || window.showPendingApiQueue) {
     return;
   }
 
-  window.showPendingApiQueue = () => {
+  const inspector = () => {
     const outstanding = getPendingQueueSnapshot();
 
     if (!outstanding.length) {
@@ -359,6 +456,8 @@ export const registerApiQueueInspector = () => {
         appId: call.appId,
         subId: call.subId,
         status: call.status,
+        lookbackDays: call.lookbackDays,
+        plannedWindows: call.plannedWindows,
         queuedAt: call.queuedAt,
         startedAt: call.startedAt,
         ageMs: Math.round(ageMs),
@@ -368,6 +467,9 @@ export const registerApiQueueInspector = () => {
     console.table(summarized);
     return outstanding;
   };
+
+  window.showPendingApiQueue = inspector;
+  window.showDeepDiveRequestTable = inspector;
 };
 
 registerApiQueueInspector();
