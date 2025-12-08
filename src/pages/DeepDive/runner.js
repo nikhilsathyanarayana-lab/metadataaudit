@@ -278,6 +278,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       logDeepDive('info', 'Deep dive entry completed', {
         appId: entry.appId,
         subId: entry.subId,
+        functionName: 'runDeepDiveScan',
         lookbackDays: targetLookback,
         requestCount: resolvedRequestCount,
         responseCount: requestSummary?.aggregatedResults?.length || 0,
@@ -285,6 +286,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
         accountFieldCount: normalizedFields?.accountFields?.size || 0,
         durationMs: Math.round(durationMs),
+        updatedTargets: {
+          accumulatorKey: `${entry.appId || 'unknown'}:${entry.subId || 'unknown'}`,
+          metadataCollections: 'metadata_api_calls, metadata_pending_api_calls',
+          callPlanStatus: 'Completed',
+          persistedCollections: Boolean(requestSummary?.aggregatedResults?.length),
+        },
       });
       if (onSuccessfulCall) {
         scheduleDomUpdate(() => onSuccessfulCall());
