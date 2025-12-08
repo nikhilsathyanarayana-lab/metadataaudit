@@ -76,6 +76,38 @@ const readSessionCollection = (key) => {
   }
 };
 
+const readSubIdCredentials = () => {
+  const key = 'subidLaunchData';
+  const fromSession = readSessionCollection(key);
+
+  if (!fromSession.found) {
+    return new Map();
+  }
+
+  if (!Array.isArray(fromSession.value)) {
+    logDeepDive('warn', 'Ignored malformed SubID credential cache.', {
+      key,
+      shape: typeof fromSession.value,
+    });
+    return new Map();
+  }
+
+  const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
+
+  return fromSession.value.reduce((map, entry) => {
+    const subId = normalizeText(entry?.subId);
+    const domain = normalizeText(entry?.domain);
+    const integrationKey = normalizeText(entry?.integrationKey);
+
+    if (!subId || !domain || !integrationKey) {
+      return map;
+    }
+
+    map.set(subId, { domain, integrationKey });
+    return map;
+  }, new Map());
+};
+
 export const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 export const scheduleDomUpdate = (callback) => {
@@ -168,6 +200,7 @@ export const getGlobalCollection = (key) => {
 
 export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   const selections = normalizeAppSelections(getGlobalCollection(appSelectionGlobalKey));
+  const subIdCredentials = readSubIdCredentials();
 
   return selections.flatMap((entry) => {
     const appIds = extractAppIds(entry.response);
@@ -176,11 +209,15 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
       return [];
     }
 
+    const credentials = subIdCredentials.get(entry.subId) || {};
+    const domain = entry.domain || credentials.domain || '';
+    const integrationKey = entry.integrationKey || credentials.integrationKey || '';
+
     return appIds.map((appId) => ({
       subId: entry.subId,
       appId,
-      domain: entry.domain,
-      integrationKey: entry.integrationKey,
+      domain,
+      integrationKey,
       ...extractMetadataFieldsForApp(entry.metadataFields, appId, lookback),
     }));
   });
