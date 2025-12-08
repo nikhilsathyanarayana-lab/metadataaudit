@@ -10,42 +10,7 @@ import {
   sanitizeFileName,
   sanitizeSheetName,
 } from './excel_shared.js';
-import { ensureMessageRegion, renderRegionBanner } from '../../ui/statusBanner.js';
-import { renderPendingQueueBanner } from '../../ui/pendingQueueBanner.js';
-
-// Captures the export banner elements and helpers for updating status messaging.
-const getExportUi = () => {
-  const statusRegion = ensureMessageRegion('page-status-banner', { beforeSelector: 'header.page-header' });
-  const exportButton = document.getElementById('export-button');
-  const previousButtonDisabled = exportButton?.disabled ?? false;
-
-  const setStatus = (message, { tone = 'info', pending = false } = {}) => {
-    if (statusRegion) {
-      statusRegion.setAttribute('aria-busy', String(pending));
-    }
-
-    renderRegionBanner(statusRegion, message, tone, { ariaLive: tone === 'error' ? 'assertive' : 'polite' });
-
-    if (exportButton) {
-      exportButton.disabled = pending;
-      exportButton.setAttribute('aria-disabled', String(pending));
-      exportButton.setAttribute('aria-busy', String(pending));
-    }
-  };
-
-  const restore = () => {
-    renderPendingQueueBanner({ regionId: 'page-status-banner', beforeSelector: 'header.page-header' });
-    statusRegion?.removeAttribute('aria-busy');
-
-    if (exportButton) {
-      exportButton.disabled = previousButtonDisabled;
-      exportButton.setAttribute('aria-disabled', String(previousButtonDisabled));
-      exportButton.removeAttribute('aria-busy');
-    }
-  };
-
-  return { setStatus, restore };
-};
+import { createExportStatusHelper } from './export_status.js';
 
 // Generates a date-stamped default file name for metadata exports.
 const buildDefaultFileName = () => {
@@ -246,7 +211,7 @@ export const exportMetadataXlsx = async () => {
     return;
   }
 
-  const { setStatus, restore } = getExportUi();
+  const { setStatus, restore } = createExportStatusHelper();
 
   try {
     setStatus('Preparing XLSX export…', { pending: true });
