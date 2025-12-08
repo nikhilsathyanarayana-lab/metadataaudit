@@ -8,6 +8,12 @@ export const exposeDeepDiveDebugCommands = ({ deepDiveCallPlan = [], calculateSt
     return;
   }
 
+  const debugEnabled = Boolean(window.DEBUG_LOGGING || window.DEEP_DIVE_DEBUG);
+  if (!debugEnabled) {
+    logDeepDive('debug', 'Deep dive debug console commands are disabled.');
+    return;
+  }
+
   const getStallThreshold = typeof calculateStallThreshold === 'function' ? calculateStallThreshold : () => null;
 
   if (!window.showPendingDeepDiveRequests) {
