@@ -269,17 +269,21 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
   let requestCount = 1;
   const { onRequestsPlanned, onRequestsSettled, updatePendingQueue } = callbacks || {};
 
-  const logAggregationResponseDetails = (error) => {
-    const { responseStatus, responseBody, details } = error || {};
+  const logAggregationResponseDetails = (error, windowSize) => {
+    const { responseStatus, responseBody, details, hint } = error || {};
     const status = responseStatus ?? details?.status;
     const body = responseBody ?? details?.body;
+    const requestId = details?.requestId || 'unknown request';
+    const windowLabel = details?.windowSize ?? details?.window ?? windowSize ?? 'unknown window';
+    const errorHint = details?.hint || hint || 'no hint provided';
 
-    if (status !== undefined || body !== undefined) {
-      requestLogger.error('Aggregation response details:', {
-        status: status ?? 'unknown status',
-        body: body ?? '',
-      });
-    }
+    requestLogger.error('Aggregation response details:', {
+      status: status ?? 'unknown status',
+      body: body ?? '',
+      hint: errorHint,
+      requestId,
+      windowSize: windowLabel,
+    });
   };
 
   try {
@@ -308,7 +312,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     }
   } catch (error) {
     requestLogger.error('Aggregation request encountered an error:', error);
-    logAggregationResponseDetails(error);
+    logAggregationResponseDetails(error, windowDays);
     requestCount = Math.max(1, error?.requestCount || requestCount || 1);
     const errorHint = error?.details?.hint || error?.hint;
 
