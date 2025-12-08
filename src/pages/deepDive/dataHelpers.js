@@ -137,6 +137,16 @@ const normalizeAppSelections = (selections) =>
       metadataFields: normalizeSelectionMetadata(entry.metadataFields),
     }));
 
+const normalizeLaunchSelections = (launchEntries) =>
+  (Array.isArray(launchEntries) ? launchEntries : [])
+    .filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey)
+    .map((entry) => ({
+      subId: entry.subId,
+      domain: entry.domain,
+      integrationKey: entry.integrationKey,
+      metadataFields: normalizeSelectionMetadata(entry.metadataFields),
+    }));
+
 export const getGlobalCollection = (key) => {
   if (!key) {
     return [];
@@ -179,7 +189,7 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
     }),
   );
 
-  const entries = selections.flatMap((entry) => {
+  const entriesFromSelections = selections.flatMap((entry) => {
     const appIds = extractAppIds(entry.response);
 
     if (!appIds.length) {
@@ -198,7 +208,29 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
     }));
   });
 
-  return applyManualAppNames(entries, manualAppNames);
+  let selectionSource = 'appSelectionResponses';
+  let selectionEntries = entriesFromSelections;
+
+  if (!entriesFromSelections.length) {
+    const launchData = readSessionCollection('subidLaunchData');
+    const normalizedLaunchData = normalizeLaunchSelections(launchData.value);
+
+    if (normalizedLaunchData.length) {
+      selectionEntries = normalizedLaunchData;
+      selectionSource = 'subidLaunchData';
+    } else if (!launchData.found) {
+      selectionSource = 'none';
+    } else {
+      selectionSource = 'subidLaunchData';
+    }
+  }
+
+  logDeepDive('debug', 'Loaded app selections for deep dive.', {
+    source: selectionSource,
+    count: selectionEntries.length,
+  });
+
+  return applyManualAppNames(selectionEntries, manualAppNames);
 };
 
 export const normalizeMetadataRecords = (records) =>
@@ -385,10 +417,15 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
     ]),
   );
   const selectionsByAppId = new Map();
+  const selectionsBySubId = new Map();
 
   selections.forEach((selection) => {
     if (selection?.appId && !selectionsByAppId.has(selection.appId)) {
       selectionsByAppId.set(selection.appId, selection);
+    }
+
+    if (selection?.subId && !selectionsBySubId.has(selection.subId)) {
+      selectionsBySubId.set(selection.subId, selection);
     }
   });
 
@@ -403,7 +440,8 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
       const selection =
         selectionLookup.get(lookupKey) ||
         selectionLookup.get(`::${record.appId}`) ||
-        selectionsByAppId.get(record.appId);
+        selectionsByAppId.get(record.appId) ||
+        selectionsBySubId.get(record.subId || '');
 
       if (!selection?.domain || !selection?.integrationKey) {
         logDeepDive('warn', 'Skipping scan entry due to missing normalized credentials.', {
