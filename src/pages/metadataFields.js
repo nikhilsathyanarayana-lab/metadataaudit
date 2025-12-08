@@ -18,6 +18,10 @@ import {
   setManualAppName,
 } from '../services/appNames.js';
 import {
+  extractAppNamesFromResponse,
+  loadStoredAppSelections,
+} from './shared/appSelectionStore.js';
+import {
   clearPendingCallQueue,
   markPendingCallStarted,
   registerPendingCall,
@@ -283,57 +287,15 @@ const reportMetadataError = createErrorReporter({
   fallbackIds: [STATUS_REGION_ID],
 });
 
-const parseStoredSelection = () => {
-  try {
-    const raw = sessionStorage.getItem(storageKey);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey)
-      : [];
-  } catch (error) {
-    metadataLogger.error('Unable to parse stored app selection data:', error);
-    return [];
-  }
-};
-
-const extractAppNames = (apiResponse) => {
-  if (!apiResponse) {
-    return new Map();
-  }
-
-  const candidateLists = [apiResponse?.results, apiResponse?.data, apiResponse?.apps];
-
-  if (Array.isArray(apiResponse)) {
-    candidateLists.push(apiResponse);
-  }
-
-  const flattened = candidateLists.filter(Array.isArray).flat();
-  const appNameMap = new Map();
-
-  flattened.forEach((entry) => {
-    if (!entry || typeof entry !== 'object' || !entry.appId) {
-      return;
-    }
-
-    const candidateName = entry.appName || entry.name || entry.label || entry.title;
-    if (candidateName) {
-      appNameMap.set(entry.appId, candidateName);
-    }
-  });
-
-  return appNameMap;
-};
-
 const buildAppEntries = (manualAppNames) => {
-  const storedResponses = parseStoredSelection();
+  const storedResponses = loadStoredAppSelections({
+    storageKey,
+    onError: (message, error) => metadataLogger.error(message, error),
+  });
   const entries = [];
 
   storedResponses.forEach((record) => {
-    const appNames = extractAppNames(record.response);
+    const appNames = extractAppNamesFromResponse(record.response);
     const appIds = extractAppIds(record.response);
     appIds.forEach((appId) => {
       entries.push({

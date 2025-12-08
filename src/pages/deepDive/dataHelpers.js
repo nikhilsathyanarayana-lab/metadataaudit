@@ -8,7 +8,11 @@ import {
   logDeepDive,
 } from './constants.js';
 import { extractAppIds } from '../../services/appUtils.js';
-import { getManualAppName } from '../../services/appNames.js';
+import { applyManualAppNames, getManualAppName, loadManualAppNames } from '../../services/appNames.js';
+import {
+  extractAppNamesFromResponse,
+  loadStoredAppSelections,
+} from '../shared/appSelectionStore.js';
 
 export { extractAppIds };
 
@@ -76,38 +80,6 @@ const readSessionCollection = (key) => {
   }
 };
 
-const readSubIdCredentials = () => {
-  const key = 'subidLaunchData';
-  const fromSession = readSessionCollection(key);
-
-  if (!fromSession.found) {
-    return new Map();
-  }
-
-  if (!Array.isArray(fromSession.value)) {
-    logDeepDive('warn', 'Ignored malformed SubID credential cache.', {
-      key,
-      shape: typeof fromSession.value,
-    });
-    return new Map();
-  }
-
-  const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
-
-  return fromSession.value.reduce((map, entry) => {
-    const subId = normalizeText(entry?.subId);
-    const domain = normalizeText(entry?.domain);
-    const integrationKey = normalizeText(entry?.integrationKey);
-
-    if (!subId || !domain || !integrationKey) {
-      return map;
-    }
-
-    map.set(subId, { domain, integrationKey });
-    return map;
-  }, new Map());
-};
-
 export const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 export const scheduleDomUpdate = (callback) => {
@@ -160,8 +132,8 @@ const normalizeAppSelections = (selections) =>
     .map((entry) => ({
       subId: entry.subId,
       response: entry.response,
-      domain: entry.domain || '',
-      integrationKey: entry.integrationKey || '',
+      domain: entry.domain,
+      integrationKey: entry.integrationKey,
       metadataFields: normalizeSelectionMetadata(entry.metadataFields),
     }));
 
@@ -199,28 +171,34 @@ export const getGlobalCollection = (key) => {
 };
 
 export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
-  const selections = normalizeAppSelections(getGlobalCollection(appSelectionGlobalKey));
-  const subIdCredentials = readSubIdCredentials();
+  const manualAppNames = loadManualAppNames();
+  const selections = normalizeAppSelections(
+    loadStoredAppSelections({
+      storageKey: appSelectionGlobalKey,
+      onError: (message, error) => logDeepDive('error', message, { error }),
+    }),
+  );
 
-  return selections.flatMap((entry) => {
+  const entries = selections.flatMap((entry) => {
     const appIds = extractAppIds(entry.response);
 
     if (!appIds.length) {
       return [];
     }
 
-    const credentials = subIdCredentials.get(entry.subId) || {};
-    const domain = entry.domain || credentials.domain || '';
-    const integrationKey = entry.integrationKey || credentials.integrationKey || '';
+    const appNames = extractAppNamesFromResponse(entry.response);
 
     return appIds.map((appId) => ({
       subId: entry.subId,
       appId,
-      domain,
-      integrationKey,
+      domain: entry.domain,
+      integrationKey: entry.integrationKey,
+      appName: appNames.get(appId),
       ...extractMetadataFieldsForApp(entry.metadataFields, appId, lookback),
     }));
   });
+
+  return applyManualAppNames(entries, manualAppNames);
 };
 
 export const normalizeMetadataRecords = (records) =>
@@ -406,6 +384,13 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
       selection,
     ]),
   );
+  const selectionsByAppId = new Map();
+
+  selections.forEach((selection) => {
+    if (selection?.appId && !selectionsByAppId.has(selection.appId)) {
+      selectionsByAppId.set(selection.appId, selection);
+    }
+  });
 
   records
     .filter((record) => record.windowDays === lookback)
@@ -415,17 +400,18 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
       }
 
       const lookupKey = `${record.subId || ''}::${record.appId}`;
-      const selection = selectionLookup.get(lookupKey);
-      const domain = selection?.domain || record.domain;
-      const integrationKey = selection?.integrationKey || record.integrationKey;
+      const selection =
+        selectionLookup.get(lookupKey) ||
+        selectionLookup.get(`::${record.appId}`) ||
+        selectionsByAppId.get(record.appId);
 
-      if (!domain || !integrationKey) {
-        logDeepDive('warn', 'Skipping scan entry due to missing credentials.', {
+      if (!selection?.domain || !selection?.integrationKey) {
+        logDeepDive('warn', 'Skipping scan entry due to missing normalized credentials.', {
           appId: record.appId,
           subId: record.subId,
           hasSelection: Boolean(selection),
-          domainPresent: Boolean(domain),
-          integrationPresent: Boolean(integrationKey),
+          domainPresent: Boolean(selection?.domain),
+          integrationPresent: Boolean(selection?.integrationKey),
         });
         return;
       }
@@ -440,8 +426,8 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
         appId: record.appId,
         appName,
         subId: record.subId || selection?.subId || '',
-        domain,
-        integrationKey,
+        domain: selection.domain,
+        integrationKey: selection.integrationKey,
       });
     });
 
