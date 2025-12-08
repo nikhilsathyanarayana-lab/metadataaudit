@@ -420,10 +420,15 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
   }));
 };
 
-export const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
+export const buildScanEntries = (
+  records,
+  manualAppNames,
+  targetLookback = TARGET_LOOKBACK,
+  selectionOverride = null,
+) => {
   const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const mapped = new Map();
-  const selections = loadAppSelections(lookback).filter(isSelectedEntry);
+  const selections = (selectionOverride || loadAppSelections(lookback)).filter(isSelectedEntry);
   const selectionLookup = new Map(
     selections.map((selection) => [
       `${selection.subId || ''}::${selection.appId || ''}`,
