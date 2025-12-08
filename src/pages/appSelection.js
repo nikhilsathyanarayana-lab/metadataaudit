@@ -293,7 +293,7 @@ export const initAppSelection = async () => {
     syncSelectAllState();
   };
 
-  const populateTableFromResponses = (responses) => {
+  const populateTableFromResponses = (responses, emptyStateMessage = 'No app data available.') => {
     tableBody.innerHTML = '';
     rows.length = 0;
     renderedRows.length = 0;
@@ -320,7 +320,7 @@ export const initAppSelection = async () => {
       const row = document.createElement('tr');
       const emptyCell = document.createElement('td');
       emptyCell.colSpan = 4;
-      emptyCell.textContent = 'No app data available.';
+      emptyCell.textContent = emptyStateMessage;
       row.appendChild(emptyCell);
       tableBody.appendChild(row);
       proceedButton.disabled = true;
@@ -460,6 +460,8 @@ export const initAppSelection = async () => {
       const responses = [];
       const failedSubIds = [];
       const timeoutSubIds = [];
+      let emptyStateMessage = 'No app data available.';
+      let errorMessage = '';
 
       for (const entry of storedRows) {
         const response = await fetchAppsForEntry(entry, currentWindowDays, undefined, {
@@ -500,42 +502,53 @@ export const initAppSelection = async () => {
         return;
       }
 
-      if (progressBanner) {
-        const messages = [];
+      const messages = [];
 
-        if (timeoutSubIds.length) {
-          const uniqueTimeouts = Array.from(new Set(timeoutSubIds.map(({ label }) => label)));
-          const timeoutList = uniqueTimeouts.join(', ');
-          messages.push(`Unable to load apps for ${timeoutList}, due to a timeout error.`);
-        }
+      if (timeoutSubIds.length) {
+        const uniqueTimeouts = Array.from(new Set(timeoutSubIds.map(({ label }) => label)));
+        const timeoutList = uniqueTimeouts.join(', ');
+        messages.push(`Unable to load apps for ${timeoutList}, due to a timeout error.`);
+      }
 
-        if (failedSubIds.length) {
-          const corsFailures = failedSubIds.filter(({ hint }) =>
-            typeof hint === 'string' && hint.toLowerCase().includes('cors/preflight blocked'),
+      if (failedSubIds.length) {
+        const corsFailures = failedSubIds.filter(({ hint }) =>
+          typeof hint === 'string' && hint.toLowerCase().includes('cors/preflight blocked'),
+        );
+        const otherFailures = failedSubIds.filter((item) => !corsFailures.includes(item));
+
+        if (corsFailures.length) {
+          const uniqueCorsSubIds = Array.from(new Set(corsFailures.map(({ label }) => label)));
+          const corsList = uniqueCorsSubIds.join(', ');
+          messages.push(
+            `Unable to load apps for ${corsList}. CORS/preflight blocked—check browser permissions or proxy configuration.`,
           );
-          const otherFailures = failedSubIds.filter((item) => !corsFailures.includes(item));
-
-          if (corsFailures.length) {
-            const uniqueCorsSubIds = Array.from(new Set(corsFailures.map(({ label }) => label)));
-            const corsList = uniqueCorsSubIds.join(', ');
-            messages.push(
-              `Unable to load apps for ${corsList}. CORS/preflight blocked—check browser permissions or proxy configuration.`,
-            );
-          }
-
-          if (otherFailures.length) {
-            const uniqueSubIds = Array.from(new Set(otherFailures.map(({ label }) => label)));
-            const errorList = uniqueSubIds.join(', ');
-            messages.push(`Unable to load apps for ${errorList}. Check your integration key or retry.`);
-          }
         }
 
-        if (messages.length) {
-          progressBanner.textContent = messages.join(' ');
+        if (otherFailures.length) {
+          const uniqueSubIds = Array.from(new Set(otherFailures.map(({ label }) => label)));
+          const errorList = uniqueSubIds.join(', ');
+          messages.push(`Unable to load apps for ${errorList}. Check your integration key or retry.`);
         }
       }
 
-      populateTableFromResponses(cachedResponses);
+      if (messages.length) {
+        const combinedMessage = messages.join(' ');
+
+        if (progressBanner) {
+          progressBanner.textContent = combinedMessage;
+        }
+
+        if (!successfulResponses.length) {
+          errorMessage = combinedMessage;
+          emptyStateMessage = 'No app data available due to request errors.';
+        }
+      }
+
+      if (errorMessage) {
+        showError(errorMessage);
+      }
+
+      populateTableFromResponses(cachedResponses, emptyStateMessage);
     } finally {
       if (isActiveRequest()) {
         isFetching = false;
