@@ -11,6 +11,20 @@ const metadataVisitorAggregation = new Map();
 const metadataAccountAggregation = new Map();
 const metadataShapeSamples = { visitor: new Map(), account: new Map() };
 
+const dispatchGlobalEvent = (name, detail = {}) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(name, { detail }));
+};
+
+const notifyPendingCallObservers = () =>
+  dispatchGlobalEvent('pending-calls-updated', { calls: metadata_pending_api_calls });
+
+const notifyRecordedCallObservers = () =>
+  dispatchGlobalEvent('api-calls-updated', { calls: metadata_api_calls });
+
 if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
   window.metadata_accounts = metadata_accounts;
@@ -261,6 +275,7 @@ const upsertPendingCall = (entry, overrides = {}) => {
 
   if (existingIndex === -1) {
     metadata_pending_api_calls.push(nextRecord);
+    notifyPendingCallObservers();
     return nextRecord;
   }
 
@@ -269,11 +284,14 @@ const upsertPendingCall = (entry, overrides = {}) => {
     ...nextRecord,
   };
 
+  notifyPendingCallObservers();
+
   return metadata_pending_api_calls[existingIndex];
 };
 
 export const clearPendingCallQueue = () => {
   metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
+  notifyPendingCallObservers();
 };
 
 export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
@@ -297,6 +315,8 @@ export const resolvePendingCall = (entry, status = 'completed', error = '') => {
     error: error || '',
     completedAt: new Date().toISOString(),
   };
+
+  notifyPendingCallObservers();
 
   return metadata_pending_api_calls[existingIndex];
 };
@@ -353,6 +373,7 @@ export const updateMetadataApiCalls = (entry, status, error = '', datasetCount =
   };
 
   metadata_api_calls.push(callRecord);
+  notifyRecordedCallObservers();
 };
 
 export const collectDeepDiveMetadataFields = async (response, accumulator, entry) => {
