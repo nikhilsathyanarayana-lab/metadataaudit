@@ -582,6 +582,17 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
       domain,
       integrationKey,
     });
+  });
+
+  logDeepDive('debug', 'Deep dive scan entry build diagnostics', {
+    lookback,
+    recordCount: lookbackRecords.length,
+    skippedMissingAppId: missingAppIdExamples.length,
+    skippedMissingCredentials: missingCredentialExamples.length,
+    builtFromRecords: mapped.size,
+    missingAppIdExamples,
+    missingCredentialExamples,
+  });
 
     if (recordDiagnostics.length < 10) {
       recordDiagnostics.push({
