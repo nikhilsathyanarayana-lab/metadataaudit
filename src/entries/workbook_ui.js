@@ -1,9 +1,9 @@
 import { bootstrapShared } from './shared.js';
-import { initNavigation } from '../pages/navigation.js';
+import { renderNavigation } from '../pages/navigation.js';
 import { initWorkbookUi } from '../pages/workbookUi.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  initNavigation();
+  renderNavigation('#nav-root', { activePage: 'cookie' });
   await bootstrapShared();
   initWorkbookUi();
 });
