@@ -8,7 +8,8 @@ import { runAggregationWithFallbackWindows } from '../services/requests/network.
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { createLogger } from '../utils/logger.js';
-import { applyBannerTone, ensureMessageRegion, renderRegionBanner, setBannerText } from '../ui/statusBanner.js';
+import { applyBannerTone, setBannerText } from '../ui/statusBanner.js';
+import { createErrorReporter, ensureMessageRegion, showMessage } from '../ui/messageHelpers.js';
 import { createPendingQueueStatusHelper } from '../ui/pendingQueueBanner.js';
 import {
   applyManualAppNames,
@@ -258,9 +259,10 @@ const syncMetadataSnapshotAppName = (appId, appName, subId) => {
 
 const createMessageRegion = () => ensureMessageRegion('metadata-fields-messages');
 
-const showMessage = (region, message, tone = 'info') => {
-  renderRegionBanner(region, message, tone, { ariaLive: tone === 'error' ? undefined : 'polite' });
-};
+const reportMetadataError = createErrorReporter({
+  logError: (message, error) => metadataLogger.error(message, error),
+  fallbackIds: [STATUS_REGION_ID],
+});
 
 const parseStoredSelection = () => {
   try {
@@ -732,7 +734,7 @@ const fetchAndPopulate = (
       requestStatus = 'failed';
       requestError = failureMessage;
 
-      showMessage(messageRegion, failureMessage, 'error');
+      reportMetadataError(failureMessage, error, messageRegion);
 
       updateCellContent(visitorCells[windowDays], [], 'visitor');
       updateCellContent(accountCells[windowDays], [], 'account');

@@ -1,11 +1,6 @@
 // UI helpers for rendering deep dive tables, headers, and on-page feedback.
 import { LOOKBACK_OPTIONS, TARGET_LOOKBACK, logDeepDive } from '../constants.js';
-import {
-  applyBannerTone,
-  ensureMessageRegion as ensureBannerRegion,
-  renderRegionBanner,
-  setBannerText,
-} from '../../../ui/statusBanner.js';
+import { ensureMessageRegion as ensureBannerRegion, createErrorReporter } from '../../../ui/messageHelpers.js';
 import { createPendingQueueStatusHelper } from '../../../ui/pendingQueueBanner.js';
 
 export const createEmptyRow = (tableBody, message) => {
@@ -223,27 +218,13 @@ export const setupLookbackControls = (onChange, initialLookback = TARGET_LOOKBAC
 
 export const ensureMessageRegion = () => ensureBannerRegion('deep-dive-messages');
 
-export const showMessage = (region, message, tone = 'info') => {
-  renderRegionBanner(region, message, tone, { ariaLive: tone === 'error' ? undefined : 'polite' });
-};
+const reportDeepDiveErrorInternal = createErrorReporter({
+  logError: (message, error) => logDeepDive('error', message, error),
+  fallbackIds: ['deep-dive-processing-progress', 'deep-dive-api-progress'],
+});
 
-export const reportDeepDiveError = (message, error, region = null) => {
-  logDeepDive('error', message, error);
-
-  if (region) {
-    showMessage(region, message, 'error');
-    return;
-  }
-
-  const processingProgressText = document.getElementById('deep-dive-processing-progress');
-  const apiProgressText = document.getElementById('deep-dive-api-progress');
-  const fallbackTarget = processingProgressText || apiProgressText;
-
-  if (fallbackTarget) {
-    setBannerText(fallbackTarget, message);
-    applyBannerTone(fallbackTarget, 'error');
-  }
-};
+export const reportDeepDiveError = (message, error, region = null) =>
+  reportDeepDiveErrorInternal(message, error, region);
 
 let deepDiveGlobalErrorHandlersInstalled = false;
 export const installDeepDiveGlobalErrorHandlers = () => {
