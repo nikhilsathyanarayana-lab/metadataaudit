@@ -33,8 +33,12 @@ const notifyRecordedCallObservers = () =>
 const isDebugLoggingEnabled = () =>
   typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
 
+const PENDING_HEARTBEAT_INTERVAL_MS = 60_000;
 let lastPendingSummarySignature = '';
 let lastPendingSummaryCount = 0;
+let lastPendingSummaryUpdatedAt = 0;
+let pendingQueueHeartbeatCount = 0;
+let lastPendingQueueHeartbeatAt = 0;
 
 if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
@@ -450,13 +454,6 @@ export const registerApiQueueInspector = () => {
     const debugEnabled = isDebugLoggingEnabled();
     const outstanding = getPendingQueueSnapshot();
 
-    if (!outstanding.length) {
-      if (debugEnabled) {
-        logDeepDive('debug', 'No pending API calls.');
-      }
-      return [];
-    }
-
     const summarized = outstanding.map((call) => {
       const queuedAtMs = Date.parse(call.queuedAt);
       const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
@@ -475,24 +472,37 @@ export const registerApiQueueInspector = () => {
 
     const signature = JSON.stringify(summarized);
     const hasChanges = signature !== lastPendingSummarySignature;
+    const isFirstRun = lastPendingSummarySignature === '';
+    const shouldLogUpdate = debugEnabled && (isFirstRun || hasChanges);
+    const now = Date.now();
 
-    if (debugEnabled) {
+    if (hasChanges) {
+      lastPendingSummarySignature = signature;
+      lastPendingSummaryCount = summarized.length;
+      lastPendingSummaryUpdatedAt = now;
+    }
+
+    if (shouldLogUpdate) {
       logDeepDive(
         'debug',
         'Pending API queue snapshot',
-        hasChanges ? '(updated)' : '(unchanged)',
+        hasChanges ? '(updated)' : '(initial)',
         `(${summarized.length} call${summarized.length === 1 ? '' : 's'})`,
       );
 
-      if (hasChanges) {
-        logDeepDive('debug', 'Pending API queue details', summarized);
-        lastPendingSummarySignature = signature;
-        lastPendingSummaryCount = summarized.length;
-      } else {
-        logDeepDive(
-          'debug',
-          `Skipping duplicate queue table; last summary covered ${lastPendingSummaryCount} call(s).`,
-        );
+      logDeepDive('debug', 'Pending API queue details', summarized);
+    } else if (debugEnabled) {
+      const heartbeatDue =
+        lastPendingQueueHeartbeatAt === 0 || now - lastPendingQueueHeartbeatAt >= PENDING_HEARTBEAT_INTERVAL_MS;
+
+      if (heartbeatDue) {
+        pendingQueueHeartbeatCount += 1;
+        lastPendingQueueHeartbeatAt = now;
+        logDeepDive('debug', 'Pending API queue heartbeat', {
+          heartbeat: pendingQueueHeartbeatCount,
+          calls: summarized.length,
+          lastChangeAt: lastPendingSummaryUpdatedAt ? new Date(lastPendingSummaryUpdatedAt).toISOString() : null,
+        });
       }
     }
 
