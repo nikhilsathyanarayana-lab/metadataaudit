@@ -1,14 +1,24 @@
 const RESPONSE_TOO_LARGE_MESSAGE = /too many data files/i;
 const AGGREGATION_TIMEOUT_MESSAGE = /aggregation request timed out/i;
 
-export const createAggregationError = (message, status, body) => {
+export const createAggregationError = (message, status, body, details = {}) => {
   const error = new Error(message);
   error.responseStatus = status;
   error.responseBody = body;
   error.details = {
     status: status ?? 'unknown status',
     body: body ?? '',
+    ...details,
   };
+
+  if (details?.isAbortError) {
+    error.isAbortError = true;
+  }
+
+  if (details?.hint) {
+    error.hint = details.hint;
+  }
+
   return error;
 };
 

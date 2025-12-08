@@ -467,7 +467,7 @@ export const initAppSelection = async () => {
 
         if (!response || response.errorType) {
           const targetList = response?.errorType === 'timeout' ? timeoutSubIds : failedSubIds;
-          targetList.push(subIdLabel);
+          targetList.push({ label: subIdLabel, hint: response?.errorHint });
           continue;
         }
 
@@ -496,15 +496,30 @@ export const initAppSelection = async () => {
         const messages = [];
 
         if (timeoutSubIds.length) {
-          const uniqueTimeouts = Array.from(new Set(timeoutSubIds));
+          const uniqueTimeouts = Array.from(new Set(timeoutSubIds.map(({ label }) => label)));
           const timeoutList = uniqueTimeouts.join(', ');
           messages.push(`Unable to load apps for ${timeoutList}, due to a timeout error.`);
         }
 
         if (failedSubIds.length) {
-          const uniqueSubIds = Array.from(new Set(failedSubIds));
-          const errorList = uniqueSubIds.join(', ');
-          messages.push(`Unable to load apps for ${errorList}. Check your integration key or retry.`);
+          const corsFailures = failedSubIds.filter(({ hint }) =>
+            typeof hint === 'string' && hint.toLowerCase().includes('cors/preflight blocked'),
+          );
+          const otherFailures = failedSubIds.filter((item) => !corsFailures.includes(item));
+
+          if (corsFailures.length) {
+            const uniqueCorsSubIds = Array.from(new Set(corsFailures.map(({ label }) => label)));
+            const corsList = uniqueCorsSubIds.join(', ');
+            messages.push(
+              `Unable to load apps for ${corsList}. CORS/preflight blocked—check browser permissions or proxy configuration.`,
+            );
+          }
+
+          if (otherFailures.length) {
+            const uniqueSubIds = Array.from(new Set(otherFailures.map(({ label }) => label)));
+            const errorList = uniqueSubIds.join(', ');
+            messages.push(`Unable to load apps for ${errorList}. Check your integration key or retry.`);
+          }
         }
 
         if (messages.length) {

@@ -251,9 +251,17 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     requestLogger.error('Aggregation request encountered an error:', error);
     logAggregationResponseDetails(error);
     requestCount = Math.max(1, error?.requestCount || requestCount || 1);
+    const errorHint = error?.details?.hint || error?.hint;
+
+    if (errorHint) {
+      requestLogger.error('Aggregation request hint:', {
+        hint: errorHint,
+        requestId: error?.details?.requestId || payload?.request?.requestId,
+      });
+    }
 
     if (!isTooMuchDataOrTimeout(error)) {
-      return { errorType: 'failed', requestCount };
+      return { errorType: 'failed', requestCount, errorHint };
     }
   }
 
@@ -308,12 +316,36 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
     });
   } catch (networkError) {
     const timeoutMessage = `Aggregation request timed out after ${DEFAULT_AGGREGATION_TIMEOUT_MS / 1000} seconds.`;
+    const abortedByBrowser = networkError?.name === 'AbortError';
+    const failedToFetch = /failed to fetch/i.test(networkError?.message || '');
+    const isCorsBlocked = !timedOut && (abortedByBrowser || networkError?.name === 'TypeError' || failedToFetch);
+    const corsHint = 'CORS/preflight blocked. Ensure the proxy or browser allows this request.';
 
-    if (timedOut || networkError?.name === 'AbortError') {
-      throw createAggregationError(timeoutMessage, null, '');
+    if (isCorsBlocked) {
+      requestLogger.error('Aggregation request blocked by CORS/preflight.', {
+        endpoint,
+        requestId: requestId || 'unknown request',
+        message: networkError?.message,
+      });
     }
 
-    throw createAggregationError(networkError?.message || 'Aggregation request could not be sent.', null, '');
+    if (timedOut || networkError?.name === 'AbortError') {
+      throw createAggregationError(timeoutMessage, null, '', {
+        isAbortError: true,
+        endpoint,
+        requestId,
+      });
+    }
+
+    const message = isCorsBlocked
+      ? `${networkError?.message || 'Aggregation request could not be sent.'} (CORS/preflight blocked)`
+      : networkError?.message || 'Aggregation request could not be sent.';
+
+    throw createAggregationError(message, null, '', {
+      endpoint,
+      requestId,
+      hint: isCorsBlocked ? corsHint : undefined,
+    });
   } finally {
     if (timeoutId) {
       clearTimeout(timeoutId);
