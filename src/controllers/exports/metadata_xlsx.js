@@ -102,24 +102,121 @@ const appendTableSheet = (workbook, table, label, sheetNames) => {
   return worksheet;
 };
 
-const addAlignmentSummary = (worksheet, stats) => {
-  if (!worksheet) {
-    return;
+const normalizeFieldSet = (fields = []) => {
+  const result = new Set();
+  fields.forEach((field) => {
+    if (typeof field === 'string' || typeof field === 'number') {
+      const normalized = String(field).trim();
+      if (normalized) {
+        result.add(normalized);
+      }
+    }
+  });
+  return result;
+};
+
+const buildCombinedFieldSet = (record = {}) => {
+  const combined = new Set();
+  const addFields = (fields) => normalizeFieldSet(fields).forEach((field) => combined.add(field));
+
+  addFields(record.visitorFields || record.visitorMetadata);
+  addFields(record.accountFields || record.accountMetadata);
+
+  return combined;
+};
+
+const buildRecordLookup = (records = []) => {
+  const lookup = new Map();
+  records.forEach((record) => {
+    if (record?.appId) {
+      lookup.set(record.appId, record);
+    }
+  });
+  return lookup;
+};
+
+const buildTimeframeChanges = (sevenDayRecords = [], thirtyDayRecords = []) => {
+  const sevenLookup = buildRecordLookup(sevenDayRecords);
+  const thirtyLookup = buildRecordLookup(thirtyDayRecords);
+  const changes = [];
+
+  const appIds = new Set([
+    ...sevenDayRecords.map((record) => record?.appId).filter(Boolean),
+    ...thirtyDayRecords.map((record) => record?.appId).filter(Boolean),
+  ]);
+
+  appIds.forEach((appId) => {
+    const sevenRecord = sevenLookup.get(appId);
+    const thirtyRecord = thirtyLookup.get(appId);
+    const appName = sevenRecord?.appName || thirtyRecord?.appName || appId;
+    const sevenFields = buildCombinedFieldSet(sevenRecord);
+    const thirtyFields = buildCombinedFieldSet(thirtyRecord);
+
+    thirtyFields.forEach((field) => {
+      if (!sevenFields.has(field)) {
+        changes.push({
+          field,
+          appId,
+          appName,
+          note: `${field} was not found in the 7 day window but was found in the 30 day window for ${appName}`,
+        });
+      }
+    });
+
+    sevenFields.forEach((field) => {
+      if (!thirtyFields.has(field)) {
+        changes.push({
+          field,
+          appId,
+          appName,
+          note: `${field} was not found in the 30 day window but was found in the 7 day window for ${appName}`,
+        });
+      }
+    });
+  });
+
+  return changes;
+};
+
+const addOverviewSheet = (workbook, { visitorAlignment, accountAlignment, timeframeChanges }, sheetNames) => {
+  const worksheet = workbook.addWorksheet(sanitizeSheetName('Overview', sheetNames));
+
+  const alignmentTitle = worksheet.addRow(['Apps with aligned metadata (7 days)']);
+  alignmentTitle.font = { bold: true, size: 14 };
+
+  if (visitorAlignment?.totalApps || accountAlignment?.totalApps) {
+    const header = worksheet.addRow(['Category', 'Aligned', 'Misaligned', 'Total Apps', 'Aligned %']);
+    header.font = { bold: true };
+
+    const addStatsRow = (label, stats) => {
+      const aligned = stats?.alignedCount ?? 'N/A';
+      const misaligned = stats?.misalignedCount ?? 'N/A';
+      const total = stats?.totalApps ?? 'N/A';
+      const percentage = stats?.alignedPercentage ?? 'N/A';
+      worksheet.addRow([label, aligned, misaligned, total, percentage]);
+    };
+
+    addStatsRow('Visitor', visitorAlignment);
+    addStatsRow('Account', accountAlignment);
+  } else {
+    worksheet.addRow(['Alignment data unavailable for export.']);
   }
 
-  const { alignedCount, misalignedCount, alignedPercentage, totalApps } = stats || {};
-  const columnOffset = worksheet.metadataColumnCount || worksheet.columnCount || 1;
-  const titleCell = worksheet.getCell(1, columnOffset + 1);
-  titleCell.value = 'Apps with aligned metadata (7 days)';
-  titleCell.font = { bold: true };
+  worksheet.addRow([]);
+  const changesTitle = worksheet.addRow(['Metadata changes by timeframe']);
+  changesTitle.font = { bold: true, size: 14 };
 
-  if (!totalApps) {
-    worksheet.getCell(2, columnOffset + 1).value = 'Alignment data unavailable for export.';
-    return;
+  if (timeframeChanges.length) {
+    const changeHeader = worksheet.addRow(['Field', 'App Name', 'App ID', 'Note']);
+    changeHeader.font = { bold: true };
+    timeframeChanges.forEach(({ field, appName, appId, note }) => {
+      worksheet.addRow([field, appName || appId || 'Unknown App', appId || 'Unknown App ID', note]);
+    });
+  } else {
+    worksheet.addRow(['No field differences detected between 7 day and 30 day windows.']);
   }
 
-  worksheet.getCell(2, columnOffset + 1).value = `Aligned: ${alignedCount} of ${totalApps} (${alignedPercentage}%)`;
-  worksheet.getCell(3, columnOffset + 1).value = `Misaligned: ${misalignedCount}`;
+  return worksheet;
 };
 
 // Orchestrates the metadata XLSX export flow from modal prompt to download delivery.
@@ -150,10 +247,8 @@ export const exportMetadataXlsx = async () => {
     const workbook = new window.ExcelJS.Workbook();
     const sheetNames = new Set();
 
-    const visitorSheet = appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
-    const accountSheet = appendTableSheet(workbook, accountTable, 'Account', sheetNames);
-
     const sevenDayRecords = getMetadataFieldRecords(7);
+    const thirtyDayRecords = getMetadataFieldRecords(30);
     const visitorAlignment = calculateAlignmentStats(sevenDayRecords, {
       fieldKey: 'visitorFields',
       windowDays: 7,
@@ -162,9 +257,16 @@ export const exportMetadataXlsx = async () => {
       fieldKey: 'accountFields',
       windowDays: 7,
     });
+    const timeframeChanges = buildTimeframeChanges(sevenDayRecords, thirtyDayRecords);
 
-    addAlignmentSummary(visitorSheet, visitorAlignment);
-    addAlignmentSummary(accountSheet, accountAlignment);
+    addOverviewSheet(
+      workbook,
+      { visitorAlignment, accountAlignment, timeframeChanges },
+      sheetNames,
+    );
+
+    const visitorSheet = appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
+    const accountSheet = appendTableSheet(workbook, accountTable, 'Account', sheetNames);
 
     await downloadWorkbook(workbook, desiredName || buildDefaultFileName());
     setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
