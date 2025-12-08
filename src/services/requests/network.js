@@ -3,7 +3,10 @@ import { createLogger } from '../../utils/logger.js';
 import { buildAppListingPayload, buildChunkedAppListingPayloads } from '../payloads/index.js';
 import { createAggregationError, isTooMuchDataOrTimeout } from './errors.js';
 
-const requestLogger = createLogger('Requests', { alwaysInfo: true });
+const requestLogger = createLogger('Requests', {
+  alwaysInfo: true,
+  debugFlag: ['DEBUG_LOGGING', 'DEBUG_DEEP_DIVE'],
+});
 const isDebugLoggingEnabled = () =>
   typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
 
@@ -138,6 +141,14 @@ export const runAggregationWithFallbackWindows = async ({
       )
     : fallbackWindows;
 
+  logger.debug('Starting aggregation with fallback windows', {
+    appId: entry?.appId,
+    totalWindowDays,
+    maxWindowHint: hintWindow || null,
+    preferredChunkSize: preferredChunk || null,
+    fallbackWindows: normalizedFallbacks,
+  });
+
   for (const windowSize of normalizedFallbacks) {
     const basePayload = buildBasePayload(windowSize);
     if (!basePayload) {
@@ -231,6 +242,12 @@ export const runAggregationWithFallbackWindows = async ({
 
     if (baseResult) {
       const { aggregatedResults, chunkSizeUsed } = baseResult;
+      logger.debug('Aggregation succeeded without chunking', {
+        appId: entry?.appId,
+        windowSize,
+        requestCount,
+        chunkSizeUsed,
+      });
       return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
     }
 
@@ -245,6 +262,13 @@ export const runAggregationWithFallbackWindows = async ({
 
       if (result) {
         const { aggregatedResults, chunkSizeUsed } = result;
+        logger.debug('Aggregation succeeded with chunking', {
+          appId: entry?.appId,
+          windowSize,
+          requestCount,
+          chunkSizeUsed,
+          payloadCount: chunkedPayloads.length,
+        });
         return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
       }
     }

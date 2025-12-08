@@ -45,7 +45,9 @@ export const createLogger = (scope = 'App', options = {}) => {
 
   const logWithLevel = (level, ...messages) => {
     const normalizedLevel = normalizeLevel(level);
-    const debugEnabled = isFlagEnabled(debugFlag);
+    const debugEnabled = Array.isArray(debugFlag)
+      ? debugFlag.some((flag) => isFlagEnabled(flag))
+      : isFlagEnabled(debugFlag);
 
     const shouldLog =
       normalizedLevel === 'error' ||
