@@ -30,6 +30,7 @@ import { scheduleDomUpdate, upsertDeepDiveRecord, yieldToBrowser } from '../deep
 import { stageDeepDiveCallPlan, updateDeepDiveCallPlanStatus } from './plan.js';
 
 const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSuccessfulCall, onComplete) => {
+  const plannedEntries = Array.isArray(entries) ? [...entries] : [];
   clearDeepDiveCollections();
 
   const updateApiProgress =
@@ -44,7 +45,27 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   const setProcessingError = progressHandlers?.setProcessingError;
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
-  const requestTable = stageDeepDiveCallPlan(entries, targetLookback);
+  const invalidEntries = plannedEntries.filter(
+    (entry) => !entry?.appId || !entry?.domain || !entry?.integrationKey,
+  );
+
+  if (invalidEntries.length) {
+    logDeepDive('error', 'Deep dive entries missing required fields before scan.', {
+      invalidCount: invalidEntries.length,
+      totalEntries: plannedEntries.length,
+      examples: invalidEntries.slice(0, 3).map((entry) => ({
+        appId: entry?.appId,
+        subId: entry?.subId,
+        hasDomain: Boolean(entry?.domain),
+        hasIntegrationKey: Boolean(entry?.integrationKey),
+      })),
+    });
+  }
+
+  const validEntries = invalidEntries.length
+    ? plannedEntries.filter((entry) => entry?.appId && entry?.domain && entry?.integrationKey)
+    : plannedEntries;
+  const requestTable = stageDeepDiveCallPlan(validEntries, targetLookback);
   logDeepDive('info', 'Prepared deep dive request queue', {
     queuedEntries: requestTable.length,
     requestedLookback: lookback,
@@ -91,7 +112,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   };
 
   logDeepDive('info', 'Starting deep dive scan', {
-    requestedEntries: entries.length,
+    requestedEntries: validEntries.length,
     totalApiCalls: getTotalApiCalls(),
     targetLookback,
   });
