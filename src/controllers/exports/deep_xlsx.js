@@ -9,6 +9,7 @@ import {
 } from './excel_shared.js';
 import { buildDeepDiveExportState, snapshotDeepDiveCollection } from './deep_state.js';
 import { reportDeepDiveError } from '../../pages/deepDive/ui/render.js';
+import { createExportStatusHelper } from './export_status.js';
 
 const TOP_VALUE_LIMIT = 3;
 const NULL_RATE_THRESHOLD = 0.2;
@@ -597,76 +598,86 @@ export const exportDeepDiveXlsx = async () => {
     return;
   }
 
+  const { setStatus, restore } = createExportStatusHelper();
+
   try {
+    setStatus('Preparing deep-dive XLSX export…', { pending: true });
     logXlsx('debug', 'Ensuring ExcelJS and FileSaver libraries are available');
     await ensureWorkbookLibraries();
-  } catch (error) {
-    reportDeepDiveError('Unable to load ExcelJS dependencies for export', error);
-    return;
-  }
 
-  const visitorSelections = collectFormatSelections(visitorTable, 'visitor');
-  const accountSelections = collectFormatSelections(accountTable, 'account');
+    setStatus('Collecting deep-dive export selections…', { pending: true });
+    const visitorSelections = collectFormatSelections(visitorTable, 'visitor');
+    const accountSelections = collectFormatSelections(accountTable, 'account');
 
-  logXlsx('debug', 'Collected format selections from tables', {
-    visitorSelections: visitorSelections.length,
-    accountSelections: accountSelections.length,
-  });
+    logXlsx('debug', 'Collected format selections from tables', {
+      visitorSelections: visitorSelections.length,
+      accountSelections: accountSelections.length,
+    });
 
-  let workbookResult;
-  try {
-    workbookResult = buildWorkbook(
+    setStatus('Building deep-dive workbook…', { pending: true });
+    const workbookResult = buildWorkbook(
       [...visitorSelections, ...accountSelections],
       metadataRecords,
       deepDiveRecords,
       buildValueLookup(visitorSnapshot, accountSnapshot),
       apiCalls,
     );
-  } catch (error) {
-    reportDeepDiveError('Unable to build deep-dive workbook', error);
-    return;
-  }
 
-  const { workbook, incompleteApps = [] } = workbookResult || {};
+    const { workbook, incompleteApps = [] } = workbookResult || {};
 
-  if (!workbook) {
-    reportDeepDiveError('Deep-dive workbook could not be created. Please try again.', null);
-    return;
-  }
-
-  if (incompleteApps.length > 0) {
-    const incompleteSummary = incompleteApps
-      .map((app) => {
-        const name = app.appName || app.appId || 'Unknown app';
-        const valueNote = app.hasValues ? 'values present' : 'no values captured';
-        const statusNote = app.status?.status ? `status: ${app.status.status}` : 'status unknown';
-        const reasonNote = app.reason ? `reason: ${app.reason}` : null;
-        const errorNote = app.status?.error ? `error: ${app.status.error}` : null;
-        return [
-          name,
-          `(subId: ${app.subId || 'N/A'})`,
-          app.label,
-          statusNote,
-          valueNote,
-          reasonNote,
-          errorNote,
-        ]
-          .filter(Boolean)
-          .join(' - ');
-      })
-      .join('; ');
-
-    const message = `Some apps did not complete scanning but were included in the export: ${incompleteSummary}`;
-    logXlsx('warn', message, { incompleteApps });
-
-    const processingProgressText = document.getElementById('deep-dive-processing-progress');
-    if (processingProgressText) {
-      processingProgressText.textContent = message;
-      processingProgressText.setAttribute('role', 'alert');
+    if (!workbook) {
+      const message = 'Deep-dive workbook could not be created. Please try again.';
+      setStatus(message, { tone: 'error' });
+      reportDeepDiveError(message, null);
+      return;
     }
+
+    if (incompleteApps.length > 0) {
+      const incompleteSummary = incompleteApps
+        .map((app) => {
+          const name = app.appName || app.appId || 'Unknown app';
+          const valueNote = app.hasValues ? 'values present' : 'no values captured';
+          const statusNote = app.status?.status ? `status: ${app.status.status}` : 'status unknown';
+          const reasonNote = app.reason ? `reason: ${app.reason}` : null;
+          const errorNote = app.status?.error ? `error: ${app.status.error}` : null;
+          return [
+            name,
+            `(subId: ${app.subId || 'N/A'})`,
+            app.label,
+            statusNote,
+            valueNote,
+            reasonNote,
+            errorNote,
+          ]
+            .filter(Boolean)
+            .join(' - ');
+        })
+        .join('; ');
+
+      const message = `Some apps did not complete scanning but were included in the export: ${incompleteSummary}`;
+      logXlsx('warn', message, { incompleteApps });
+      setStatus(message, { tone: 'warning', pending: true });
+
+      const processingProgressText = document.getElementById('deep-dive-processing-progress');
+      if (processingProgressText) {
+        processingProgressText.textContent = message;
+        processingProgressText.setAttribute('role', 'alert');
+      }
+    }
+
+    logXlsx('info', 'Deep-dive workbook assembled; starting download');
+    setStatus('Starting deep-dive XLSX download…', {
+      pending: true,
+      tone: 'info',
+    });
+
+    await downloadWorkbook(workbook, desiredName || defaultFileName);
+    setStatus('Export ready. Your XLSX download should start shortly.', { pending: false, tone: 'success' });
+  } catch (error) {
+    logXlsx('error', 'Unable to export deep-dive XLSX.', error);
+    setStatus('Unable to export deep-dive XLSX. Please try again.', { tone: 'error' });
+    reportDeepDiveError('Unable to export deep-dive XLSX.', error);
+  } finally {
+    setTimeout(() => restore(), 1500);
   }
-
-  logXlsx('info', 'Deep-dive workbook assembled; starting download');
-
-  await downloadWorkbook(workbook, desiredName || defaultFileName);
 };
