@@ -116,7 +116,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   scheduleDomUpdate(() => {
     updateApiProgress?.(completedApiCalls, getTotalApiCalls());
     updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
-    setApiStatus?.('Starting deep dive scan…');
+    setApiStatus?.('Preparing deep dive request queue…');
     setProcessingStatus?.('Waiting for the first API response…');
   });
 
