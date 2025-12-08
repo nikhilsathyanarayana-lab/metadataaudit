@@ -43,6 +43,14 @@ export const renderPendingQueueBanner = ({
   });
 };
 
+export const createSharedApiStatusBanner = (options = {}) =>
+  createPendingQueueStatusHelper({
+    regionId: 'page-status-banner',
+    className: 'page-status-banner page-messages',
+    beforeSelector: 'header.page-header',
+    ...options,
+  });
+
 export const createPendingQueueStatusHelper = ({
   regionId = 'page-status-banner',
   className = 'page-status-banner page-messages',

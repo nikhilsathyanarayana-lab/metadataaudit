@@ -5,7 +5,7 @@ import { fetchAppsForEntry } from '../services/requests/network.js';
 import { getManualAppName, loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
-import { createPendingQueueStatusHelper } from '../ui/pendingQueueBanner.js';
+import { createSharedApiStatusBanner } from '../ui/pendingQueueBanner.js';
 import {
   clearPendingCallQueue,
   markPendingCallStarted,
@@ -33,19 +33,7 @@ export const initAppSelection = async () => {
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
   let openAppNameModal = () => {};
-  const statusBanner = createPendingQueueStatusHelper({
-    formatProgressMessage: ({ total, completed }) => {
-      if (!total) {
-        return '';
-      }
-
-      const boundedCompleted = Math.min(completed, total);
-      const isComplete = boundedCompleted >= total;
-      return isComplete
-        ? `Fetched appIds for the last ${currentWindowDays} days.`
-        : `Fetching ${boundedCompleted} / ${total} (last ${currentWindowDays} days)…`;
-    },
-  });
+  const statusBanner = createSharedApiStatusBanner();
 
   if (!proceedButton || !tableBody) {
     return;
