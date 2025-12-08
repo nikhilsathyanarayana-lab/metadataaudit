@@ -264,16 +264,19 @@ export const setExportAvailability = (enabled) => {
 export const setupProgressTracker = () => {
   const statusBanner = createSharedApiStatusBanner();
 
-  const renderStatus = () => statusBanner.render();
+  const setStatusNote = (key, message, tone = '') => {
+    statusBanner.setToneOverride(tone);
+    statusBanner.setNote(key, message);
+  };
 
-  renderStatus();
+  statusBanner.render();
 
   return {
-    updateApiProgress: renderStatus,
-    updateProcessingProgress: renderStatus,
-    setApiStatus: renderStatus,
-    setProcessingStatus: renderStatus,
-    setApiError: renderStatus,
-    setProcessingError: renderStatus,
+    updateApiProgress: () => statusBanner.render(),
+    updateProcessingProgress: () => statusBanner.render(),
+    setApiStatus: (message) => setStatusNote('api-status', message),
+    setProcessingStatus: (message) => setStatusNote('processing-status', message),
+    setApiError: (message) => setStatusNote('api-error', message, 'warning'),
+    setProcessingError: (message) => setStatusNote('processing-error', message, 'warning'),
   };
 };
