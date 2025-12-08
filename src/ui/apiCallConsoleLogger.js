@@ -9,6 +9,10 @@ const consoleLogger = createLogger('ApiCallConsoleLogger');
 const isDebugEnabled = () =>
   typeof window !== 'undefined' && Boolean(window.DEBUG_LOGGING || window.DEBUG_DEEP_DIVE);
 
+const SNAPSHOT_THROTTLE_MS = 750;
+let lastSnapshotSignature = '';
+let lastSnapshotAt = 0;
+
 const formatPendingCalls = () =>
   metadata_pending_api_calls.map((call) => ({
     key: call?.queueKey || call?.appId || 'unknown',
@@ -41,6 +45,19 @@ const logSnapshot = (reason = 'update') => {
   const progress = summarizePendingCallProgress();
   const pending = formatPendingCalls();
   const recent = formatRecentRecordedCalls();
+
+  const snapshotSignature = `${reason}::${JSON.stringify({ pending, progress, recent })}`;
+  const now = Date.now();
+
+  const isDuplicateSnapshot =
+    snapshotSignature === lastSnapshotSignature && now - lastSnapshotAt < SNAPSHOT_THROTTLE_MS;
+
+  if (isDuplicateSnapshot) {
+    return;
+  }
+
+  lastSnapshotSignature = snapshotSignature;
+  lastSnapshotAt = now;
 
   consoleLogger.info('API call debug snapshot', {
     reason,
