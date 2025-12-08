@@ -1,6 +1,7 @@
 // Modal setup for app-name editing and regex format validation within the deep dive UI.
 import { loadTemplate } from '../../../controllers/modalLoader.js';
 import { setManualAppName } from '../../../services/appNames.js';
+import { ensureMessageRegion, showMessage } from '../../../ui/messageHelpers.js';
 import { applyBannerTone, setBannerText } from '../../../ui/statusBanner.js';
 
 const updateRegexFeedback = (tone, message) => {
@@ -135,8 +136,10 @@ const updateManualAppNameFeedback = (tone, message) => {
 };
 
 export const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows, syncAppName) => {
+  const templatePath = 'Modals/app-name-modal.html';
+
   if (!document.getElementById('app-name-modal')) {
-    await loadTemplate('Modals/app-name-modal.html');
+    await loadTemplate(templatePath);
   }
 
   const modal = document.getElementById('app-name-modal');
@@ -147,6 +150,22 @@ export const setupManualAppNameModal = async (manualAppNames, rows, getRenderedR
   const closeButtons = modal?.querySelectorAll('[data-close-app-name-modal]') || [];
 
   if (!modal || !backdrop || !form || !appIdTarget || !appNameInput) {
+    const resolvedTemplate = typeof window !== 'undefined'
+      ? new URL(templatePath, window.location.href).href
+      : templatePath;
+    const region = ensureMessageRegion('deep-dive-messages', {
+      beforeSelector: '#visitor-deep-dive-card',
+    });
+
+    console.warn(
+      'App name modal template did not load; disabling manual app name editing to avoid errors.',
+      resolvedTemplate,
+    );
+    showMessage(
+      region,
+      'App name editing is unavailable because the modal template could not be loaded. Reload the page or verify the site is served from the expected base path.',
+      'warning',
+    );
     return () => {};
   }
 
