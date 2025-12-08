@@ -14,6 +14,7 @@ import {
 } from '../pages/deepDive.js';
 import { renderNavigation } from '../pages/navigation.js';
 import { clearPendingCallQueue } from '../pages/deepDive/aggregation.js';
+import { initApiCallDebugPanel } from '../ui/apiCallDebugPanel.js';
 
 const parseStoredRecords = (key) => {
   try {
@@ -61,6 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     renderNavigation('#nav-root', { activePage: 'integration' });
     clearPendingCallQueue();
+    initApiCallDebugPanel();
     await bootstrapShared({
       enableJsonExport: true,
       additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },
