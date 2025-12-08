@@ -206,9 +206,10 @@ export const buildRequestHeaders = (integrationKey) => ({
   'X-Pendo-Integration-Key': integrationKey,
 });
 
-export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch) => {
+export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch, callbacks = {}) => {
   const requestIdPrefix = 'apps-list';
   let requestCount = 1;
+  const { onRequestsPlanned, onRequestsSettled } = callbacks || {};
 
   const logAggregationResponseDetails = (error) => {
     const { responseStatus, responseBody, details } = error || {};
@@ -236,6 +237,8 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
         requestLogger.info(
           `App discovery request split into ${payloadCount} window(s) at ${windowSize}-day scope.`,
         ),
+      onRequestsPlanned,
+      onRequestsSettled,
     });
 
     requestCount = Math.max(1, totalRequests || 1);

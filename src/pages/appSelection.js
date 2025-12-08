@@ -426,26 +426,41 @@ export const initAppSelection = async () => {
       }
 
       clearError();
-      let totalRequests = storedRows.length;
+      let totalRequests = 0;
       let completedRequests = 0;
       updateProgress(completedRequests, totalRequests);
+
+      const handleRequestsPlanned = (plannedCount) => {
+        if (!isActiveRequest()) {
+          return;
+        }
+
+        totalRequests += Math.max(0, plannedCount || 0);
+        updateProgress(completedRequests, totalRequests);
+      };
+
+      const handleRequestsSettled = (settledCount) => {
+        if (!isActiveRequest()) {
+          return;
+        }
+
+        completedRequests += Math.max(0, settledCount || 0);
+        updateProgress(completedRequests, totalRequests);
+      };
 
       const responses = [];
       const failedSubIds = [];
       const timeoutSubIds = [];
 
       for (const entry of storedRows) {
-        const response = await fetchAppsForEntry(entry, currentWindowDays);
+        const response = await fetchAppsForEntry(entry, currentWindowDays, undefined, {
+          onRequestsPlanned: handleRequestsPlanned,
+          onRequestsSettled: handleRequestsSettled,
+        });
 
         if (!isActiveRequest()) {
           return;
         }
-
-        const requestCount = Math.max(1, response?.requestCount || 1);
-        const additionalRequests = requestCount - 1;
-        totalRequests += additionalRequests;
-        completedRequests += requestCount;
-        updateProgress(completedRequests, totalRequests);
 
         const subIdLabel = entry?.subId || 'unknown SubID';
 
