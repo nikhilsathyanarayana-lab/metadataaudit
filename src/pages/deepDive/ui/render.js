@@ -265,12 +265,6 @@ export const setupProgressTracker = () => {
   const statusState = {
     processingCompleted: 0,
     processingTotal: 0,
-    toneOverride: '',
-  };
-
-  const applyToneOverride = (tone) => {
-    statusState.toneOverride = tone && tone !== 'info' ? tone : '';
-    statusBanner.setToneOverride(statusState.toneOverride);
   };
 
   const statusBanner = createPendingQueueStatusHelper({
@@ -287,7 +281,6 @@ export const setupProgressTracker = () => {
 
       return parts.join(' · ');
     },
-    toneResolver: ({ fallbackTone }) => statusState.toneOverride || fallbackTone,
   });
 
   const renderStatus = (options) => statusBanner.render(options);
@@ -302,21 +295,18 @@ export const setupProgressTracker = () => {
     renderStatus();
   };
 
-  const setApiStatus = (message, tone = 'info') => {
-    applyToneOverride(tone);
+  const setApiStatus = (message) => {
     statusBanner.setNote('api', message || '');
     renderStatus();
   };
 
-  const setProcessingStatus = (message, tone = 'info') => {
-    applyToneOverride(tone);
+  const setProcessingStatus = (message) => {
     statusBanner.setNote('processing', message || '');
     renderStatus();
   };
 
-  const setApiError = (message) => setApiStatus(message || 'API request failed.', 'warning');
-  const setProcessingError = (message) =>
-    setProcessingStatus(message || 'Response handling failed.', 'warning');
+  const setApiError = (message) => setApiStatus(message || 'API request failed.');
+  const setProcessingError = (message) => setProcessingStatus(message || 'Response handling failed.');
 
   renderStatus();
 
