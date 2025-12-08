@@ -58,11 +58,33 @@ const hydrateDeepDiveDataFromStorage = () => {
 hydrateDeepDiveDataFromStorage();
 installDeepDiveGlobalErrorHandlers();
 
+const registerApiResponseNotification = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (window.__deepDiveApiResponseNotificationInstalled) {
+    return;
+  }
+
+  window.__deepDiveApiResponseNotificationInstalled = true;
+
+  window.addEventListener('api-calls-updated', (event) => {
+    const calls = event?.detail?.calls;
+    const latestCall = Array.isArray(calls) && calls.length ? calls[calls.length - 1] : null;
+    const targetLabel = latestCall?.appId ? `app ${latestCall.appId}` : 'an app';
+    const statusLabel = latestCall?.status ? ` (${latestCall.status})` : '';
+
+    console.info(`Deep dive API response received for ${targetLabel}${statusLabel}.`);
+  });
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     renderNavigation('#nav-root', { activePage: 'integration' });
     clearPendingCallQueue();
     initApiCallConsoleLogger();
+    registerApiResponseNotification();
     await bootstrapShared({
       enableJsonExport: true,
       additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },
