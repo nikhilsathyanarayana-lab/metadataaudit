@@ -9,6 +9,9 @@ const consoleLogger = createLogger('ApiCallConsoleLogger');
 const isDebugEnabled = () =>
   typeof window !== 'undefined' && Boolean(window.DEBUG_LOGGING || window.DEBUG_DEEP_DIVE);
 
+const isSnapshotLoggingEnabled = () =>
+  typeof window !== 'undefined' && Boolean(window.DEBUG_DEEP_DIVE_VERBOSE);
+
 const SNAPSHOT_THROTTLE_MS = 750;
 let lastSnapshotSignature = '';
 let lastSnapshotAt = 0;
@@ -38,7 +41,7 @@ const formatRecentRecordedCalls = (limit = 10) =>
   }));
 
 const logSnapshot = (reason = 'update') => {
-  if (!isDebugEnabled()) {
+  if (!isDebugEnabled() || !isSnapshotLoggingEnabled()) {
     return;
   }
 
