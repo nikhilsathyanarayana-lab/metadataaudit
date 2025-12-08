@@ -232,6 +232,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       }
       successCount += 1;
       completedProcessingSteps += resolvedRequestCount;
+      syncApiProgress();
       syncProcessingProgress();
       const durationMs =
         (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
