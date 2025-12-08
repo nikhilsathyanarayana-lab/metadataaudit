@@ -3,6 +3,9 @@ import { loadDeepDiveRecords } from './dataHelpers.js';
 import { logDeepDive } from './constants.js';
 import { summarizeJsonShape } from './shapeUtils.js';
 
+let lastValidationSummarySignature = '';
+let lastShapeAnomalySignature = '';
+
 export const exposeDeepDiveDebugCommands = () => {
   if (typeof window === 'undefined') {
     return;
@@ -69,8 +72,39 @@ export const exposeDeepDiveDebugCommands = () => {
 
     summaries.sort((a, b) => b.deepDiveRecords - a.deepDiveRecords || a.appId.localeCompare(b.appId));
 
-    console.info('Deep dive validation summary by app:');
-    console.table(summaries);
+    const totals = summaries.reduce(
+      (agg, item) => {
+        agg.visitors += item.visitors;
+        agg.accounts += item.accounts;
+        agg.metadataResponses += item.deepDiveRecords;
+        return agg;
+      },
+      { apps: summaries.length, visitors: 0, accounts: 0, metadataResponses: 0 },
+    );
+
+    const summarySignature = JSON.stringify(summaries);
+    const summaryChanged = summarySignature !== lastValidationSummarySignature;
+
+    console.info('Deep dive validation totals', {
+      apps: totals.apps,
+      visitors: totals.visitors,
+      accounts: totals.accounts,
+      metadataResponses: totals.metadataResponses,
+      updated: summaryChanged,
+    });
+
+    if (summaryChanged) {
+      console.groupCollapsed('Deep dive validation summary by app (changed)');
+      console.table(summaries);
+      console.groupEnd();
+      lastValidationSummarySignature = summarySignature;
+    } else {
+      console.info('Validation summary unchanged; reuse window.lastDeepDiveValidationSummaries for details.');
+    }
+
+    if (typeof window !== 'undefined') {
+      window.lastDeepDiveValidationSummaries = summaries;
+    }
 
     const shapeAnomalies = getMetadataShapeAnomalies();
     const unexpectedShapes = [];
@@ -100,19 +134,37 @@ export const exposeDeepDiveDebugCommands = () => {
     };
 
     if (unexpectedShapes.length) {
-      console.info('Unexpected deep dive metadata shapes detected during aggregation:');
-      console.table(
-        unexpectedShapes.map((anomaly) => ({
-          type: anomaly.type,
-          appId: anomaly.appId,
-          subId: anomaly.subId,
-          source: anomaly.source,
-          shape: anomaly.shape,
-          sample: formatSample(anomaly.sample)?.slice(0, 200),
-        })),
+      const shapeSignature = JSON.stringify(unexpectedShapes);
+      const shapesChanged = shapeSignature !== lastShapeAnomalySignature;
+
+      console.info(
+        `Unexpected deep dive metadata shapes detected during aggregation (${unexpectedShapes.length}).`,
+        shapesChanged ? 'Changes found.' : 'No new anomalies since last run.',
       );
+
+      if (shapesChanged) {
+        console.groupCollapsed('Deep dive metadata shape anomalies');
+        console.table(
+          unexpectedShapes.map((anomaly) => ({
+            type: anomaly.type,
+            appId: anomaly.appId,
+            subId: anomaly.subId,
+            source: anomaly.source,
+            shape: anomaly.shape,
+            sample: formatSample(anomaly.sample)?.slice(0, 200),
+          })),
+        );
+        console.groupEnd();
+        lastShapeAnomalySignature = shapeSignature;
+      } else {
+        console.info('Skipping duplicate anomaly table; use window.lastDeepDiveShapeAnomalies for the previous set.');
+      }
     } else {
       console.info('No unexpected metadata shapes observed during aggregation.');
+    }
+
+    if (typeof window !== 'undefined') {
+      window.lastDeepDiveShapeAnomalies = unexpectedShapes;
     }
 
     return summaries;
