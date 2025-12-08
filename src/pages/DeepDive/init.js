@@ -151,9 +151,9 @@ const initDeepDive = async () => {
       manualAppNames,
       rows,
       getRenderedRows,
-      (appId, appName) => {
-        metadataRecords = syncMetadataRecordsAppName(appId, appName, metadataRecords);
-        syncDeepDiveRecordsAppName(appId, appName);
+      (appId, appName, subId) => {
+        metadataRecords = syncMetadataRecordsAppName(appId, appName, metadataRecords, subId);
+        syncDeepDiveRecordsAppName(appId, appName, subId);
       },
     );
     const openRegexModal = await setupRegexFormatModal();

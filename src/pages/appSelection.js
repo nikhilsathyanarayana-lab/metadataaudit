@@ -2,7 +2,7 @@
 import { createLogger } from '../utils/logger.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { fetchAppsForEntry } from '../services/requests/network.js';
-import { loadManualAppNames } from '../services/appNames.js';
+import { getManualAppName, loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
 
@@ -112,7 +112,7 @@ export const initAppSelection = async () => {
     }
 
     const normalizedAppId = normalizeAppId(appId);
-    const manualAppName = manualAppNames.get(normalizedAppId);
+    const manualAppName = getManualAppName(manualAppNames, subId, normalizedAppId);
 
     cachedResponses = cachedResponses.map((entry) => {
       if (entry.subId !== subId) {
@@ -144,7 +144,10 @@ export const initAppSelection = async () => {
         const previous = existingSelection[normalizedAppId];
         selectionState[normalizedAppId] = {
           appId: normalizedAppId,
-          appName: manualAppNamesMap.get(normalizedAppId) || previous?.appName || normalizedAppId,
+          appName:
+            getManualAppName(manualAppNamesMap, entry.subId, normalizedAppId) ||
+            previous?.appName ||
+            normalizedAppId,
           selected: previous?.selected === 1 ? 1 : 0,
         };
       });
@@ -152,13 +155,17 @@ export const initAppSelection = async () => {
       return { ...entry, selectionState };
     });
 
-  const syncCachedAppName = (appId, appName) => {
+  const syncCachedAppName = (appId, appName, subId) => {
     if (!appId || !appName) {
       return;
     }
 
     const normalizedAppId = normalizeAppId(appId);
     cachedResponses = cachedResponses.map((entry) => {
+      if (subId && entry.subId !== subId) {
+        return entry;
+      }
+
       const selection = entry.selectionState?.[normalizedAppId];
 
       if (!selection) {
@@ -302,7 +309,8 @@ export const initAppSelection = async () => {
       appIds.forEach((appId) => {
         const normalizedAppId = normalizeAppId(appId);
         const previousSelection = selectionState?.[normalizedAppId];
-        const appName = manualAppNames.get(normalizedAppId) || previousSelection?.appName || '';
+        const appName =
+          getManualAppName(manualAppNames, subId, normalizedAppId) || previousSelection?.appName || '';
 
         rows.push({ subId, appId: normalizedAppId, appName });
       });
@@ -567,7 +575,7 @@ export const initAppSelection = async () => {
       const filteredResponse = filterResponseByAppIds(sourceEntry?.response, new Set([appId]));
       const normalizedAppId = normalizeAppId(appId);
       const appName =
-        manualAppNames.get(normalizedAppId) ||
+        getManualAppName(manualAppNames, subId, normalizedAppId) ||
         sourceEntry.selectionState?.[normalizedAppId]?.appName ||
         normalizedAppId;
 

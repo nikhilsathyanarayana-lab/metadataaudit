@@ -7,6 +7,7 @@ import {
   TARGET_LOOKBACK,
 } from './constants.js';
 import { extractAppIds } from '../../services/appUtils.js';
+import { getManualAppName } from '../../services/appNames.js';
 
 export { extractAppIds };
 
@@ -204,13 +205,13 @@ export const upsertDeepDiveRecord = (
   deepDiveRecords.splice(0, deepDiveRecords.length, ...nextRecords);
 };
 
-export const syncDeepDiveRecordsAppName = (appId, appName) => {
+export const syncDeepDiveRecordsAppName = (appId, appName, subId) => {
   if (!appId) {
     return;
   }
 
   deepDiveRecords.forEach((record, index) => {
-    if (record.appId !== appId) {
+    if (record.appId !== appId || (subId && record.subId !== subId)) {
       return;
     }
 
@@ -222,13 +223,13 @@ export const syncDeepDiveRecordsAppName = (appId, appName) => {
   });
 };
 
-export const syncMetadataRecordsAppName = (appId, appName, metadataRecords) => {
+export const syncMetadataRecordsAppName = (appId, appName, metadataRecords, subId) => {
   if (!appId || !Array.isArray(metadataRecords)) {
     return metadataRecords;
   }
 
   return metadataRecords.map((record) => {
-    if (record?.appId !== appId) {
+    if (record?.appId !== appId || (subId && record?.subId !== subId)) {
       return record;
     }
 
@@ -303,7 +304,7 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
         return;
       }
 
-      const appName = manualAppNames?.get(record.appId) || record.appName || '';
+      const appName = getManualAppName(manualAppNames, record.subId, record.appId) || record.appName || '';
 
       mapped.set(record.appId, {
         appId: record.appId,

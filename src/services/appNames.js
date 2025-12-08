@@ -5,6 +5,26 @@ let manualAppNameCache = null;
 
 const appNamesLogger = createLogger('AppNames');
 
+const buildManualAppNameKey = (subId, appId) => {
+  const normalizedAppId = appId === undefined || appId === null ? '' : String(appId);
+  const normalizedSubId = subId === undefined || subId === null ? '' : String(subId);
+
+  if (!normalizedAppId) {
+    return '';
+  }
+
+  return normalizedSubId ? `${normalizedSubId}::${normalizedAppId}` : normalizedAppId;
+};
+
+export const getManualAppName = (appNames = manualAppNameCache, subId, appId) => {
+  if (!(appNames instanceof Map)) {
+    return '';
+  }
+
+  const key = buildManualAppNameKey(subId, appId);
+  return appNames.get(key) || (subId ? appNames.get(buildManualAppNameKey('', appId)) : '');
+};
+
 // Retrieves stored manual app name overrides from sessionStorage, caching results for reuse.
 export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => {
   if (manualAppNameCache instanceof Map) {
@@ -52,14 +72,17 @@ export const setManualAppName = (
   appNames,
   appId,
   appName,
+  subId,
   storageKey = MANUAL_APP_NAME_STORAGE_KEY,
 ) => {
-  if (!appId || !appName) {
+  const key = buildManualAppNameKey(subId, appId);
+
+  if (!key || !appName) {
     return appNames instanceof Map ? appNames : loadManualAppNames(storageKey);
   }
 
   const map = appNames instanceof Map ? appNames : loadManualAppNames(storageKey);
-  map.set(appId, appName);
+  map.set(key, appName);
   persistManualAppNames(map, storageKey);
   return map;
 };
@@ -74,8 +97,9 @@ export const applyManualAppNames = (rows, manualAppNames = loadManualAppNames())
 
   return rows.map((row) => ({
     ...row,
-    appName: appNames.get(row?.appId) || row?.appName || '',
+    appName: getManualAppName(appNames, row?.subId, row?.appId) || row?.appName || '',
   }));
 };
 
 export const manualAppNameStorageKey = MANUAL_APP_NAME_STORAGE_KEY;
+export const buildManualAppNameKeyForTesting = buildManualAppNameKey;
