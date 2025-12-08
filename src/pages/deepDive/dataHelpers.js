@@ -497,49 +497,52 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
     }
   });
 
-  records
-    .filter((record) => record.windowDays === lookback)
-    .forEach((record) => {
-      if (!record?.appId) {
-        logDeepDive('warn', 'Skipping deep dive record due to missing appId.', {
-          subId: record?.subId,
-          windowDays: record?.windowDays,
-        });
-        return;
+  const lookbackRecords = (Array.isArray(records) ? records : []).filter(
+    (record) => record?.windowDays === lookback,
+  );
+  const missingAppIdExamples = [];
+  const missingCredentialExamples = [];
+  const recordDiagnostics = [];
+
+  lookbackRecords.forEach((record) => {
+    if (!record?.appId) {
+      logDeepDive('warn', 'Skipping deep dive record due to missing appId.', {
+        subId: record?.subId,
+        windowDays: record?.windowDays,
+      });
+
+      if (missingAppIdExamples.length < 3) {
+        missingAppIdExamples.push({ subId: record?.subId, windowDays: record?.windowDays });
       }
       return;
     }
 
-      const lookupKey = `${record.subId || ''}::${record.appId}`;
-      const selection =
-        selectionLookup.get(lookupKey) ||
-        selectionLookup.get(`::${record.appId}`) ||
-        selectionsByAppId.get(record.appId) ||
-        selectionsBySubId.get(record.subId || '');
+    const lookupKey = `${record.subId || ''}::${record.appId}`;
+    let selectionSource = 'none';
+    const selection =
+      selectionLookup.get(lookupKey) ||
+      selectionLookup.get(`::${record.appId}`) ||
+      selectionsByAppId.get(record.appId) ||
+      selectionsBySubId.get(record.subId || '');
 
-      const domain = selection?.domain || record.domain;
-      const integrationKey = selection?.integrationKey || record.integrationKey;
+    if (selectionLookup.get(lookupKey)) {
+      selectionSource = 'subId+appId';
+    } else if (selectionLookup.get(`::${record.appId}`)) {
+      selectionSource = 'appIdExact';
+    } else if (selectionsByAppId.get(record.appId)) {
+      selectionSource = 'appIdLookup';
+    } else if (selectionsBySubId.get(record.subId || '')) {
+      selectionSource = 'subIdLookup';
+    }
 
-      if (!domain || !integrationKey) {
-        const missingFields = [];
+    const domain = selection?.domain || record.domain;
+    const integrationKey = selection?.integrationKey || record.integrationKey;
 
-        if (!domain) {
-          missingFields.push('domain');
-        }
+    if (!domain || !integrationKey) {
+      const missingFields = [];
 
-        if (!integrationKey) {
-          missingFields.push('integrationKey');
-        }
-
-        logDeepDive('warn', 'Skipping scan entry due to missing normalized credentials.', {
-          appId: record.appId,
-          subId: record.subId,
-          hasSelection: Boolean(selection),
-          domainPresent: Boolean(domain),
-          integrationPresent: Boolean(integrationKey),
-          missingFields,
-        });
-        return;
+      if (!domain) {
+        missingFields.push('domain');
       }
 
       if (!integrationKey) {
@@ -550,6 +553,7 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
         appId: record.appId,
         subId: record.subId,
         hasSelection: Boolean(selection),
+        selectionSource,
         domainPresent: Boolean(domain),
         integrationPresent: Boolean(integrationKey),
         missingFields,
@@ -588,6 +592,32 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
     builtFromRecords: mapped.size,
     missingAppIdExamples,
     missingCredentialExamples,
+  });
+
+    if (recordDiagnostics.length < 10) {
+      recordDiagnostics.push({
+        appId: record.appId,
+        subId: record.subId,
+        selectionSource,
+        domainSource: selection?.domain ? 'selection' : record.domain ? 'record' : 'missing',
+        integrationKeySource: selection?.integrationKey
+          ? 'selection'
+          : record.integrationKey
+            ? 'record'
+            : 'missing',
+      });
+    }
+  });
+
+  logDeepDive('debug', 'Deep dive scan entry build diagnostics', {
+    lookback,
+    recordCount: lookbackRecords.length,
+    skippedMissingAppId: missingAppIdExamples.length,
+    skippedMissingCredentials: missingCredentialExamples.length,
+    builtFromRecords: mapped.size,
+    missingAppIdExamples,
+    missingCredentialExamples,
+    recordDiagnostics,
   });
 
   if (!mapped.size && selections.length) {
