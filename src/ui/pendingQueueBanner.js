@@ -65,8 +65,8 @@ export const createPendingQueueStatusHelper = ({
 
   const combineMessage = (messageParts) =>
     messageParts
-      .filter(Boolean)
-      .map((part) => part.trim())
+      .filter((part) => part !== undefined && part !== null)
+      .map((part) => String(part).trim())
       .filter(Boolean)
       .join(' · ');
 
