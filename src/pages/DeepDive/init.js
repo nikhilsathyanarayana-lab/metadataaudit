@@ -229,7 +229,6 @@ const initDeepDive = async () => {
       startButton.addEventListener('click', async () => {
         startButton.disabled = true;
         startButton.textContent = 'Scanning…';
-        progressHandlers.setApiStatus?.('Starting deep dive scan…');
         progressHandlers.setProcessingStatus?.('Waiting for the first API response…');
 
         try {

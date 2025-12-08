@@ -10,7 +10,7 @@ import { extractAppIds } from '../services/appUtils.js';
 import { createLogger } from '../utils/logger.js';
 import { applyBannerTone, setBannerText } from '../ui/statusBanner.js';
 import { createErrorReporter, ensureMessageRegion, showMessage } from '../ui/messageHelpers.js';
-import { createPendingQueueStatusHelper } from '../ui/pendingQueueBanner.js';
+import { createSharedApiStatusBanner } from '../ui/pendingQueueBanner.js';
 import {
   applyManualAppNames,
   loadManualAppNames,
@@ -37,10 +37,7 @@ const metadataFieldStorageVersion = 1;
 let metadataFieldsReadyPromise = Promise.resolve();
 let metadataSnapshot = new Map();
 const aggregationHintsByApp = new Map();
-const queueBanner = createPendingQueueStatusHelper({
-  regionId: STATUS_REGION_ID,
-  beforeSelector: 'header.page-header',
-});
+const queueBanner = createSharedApiStatusBanner();
 
 const getAggregationHint = (appId) => aggregationHintsByApp.get(appId) || {};
 

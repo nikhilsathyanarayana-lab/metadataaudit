@@ -1,7 +1,7 @@
 // UI helpers for rendering deep dive tables, headers, and on-page feedback.
 import { LOOKBACK_OPTIONS, TARGET_LOOKBACK, logDeepDive } from '../constants.js';
 import { ensureMessageRegion as ensureBannerRegion, createErrorReporter } from '../../../ui/messageHelpers.js';
-import { createPendingQueueStatusHelper } from '../../../ui/pendingQueueBanner.js';
+import { createSharedApiStatusBanner } from '../../../ui/pendingQueueBanner.js';
 
 export const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -262,60 +262,18 @@ export const setExportAvailability = (enabled) => {
 };
 
 export const setupProgressTracker = () => {
-  const statusState = {
-    processingCompleted: 0,
-    processingTotal: 0,
-  };
+  const statusBanner = createSharedApiStatusBanner();
 
-  const statusBanner = createPendingQueueStatusHelper({
-    formatProgressMessage: ({ total, completed }) => {
-      const parts = [
-        total ? `API calls ${Math.min(completed, total)}/${total}` : 'Queue a deep dive to start API calls.',
-      ];
-
-      if (statusState.processingTotal) {
-        parts.push(
-          `Responses ${Math.min(statusState.processingCompleted, statusState.processingTotal)}/${statusState.processingTotal}`,
-        );
-      }
-
-      return parts.join(' · ');
-    },
-  });
-
-  const renderStatus = (options) => statusBanner.render(options);
-
-  const updateApiProgress = () => {
-    renderStatus();
-  };
-
-  const updateProcessingProgress = (completed = 0, total = 0) => {
-    statusState.processingCompleted = Math.max(0, Number(completed) || 0);
-    statusState.processingTotal = Math.max(0, Number(total) || 0);
-    renderStatus();
-  };
-
-  const setApiStatus = (message) => {
-    statusBanner.setNote('api', message || '');
-    renderStatus();
-  };
-
-  const setProcessingStatus = (message) => {
-    statusBanner.setNote('processing', message || '');
-    renderStatus();
-  };
-
-  const setApiError = (message) => setApiStatus(message || 'API request failed.');
-  const setProcessingError = (message) => setProcessingStatus(message || 'Response handling failed.');
+  const renderStatus = () => statusBanner.render();
 
   renderStatus();
 
   return {
-    updateApiProgress,
-    updateProcessingProgress,
-    setApiStatus,
-    setProcessingStatus,
-    setApiError,
-    setProcessingError,
+    updateApiProgress: renderStatus,
+    updateProcessingProgress: renderStatus,
+    setApiStatus: renderStatus,
+    setProcessingStatus: renderStatus,
+    setApiError: renderStatus,
+    setProcessingError: renderStatus,
   };
 };
