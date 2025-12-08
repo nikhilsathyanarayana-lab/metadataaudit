@@ -135,43 +135,61 @@ const buildRecordLookup = (records = []) => {
   return lookup;
 };
 
-const buildTimeframeChanges = (sevenDayRecords = [], thirtyDayRecords = []) => {
-  const sevenLookup = buildRecordLookup(sevenDayRecords);
-  const thirtyLookup = buildRecordLookup(thirtyDayRecords);
+const buildTimeframeChanges = (timeframeRecords = []) => {
+  const timeframes = timeframeRecords
+    .map(({ label, windowDays, records = [] }) => ({
+      label,
+      windowDays,
+      records,
+      lookup: buildRecordLookup(records),
+    }))
+    .filter((frame) => Number.isFinite(frame.windowDays));
+
   const changes = [];
 
-  const appIds = new Set([
-    ...sevenDayRecords.map((record) => record?.appId).filter(Boolean),
-    ...thirtyDayRecords.map((record) => record?.appId).filter(Boolean),
-  ]);
-
-  appIds.forEach((appId) => {
-    const sevenRecord = sevenLookup.get(appId);
-    const thirtyRecord = thirtyLookup.get(appId);
-    const appName = sevenRecord?.appName || thirtyRecord?.appName || appId;
-    const sevenFields = buildCombinedFieldSet(sevenRecord);
-    const thirtyFields = buildCombinedFieldSet(thirtyRecord);
-
-    thirtyFields.forEach((field) => {
-      if (!sevenFields.has(field)) {
-        changes.push({
-          field,
-          appId,
-          appName,
-          note: `${field} was not found in the 7 day window but was found in the 30 day window for ${appName}`,
-        });
+  const appIds = new Set();
+  timeframes.forEach(({ records }) => {
+    records.forEach((record) => {
+      if (record?.appId) {
+        appIds.add(record.appId);
       }
     });
+  });
 
-    sevenFields.forEach((field) => {
-      if (!thirtyFields.has(field)) {
-        changes.push({
-          field,
-          appId,
-          appName,
-          note: `${field} was not found in the 30 day window but was found in the 7 day window for ${appName}`,
+  appIds.forEach((appId) => {
+    const frameDetails = timeframes.map((frame) => {
+      const record = frame.lookup.get(appId);
+      return {
+        ...frame,
+        record,
+        fields: buildCombinedFieldSet(record),
+        appName: record?.appName,
+      };
+    });
+
+    const appName = frameDetails.find((frame) => frame.appName)?.appName || appId;
+
+    frameDetails.forEach((sourceFrame) => {
+      frameDetails.forEach((targetFrame) => {
+        if (
+          sourceFrame.windowDays === targetFrame.windowDays ||
+          !sourceFrame.record ||
+          !targetFrame.record
+        ) {
+          return;
+        }
+
+        sourceFrame.fields.forEach((field) => {
+          if (!targetFrame.fields.has(field)) {
+            changes.push({
+              field,
+              appId,
+              appName,
+              note: `${field} was not found in the ${targetFrame.label} window but was found in the ${sourceFrame.label} window for ${appName}`,
+            });
+          }
         });
-      }
+      });
     });
   });
 
@@ -213,7 +231,7 @@ const addOverviewSheet = (workbook, { visitorAlignment, accountAlignment, timefr
       worksheet.addRow([field, appName || appId || 'Unknown App', appId || 'Unknown App ID', note]);
     });
   } else {
-    worksheet.addRow(['No field differences detected between 7 day and 30 day windows.']);
+    worksheet.addRow(['No field differences detected across available timeframes.']);
   }
 
   return worksheet;
@@ -249,6 +267,7 @@ export const exportMetadataXlsx = async () => {
 
     const sevenDayRecords = getMetadataFieldRecords(7);
     const thirtyDayRecords = getMetadataFieldRecords(30);
+    const oneEightyDayRecords = getMetadataFieldRecords(180);
     const visitorAlignment = calculateAlignmentStats(sevenDayRecords, {
       fieldKey: 'visitorFields',
       windowDays: 7,
@@ -257,7 +276,11 @@ export const exportMetadataXlsx = async () => {
       fieldKey: 'accountFields',
       windowDays: 7,
     });
-    const timeframeChanges = buildTimeframeChanges(sevenDayRecords, thirtyDayRecords);
+    const timeframeChanges = buildTimeframeChanges([
+      { label: '7 day', windowDays: 7, records: sevenDayRecords },
+      { label: '30 day', windowDays: 30, records: thirtyDayRecords },
+      { label: '180 day', windowDays: 180, records: oneEightyDayRecords },
+    ]);
 
     addOverviewSheet(
       workbook,
