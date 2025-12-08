@@ -25,15 +25,31 @@ export const createAggregationError = (message, status, body, details = {}) => {
 export const isTooMuchDataOrTimeout = (error) => {
   const { responseStatus, responseBody, details, message, name, isAbortError } = error || {};
   const status = responseStatus ?? details?.status;
-  const bodyText = typeof (responseBody ?? details?.body) === 'string' ? responseBody ?? details?.body : '';
+  const normalizedBody = (() => {
+    const candidateBody = responseBody ?? details?.body;
+
+    if (typeof candidateBody === 'string') {
+      return candidateBody;
+    }
+
+    if (candidateBody && typeof candidateBody === 'object') {
+      try {
+        return JSON.stringify(candidateBody);
+      } catch (serializationError) {
+        return '';
+      }
+    }
+
+    return '';
+  })();
   const messageText = message || '';
 
   return (
     status === 413
     || RESPONSE_TOO_LARGE_MESSAGE.test(messageText)
-    || RESPONSE_TOO_LARGE_MESSAGE.test(bodyText || '')
+    || RESPONSE_TOO_LARGE_MESSAGE.test(normalizedBody || '')
     || AGGREGATION_TIMEOUT_MESSAGE.test(messageText)
-    || AGGREGATION_TIMEOUT_MESSAGE.test(bodyText || '')
+    || AGGREGATION_TIMEOUT_MESSAGE.test(normalizedBody || '')
     || name === 'AbortError'
     || isAbortError === true
   );
