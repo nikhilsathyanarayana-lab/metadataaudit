@@ -6,6 +6,7 @@ export const metadata_visitors = [];
 export const metadata_accounts = [];
 export const metadata_api_calls = [];
 export const metadata_pending_api_calls = [];
+export const pending_api_calls = metadata_pending_api_calls;
 const metadataVisitorAggregation = new Map();
 const metadataAccountAggregation = new Map();
 const metadataShapeSamples = { visitor: new Map(), account: new Map() };
@@ -15,6 +16,7 @@ if (typeof window !== 'undefined') {
   window.metadata_accounts = metadata_accounts;
   window.metadata_api_calls = metadata_api_calls;
   window.metadata_pending_api_calls = metadata_pending_api_calls;
+  window.pending_api_calls = pending_api_calls;
 }
 
 export const clearDeepDiveCollections = () => {
@@ -204,8 +206,30 @@ export const processDeepDiveResponseItems = async (response, onItem) => {
   }
 };
 
-const findPendingCallIndex = (appId) =>
-  metadata_pending_api_calls.findIndex((entry) => entry?.appId === appId);
+const normalizePendingKey = (entry) => {
+  if (typeof entry === 'string' || typeof entry === 'number') {
+    return String(entry);
+  }
+
+  if (!entry || typeof entry !== 'object') {
+    return '';
+  }
+
+  const { queueKey, appId, subId, requestId } = entry;
+  const candidate = queueKey || appId || subId || requestId;
+
+  return candidate ? String(candidate) : '';
+};
+
+const findPendingCallIndex = (entry) => {
+  const key = normalizePendingKey(entry);
+
+  if (!key) {
+    return -1;
+  }
+
+  return metadata_pending_api_calls.findIndex((record) => record?.queueKey === key);
+};
 
 const normalizeRequestCount = (value) => {
   const normalized = Number(value);
@@ -213,23 +237,27 @@ const normalizeRequestCount = (value) => {
 };
 
 const upsertPendingCall = (entry, overrides = {}) => {
-  if (!entry?.appId) {
+  const key = normalizePendingKey(entry);
+
+  if (!key) {
     return null;
   }
 
   const nextRecord = {
-    appId: entry.appId,
-    subId: entry.subId || '',
+    queueKey: key,
+    appId: entry?.appId || key,
+    subId: entry?.subId || '',
+    operation: entry?.operation || '',
     status: 'queued',
     queuedAt: new Date().toISOString(),
     startedAt: '',
     completedAt: '',
     error: '',
-    requestCount: normalizeRequestCount(overrides.requestCount ?? entry.requestCount ?? 1),
+    requestCount: normalizeRequestCount(overrides.requestCount ?? entry?.requestCount ?? 1),
     ...overrides,
   };
 
-  const existingIndex = findPendingCallIndex(entry.appId);
+  const existingIndex = findPendingCallIndex(key);
 
   if (existingIndex === -1) {
     metadata_pending_api_calls.push(nextRecord);
@@ -244,20 +272,20 @@ const upsertPendingCall = (entry, overrides = {}) => {
   return metadata_pending_api_calls[existingIndex];
 };
 
-export const registerPendingMetadataCall = (entry) => upsertPendingCall(entry);
+export const clearPendingCallQueue = () => {
+  metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
+};
 
-export const updatePendingMetadataCallRequestCount = (entry, requestCount = 1) =>
+export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
+
+export const updatePendingCallRequestCount = (entry, requestCount = 1) =>
   upsertPendingCall(entry, { requestCount: normalizeRequestCount(requestCount) });
 
-export const markPendingMetadataCallStarted = (entry) =>
+export const markPendingCallStarted = (entry) =>
   upsertPendingCall(entry, { status: 'in-flight', startedAt: new Date().toISOString() });
 
-export const resolvePendingMetadataCall = (entry, status = 'completed', error = '') => {
-  if (!entry?.appId) {
-    return null;
-  }
-
-  const existingIndex = findPendingCallIndex(entry.appId);
+export const resolvePendingCall = (entry, status = 'completed', error = '') => {
+  const existingIndex = findPendingCallIndex(entry);
 
   if (existingIndex === -1) {
     return null;
@@ -273,14 +301,14 @@ export const resolvePendingMetadataCall = (entry, status = 'completed', error = 
   return metadata_pending_api_calls[existingIndex];
 };
 
-export const getOutstandingMetadataCalls = () =>
+export const getOutstandingPendingCalls = () =>
   metadata_pending_api_calls.filter(
     (call) => call?.status === 'queued' || call?.status === 'in-flight' || call?.status === 'failed',
   );
 
 const isResolvedCall = (call) => call?.status === 'completed';
 
-export const summarizePendingMetadataCallProgress = () =>
+export const summarizePendingCallProgress = () =>
   metadata_pending_api_calls.reduce(
     (totals, call) => {
       const requestCount = normalizeRequestCount(call?.requestCount);
@@ -294,6 +322,21 @@ export const summarizePendingMetadataCallProgress = () =>
     },
     { total: 0, completed: 0 },
   );
+
+// Metadata-specific aliases maintained for backwards compatibility.
+export const registerPendingMetadataCall = (entry) => registerPendingCall(entry);
+
+export const updatePendingMetadataCallRequestCount = (entry, requestCount = 1) =>
+  updatePendingCallRequestCount(entry, requestCount);
+
+export const markPendingMetadataCallStarted = (entry) => markPendingCallStarted(entry);
+
+export const resolvePendingMetadataCall = (entry, status = 'completed', error = '') =>
+  resolvePendingCall(entry, status, error);
+
+export const getOutstandingMetadataCalls = () => getOutstandingPendingCalls();
+
+export const summarizePendingMetadataCallProgress = () => summarizePendingCallProgress();
 
 export const updateMetadataApiCalls = (entry, status, error = '', datasetCount = 0) => {
   if (!entry?.appId) {
