@@ -5,6 +5,7 @@ import { fetchAppsForEntry } from '../services/requests/network.js';
 import { getManualAppName, loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
+import { renderPendingQueueBanner } from '../ui/pendingQueueBanner.js';
 import {
   clearPendingCallQueue,
   markPendingCallStarted,
@@ -22,7 +23,6 @@ export const initAppSelection = async () => {
   const headerCheckbox = document.getElementById('app-selection-toggle-all');
   const selectionCount = document.getElementById('app-selection-selection-count');
   const messageRegion = document.getElementById('app-selection-messages');
-  const progressBanner = document.getElementById('app-selection-progress');
   const windowSelect = document.getElementById('app-selection-window');
   const defaultWindowDays = 7;
   let currentWindowDays = Number(windowSelect?.value) || defaultWindowDays;
@@ -34,10 +34,33 @@ export const initAppSelection = async () => {
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
   let openAppNameModal = () => {};
+  const renderStatus = (overrideMessage, overrideTone) =>
+    renderPendingQueueBanner({
+      regionId: 'page-status-banner',
+      beforeSelector: 'header.page-header',
+      formatMessage: ({ total, completed }) => {
+        if (typeof overrideMessage === 'string') {
+          return overrideMessage;
+        }
+
+        if (!total) {
+          return '';
+        }
+
+        const boundedCompleted = Math.min(completed, total);
+        const isComplete = boundedCompleted >= total;
+        return isComplete
+          ? `Fetched appIds for the last ${currentWindowDays} days.`
+          : `Fetching ${boundedCompleted} / ${total} (last ${currentWindowDays} days)…`;
+      },
+      tone: overrideTone ? () => overrideTone : undefined,
+    });
 
   if (!proceedButton || !tableBody) {
     return;
   }
+
+  renderStatus();
 
   const storageKey = 'subidLaunchData';
   const responseStorageKey = 'appSelectionResponses';
@@ -61,30 +84,13 @@ export const initAppSelection = async () => {
   };
 
   const refreshProgressFromQueue = () => {
-    const { total, completed } = summarizePendingCallProgress();
-    updateProgress(completed, total);
+    renderStatus();
   };
 
   const clearError = () => {
     if (messageRegion) {
       messageRegion.innerHTML = '';
     }
-  };
-
-  const updateProgress = (completed, total) => {
-    if (!progressBanner) {
-      return;
-    }
-
-    if (!total) {
-      progressBanner.textContent = '';
-      return;
-    }
-
-    const isComplete = completed >= total;
-    progressBanner.textContent = isComplete
-      ? `Fetched appIds for the last ${currentWindowDays} days.`
-      : `Fetching ${completed} / ${total} (last ${currentWindowDays} days)…`;
   };
 
   const parseStoredLaunchData = () => {
@@ -439,12 +445,9 @@ export const initAppSelection = async () => {
 
       if (!storedRows.length) {
         showError('API information not found.');
-        if (progressBanner) {
-          progressBanner.textContent = 'Unable to load apps: missing SubID launch data.';
-        }
+        renderStatus('Unable to load apps: missing SubID launch data.', 'warning');
         proceedButton.disabled = true;
         proceedButton.setAttribute('aria-disabled', 'true');
-        updateProgress(0, 0);
         return;
       }
 
@@ -583,9 +586,7 @@ export const initAppSelection = async () => {
       if (messages.length) {
         const combinedMessage = messages.join(' ');
 
-        if (progressBanner) {
-          progressBanner.textContent = combinedMessage;
-        }
+        renderStatus(combinedMessage, 'warning');
 
         if (!successfulResponses.length) {
           errorMessage = combinedMessage;

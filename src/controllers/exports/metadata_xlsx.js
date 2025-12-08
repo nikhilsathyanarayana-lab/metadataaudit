@@ -10,35 +10,21 @@ import {
   sanitizeFileName,
   sanitizeSheetName,
 } from './excel_shared.js';
+import { ensureMessageRegion, renderRegionBanner } from '../../ui/statusBanner.js';
+import { renderPendingQueueBanner } from '../../ui/pendingQueueBanner.js';
 
 // Captures the export banner elements and helpers for updating status messaging.
 const getExportUi = () => {
-  const progressBanner = document.getElementById('metadata-fields-progress');
-  const progressText = document.getElementById('metadata-fields-progress-text');
+  const statusRegion = ensureMessageRegion('page-status-banner', { beforeSelector: 'header.page-header' });
   const exportButton = document.getElementById('export-button');
-  const exportMarker = `export-${Date.now()}`;
-  let lastMessage = '';
-
-  const previousText = progressText?.textContent;
-  const previousBannerBusy = progressBanner?.getAttribute('aria-busy');
   const previousButtonDisabled = exportButton?.disabled ?? false;
 
   const setStatus = (message, { tone = 'info', pending = false } = {}) => {
-    if (progressText && message) {
-      progressText.textContent = message;
-      progressText.dataset.exportStatus = exportMarker;
-      lastMessage = message;
+    if (statusRegion) {
+      statusRegion.setAttribute('aria-busy', String(pending));
     }
 
-    if (progressBanner) {
-      if (pending) {
-        progressBanner.setAttribute('aria-busy', 'true');
-      } else {
-        progressBanner.removeAttribute('aria-busy');
-      }
-
-      progressBanner.classList.toggle('is-error', tone === 'error');
-    }
+    renderRegionBanner(statusRegion, message, tone, { ariaLive: tone === 'error' ? 'assertive' : 'polite' });
 
     if (exportButton) {
       exportButton.disabled = pending;
@@ -48,24 +34,8 @@ const getExportUi = () => {
   };
 
   const restore = () => {
-    if (progressText?.dataset?.exportStatus !== exportMarker) {
-      return;
-    }
-
-    if (progressText && typeof previousText === 'string' && progressText.textContent === lastMessage) {
-      progressText.textContent = previousText;
-      delete progressText.dataset.exportStatus;
-    }
-
-    if (progressBanner) {
-      if (previousBannerBusy) {
-        progressBanner.setAttribute('aria-busy', previousBannerBusy);
-      } else {
-        progressBanner.removeAttribute('aria-busy');
-      }
-
-      progressBanner.classList.remove('is-error');
-    }
+    renderPendingQueueBanner({ regionId: 'page-status-banner', beforeSelector: 'header.page-header' });
+    statusRegion?.removeAttribute('aria-busy');
 
     if (exportButton) {
       exportButton.disabled = previousButtonDisabled;
