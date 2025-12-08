@@ -653,6 +653,13 @@ const fetchAndPopulate = (
     markPendingCallStarted(pendingCall);
     updateProgressText();
 
+    const updatePendingQueue = (plannedCount) => {
+      const previousCount = Math.max(1, Number(pendingCall?.requestCount) || 1);
+      const normalizedCount = Math.max(previousCount, Number(plannedCount) || 0, 1);
+      updatePendingCallRequestCount(pendingCall, normalizedCount);
+      updateProgressText();
+    };
+
     let clientErrorWithoutRecovery = false;
     let requestSummary = { requestCount: 1 };
     let requestStatus = 'completed';
@@ -695,10 +702,8 @@ const fetchAndPopulate = (
           logAggregationSplit('Metadata fields', windowSize, payloadCount, entry?.appId),
         maxWindowHint: shouldSkipLargeWindow ? startingWindowHint : undefined,
         preferredChunkSize,
-        onRequestsPlanned: (plannedCount) => {
-          updatePendingCallRequestCount(pendingCall, plannedCount);
-          updateProgressText();
-        },
+        updatePendingQueue,
+        onRequestsPlanned: () => updateProgressText(),
         onRequestsSettled: () => {
           updateProgressText();
         },
