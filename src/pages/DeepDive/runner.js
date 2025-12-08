@@ -132,6 +132,11 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     markPendingMetadataCallStarted(entry);
     let requestSummary = { requestCount: 1 };
     let apiCompleted = false;
+    const syncPendingQueue = (plannedCount) => {
+      updatePendingMetadataCallRequestCount(entry, normalizeRequestCount(plannedCount));
+      syncApiProgress();
+      syncProcessingProgress();
+    };
     try {
       const onWindowSplit = (windowSize, payloadCount) => {
         logDeepDive('info', 'Splitting deep dive request into smaller windows', {
@@ -158,6 +163,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           buildChunkedMetaEventsPayloads(entry.appId, windowSize, chunkSize),
         aggregateResults: (collector, response) => collector.push(response),
         onWindowSplit,
+        onRequestsPlanned: syncPendingQueue,
+        updatePendingQueue: syncPendingQueue,
+        onRequestsSettled: () => {
+          syncApiProgress();
+          syncProcessingProgress();
+        },
       });
 
       const resolvedRequestCount = normalizeRequestCount(requestSummary);
