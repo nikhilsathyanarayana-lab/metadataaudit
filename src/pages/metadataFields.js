@@ -9,7 +9,7 @@ import { loadTemplate } from '../controllers/modalLoader.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { createLogger } from '../utils/logger.js';
 import { applyBannerTone, ensureMessageRegion, renderRegionBanner, setBannerText } from '../ui/statusBanner.js';
-import { renderPendingQueueBanner } from '../ui/pendingQueueBanner.js';
+import { createPendingQueueStatusHelper } from '../ui/pendingQueueBanner.js';
 import {
   applyManualAppNames,
   loadManualAppNames,
@@ -36,6 +36,10 @@ const metadataFieldStorageVersion = 1;
 let metadataFieldsReadyPromise = Promise.resolve();
 let metadataSnapshot = new Map();
 const aggregationHintsByApp = new Map();
+const queueBanner = createPendingQueueStatusHelper({
+  regionId: STATUS_REGION_ID,
+  beforeSelector: 'header.page-header',
+});
 
 const getAggregationHint = (appId) => aggregationHintsByApp.get(appId) || {};
 
@@ -253,25 +257,6 @@ const syncMetadataSnapshotAppName = (appId, appName, subId) => {
 };
 
 const createMessageRegion = () => ensureMessageRegion('metadata-fields-messages');
-
-const renderQueueBanner = (overrideMessage, overrideTone) =>
-  renderPendingQueueBanner({
-    regionId: STATUS_REGION_ID,
-    beforeSelector: 'header.page-header',
-    formatMessage: ({ total, completed }) => {
-      if (typeof overrideMessage === 'string') {
-        return overrideMessage;
-      }
-
-      if (!total) {
-        return 'No API calls queued.';
-      }
-
-      const boundedCompleted = Math.min(completed, total);
-      return `API calls completed ${boundedCompleted} of ${total}`;
-    },
-    tone: overrideTone ? () => overrideTone : undefined,
-  });
 
 const showMessage = (region, message, tone = 'info') => {
   renderRegionBanner(region, message, tone, { ariaLive: tone === 'error' ? undefined : 'polite' });
@@ -582,7 +567,7 @@ const fetchAndPopulate = (
   const inFlight = new Set();
   const abortedEntries = new Set();
   const queueEntries = new Map();
-  const updateProgressText = () => renderQueueBanner();
+  const updateProgressText = () => queueBanner.render();
 
   clearPendingCallQueue();
   updateProgressText();
@@ -822,13 +807,13 @@ export const initMetadataFields = () => {
     loadMetadataSnapshot();
     const manualAppNames = loadManualAppNames();
     const entries = buildAppEntries(manualAppNames);
-    renderQueueBanner();
+    queueBanner.render();
 
     if (!entries.length) {
       showMessage(messageRegion, 'No application data available. Start from the SubID form.', 'error');
       renderTableRows(visitorTableBody, []);
       renderTableRows(accountTableBody, []);
-      renderQueueBanner('No API calls queued.', 'warning');
+      queueBanner.render({ message: 'No API calls queued.', tone: 'warning' });
       return;
     }
 
