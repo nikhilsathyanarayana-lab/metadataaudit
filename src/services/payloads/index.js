@@ -3,7 +3,7 @@ import { createLogger } from '../../utils/logger.js';
 const requestLogger = createLogger('Requests');
 
 const buildWindowTimeSeries = (startOffset, chunkDays) => ({
-  first: `dateAdd(now(), -${startOffset}, "days")`,
+  first: `dateAdd(now(), -${startOffset + chunkDays}, "days")`,
   count: -chunkDays,
   period: 'dayRange',
 });
