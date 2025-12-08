@@ -21,16 +21,25 @@ body {
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+#nav-root {
+  align-self: stretch;
+}
+
 .global-nav {
-  width: min(960px, 100%);
-  padding: 0.5rem 0.85rem;
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  padding: 0.5rem 1.5rem;
   background: #fff;
   border: 1px solid rgba(224, 0, 108, 0.15);
-  border-radius: 14px;
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
 }
 
 .nav-inner {
+  max-width: 960px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
