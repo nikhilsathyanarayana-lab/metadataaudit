@@ -5,6 +5,7 @@ import {
   clearDeepDiveCollections,
   collectDeepDiveMetadataFields,
   ensureDeepDiveAccumulatorEntry,
+  getOutstandingPendingCalls,
   getOutstandingMetadataCalls,
   metadata_api_calls,
   markPendingMetadataCallStarted,
@@ -278,6 +279,76 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   const requestQueue = [];
   let activeRequests = 0;
   let lastDispatchAtMs = 0;
+  let lastCompletionAtMs = 0;
+  let requestWatchdogTimer = null;
+  let lastOutstandingCount = 0;
+
+  const startRequestWatchdog = () => {
+    const WATCHDOG_INTERVAL_MS = 15000;
+    const WATCHDOG_IDLE_THRESHOLD_MS = 45000;
+    const watchdogStartedAtMs = Date.now();
+
+    if (requestWatchdogTimer) {
+      return;
+    }
+
+    requestWatchdogTimer = setInterval(() => {
+      const outstanding = getOutstandingPendingCalls();
+      const now = Date.now();
+      const lastActivityAtMs = Math.max(
+        lastCompletionAtMs || 0,
+        lastDispatchAtMs || 0,
+        watchdogStartedAtMs,
+      );
+      const idleForMs = now - lastActivityAtMs;
+
+      if (!outstanding.length) {
+        if (lastOutstandingCount > 0) {
+          logDeepDive('debug', 'All deep dive requests completed; watchdog idle.');
+        }
+        lastOutstandingCount = 0;
+        return;
+      }
+
+      lastOutstandingCount = outstanding.length;
+
+      if (idleForMs < WATCHDOG_IDLE_THRESHOLD_MS) {
+        return;
+      }
+
+      const pendingSummary = outstanding.map((call) => {
+        const queuedAtMs = Date.parse(call.queuedAt);
+        const ageMs = Number.isFinite(queuedAtMs) ? now - queuedAtMs : 0;
+
+        return {
+          appId: call.appId,
+          status: call.status,
+          ageMs: Math.round(ageMs),
+          requestCount: call.requestCount,
+        };
+      });
+
+      logDeepDive('warn', 'Deep dive requests appear stalled; no recent dispatch or completion.', {
+        outstandingCount: outstanding.length,
+        idleForMs: Math.round(idleForMs),
+        lastDispatchAtMs: lastDispatchAtMs || null,
+        lastDispatchAtIso: lastDispatchAtMs ? new Date(lastDispatchAtMs).toISOString() : '',
+        lastCompletionAtMs: lastCompletionAtMs || null,
+        outstanding: pendingSummary,
+      });
+    }, WATCHDOG_INTERVAL_MS);
+  };
+
+  const clearRequestWatchdog = () => {
+    if (requestWatchdogTimer) {
+      clearInterval(requestWatchdogTimer);
+      requestWatchdogTimer = null;
+    }
+  };
+
+  const recordRequestSettled = () => {
+    lastCompletionAtMs = Date.now();
+  };
 
   const tryResolveCompletion = () => {
     const { completed, total } = summarizePendingMetadataCallProgress();
@@ -333,6 +404,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       });
       resolver.safeResolve();
       activeRequests -= 1;
+      recordRequestSettled();
       dispatchNextRequest();
       return;
     }
@@ -340,6 +412,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     try {
       await processEntry(entry);
     } finally {
+      recordRequestSettled();
       resolver.safeResolve();
       activeRequests -= 1;
       tryResolveCompletion();
@@ -389,9 +462,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const scheduledResolution = Promise.all(scheduledRequests).then(() => 'scheduled');
 
+  startRequestWatchdog();
   tryResolveCompletion();
 
   await Promise.all([scheduledResolution, metadataCompletion]).catch(() => {});
+
+  clearRequestWatchdog();
 
   const outstandingAfter = getOutstandingMetadataCalls();
   logDeepDive('info', 'Deep dive request scheduling complete', {
@@ -480,15 +556,14 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const clearTransientCallData = () => metadata_api_calls.splice(0, metadata_api_calls.length);
 
-
-if (onComplete) {
-  scheduleDomUpdate(() => {
-    onComplete();
+  if (onComplete) {
+    scheduleDomUpdate(() => {
+      onComplete();
+      clearTransientCallData();
+    });
+  } else {
     clearTransientCallData();
-  });
-} else {
-  clearTransientCallData();
-}
+  }
 };
 
 export { runDeepDiveScan };
