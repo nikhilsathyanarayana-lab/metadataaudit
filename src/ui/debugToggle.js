@@ -71,7 +71,6 @@ export const initDebugToggle = () => {
   toggle.addEventListener('change', (event) => {
     const enabled = Boolean(event.target.checked);
     applyDebugState(enabled, toggleControl, statusTarget);
-    toggleLogger.info('Debug logging toggled.', { enabled });
   });
 
   toggleLogger.info('Debug toggle initialized.', { enabled: initialState });
