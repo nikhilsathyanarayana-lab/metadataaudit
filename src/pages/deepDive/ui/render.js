@@ -6,7 +6,7 @@ import {
   renderRegionBanner,
   setBannerText,
 } from '../../../ui/statusBanner.js';
-import { renderPendingQueueBanner } from '../../../ui/pendingQueueBanner.js';
+import { createPendingQueueStatusHelper } from '../../../ui/pendingQueueBanner.js';
 
 export const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -284,37 +284,32 @@ export const setupProgressTracker = () => {
   const statusState = {
     processingCompleted: 0,
     processingTotal: 0,
-    apiNote: '',
-    processingNote: '',
     toneOverride: '',
   };
 
-  const renderStatus = () =>
-    renderPendingQueueBanner({
-      regionId: 'page-status-banner',
-      beforeSelector: 'header.page-header',
-      formatMessage: ({ total, completed }) => {
-        const apiPart = total
-          ? `API calls ${Math.min(completed, total)}/${total}`
-          : 'Queue a deep dive to start API calls.';
+  const applyToneOverride = (tone) => {
+    statusState.toneOverride = tone && tone !== 'info' ? tone : '';
+    statusBanner.setToneOverride(statusState.toneOverride);
+  };
 
-        const responsePart = statusState.processingTotal
-          ? ` · Responses ${Math.min(statusState.processingCompleted, statusState.processingTotal)}/${statusState.processingTotal}`
-          : '';
+  const statusBanner = createPendingQueueStatusHelper({
+    formatProgressMessage: ({ total, completed }) => {
+      const parts = [
+        total ? `API calls ${Math.min(completed, total)}/${total}` : 'Queue a deep dive to start API calls.',
+      ];
 
-        const notes = [statusState.apiNote, statusState.processingNote].filter(Boolean);
-        const notePart = notes.length ? ` · ${notes.join(' · ')}` : '';
+      if (statusState.processingTotal) {
+        parts.push(
+          `Responses ${Math.min(statusState.processingCompleted, statusState.processingTotal)}/${statusState.processingTotal}`,
+        );
+      }
 
-        return `${apiPart}${responsePart}${notePart}`.trim();
-      },
-      tone: ({ pendingCalls }) => {
-        if (statusState.toneOverride) {
-          return statusState.toneOverride;
-        }
+      return parts.join(' · ');
+    },
+    toneResolver: ({ fallbackTone }) => statusState.toneOverride || fallbackTone,
+  });
 
-        return pendingCalls.some((call) => call?.status === 'failed') ? 'warning' : 'info';
-      },
-    });
+  const renderStatus = (options) => statusBanner.render(options);
 
   const updateApiProgress = () => {
     renderStatus();
@@ -327,14 +322,14 @@ export const setupProgressTracker = () => {
   };
 
   const setApiStatus = (message, tone = 'info') => {
-    statusState.apiNote = message || '';
-    statusState.toneOverride = tone === 'info' ? '' : tone;
+    applyToneOverride(tone);
+    statusBanner.setNote('api', message || '');
     renderStatus();
   };
 
   const setProcessingStatus = (message, tone = 'info') => {
-    statusState.processingNote = message || '';
-    statusState.toneOverride = tone === 'info' ? statusState.toneOverride : tone;
+    applyToneOverride(tone);
+    statusBanner.setNote('processing', message || '');
     renderStatus();
   };
 

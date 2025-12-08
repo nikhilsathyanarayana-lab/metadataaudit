@@ -42,3 +42,97 @@ export const renderPendingQueueBanner = ({
     ariaLive: resolvedTone === 'error' ? 'assertive' : ariaLive,
   });
 };
+
+export const createPendingQueueStatusHelper = ({
+  regionId = 'page-status-banner',
+  className = 'page-status-banner page-messages',
+  beforeSelector = 'header.page-header',
+  idleText = 'No API calls queued.',
+  ariaLive = 'polite',
+  formatProgressMessage = defaultFormatMessage,
+  toneResolver,
+} = {}) => {
+  const notes = new Map();
+  let toneOverride = '';
+
+  const combineMessage = (messageParts) =>
+    messageParts
+      .filter(Boolean)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(' · ');
+
+  const render = ({ message, tone } = {}) => {
+    const resolvedNotes = Array.from(notes.values()).filter(Boolean);
+
+    return renderPendingQueueBanner({
+      regionId,
+      className,
+      beforeSelector,
+      idleText,
+      ariaLive,
+      formatMessage: ({ total, completed, pendingCalls }) => {
+        if (typeof message === 'string') {
+          return combineMessage([message, ...resolvedNotes]) || idleText;
+        }
+
+        const progressMessage = formatProgressMessage({ total, completed, pendingCalls });
+        const combined = combineMessage([progressMessage, ...resolvedNotes]);
+        return combined || idleText;
+      },
+      tone: ({ pendingCalls }) => {
+        if (tone) {
+          return tone;
+        }
+
+        if (toneOverride) {
+          return toneOverride;
+        }
+
+        const pendingFailure = pendingCalls?.some((call) => call?.status === 'failed');
+        const fallbackTone = pendingFailure ? 'warning' : 'info';
+        return typeof toneResolver === 'function'
+          ? toneResolver({ pendingCalls, notes: resolvedNotes, fallbackTone })
+          : fallbackTone;
+      },
+    });
+  };
+
+  const setNote = (key, value) => {
+    if (key === undefined || key === null) {
+      return;
+    }
+
+    if (value) {
+      notes.set(key, value);
+    } else {
+      notes.delete(key);
+    }
+
+    render();
+  };
+
+  const setNotes = (noteList = []) => {
+    notes.clear();
+    noteList.filter(Boolean).forEach((note, index) => notes.set(index, note));
+    render();
+  };
+
+  const setToneOverride = (tone) => {
+    toneOverride = tone || '';
+    render();
+  };
+
+  const clearNotes = () => {
+    notes.clear();
+    render();
+  };
+
+  return {
+    render,
+    setNote,
+    setNotes,
+    clearNotes,
+    setToneOverride,
+  };
+};

@@ -5,13 +5,12 @@ import { fetchAppsForEntry } from '../services/requests/network.js';
 import { getManualAppName, loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
-import { renderPendingQueueBanner } from '../ui/pendingQueueBanner.js';
+import { createPendingQueueStatusHelper } from '../ui/pendingQueueBanner.js';
 import {
   clearPendingCallQueue,
   markPendingCallStarted,
   registerPendingCall,
   resolvePendingCall,
-  summarizePendingCallProgress,
   updatePendingCallRequestCount,
 } from './deepDive/aggregation.js';
 
@@ -34,33 +33,25 @@ export const initAppSelection = async () => {
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
   let openAppNameModal = () => {};
-  const renderStatus = (overrideMessage, overrideTone) =>
-    renderPendingQueueBanner({
-      regionId: 'page-status-banner',
-      beforeSelector: 'header.page-header',
-      formatMessage: ({ total, completed }) => {
-        if (typeof overrideMessage === 'string') {
-          return overrideMessage;
-        }
+  const statusBanner = createPendingQueueStatusHelper({
+    formatProgressMessage: ({ total, completed }) => {
+      if (!total) {
+        return '';
+      }
 
-        if (!total) {
-          return '';
-        }
-
-        const boundedCompleted = Math.min(completed, total);
-        const isComplete = boundedCompleted >= total;
-        return isComplete
-          ? `Fetched appIds for the last ${currentWindowDays} days.`
-          : `Fetching ${boundedCompleted} / ${total} (last ${currentWindowDays} days)…`;
-      },
-      tone: overrideTone ? () => overrideTone : undefined,
-    });
+      const boundedCompleted = Math.min(completed, total);
+      const isComplete = boundedCompleted >= total;
+      return isComplete
+        ? `Fetched appIds for the last ${currentWindowDays} days.`
+        : `Fetching ${boundedCompleted} / ${total} (last ${currentWindowDays} days)…`;
+    },
+  });
 
   if (!proceedButton || !tableBody) {
     return;
   }
 
-  renderStatus();
+  statusBanner.render();
 
   const storageKey = 'subidLaunchData';
   const responseStorageKey = 'appSelectionResponses';
@@ -84,7 +75,7 @@ export const initAppSelection = async () => {
   };
 
   const refreshProgressFromQueue = () => {
-    renderStatus();
+    statusBanner.render();
   };
 
   const clearError = () => {
@@ -445,7 +436,7 @@ export const initAppSelection = async () => {
 
       if (!storedRows.length) {
         showError('API information not found.');
-        renderStatus('Unable to load apps: missing SubID launch data.', 'warning');
+        statusBanner.render({ message: 'Unable to load apps: missing SubID launch data.', tone: 'warning' });
         proceedButton.disabled = true;
         proceedButton.setAttribute('aria-disabled', 'true');
         return;
@@ -586,7 +577,7 @@ export const initAppSelection = async () => {
       if (messages.length) {
         const combinedMessage = messages.join(' ');
 
-        renderStatus(combinedMessage, 'warning');
+        statusBanner.render({ message: combinedMessage, tone: 'warning' });
 
         if (!successfulResponses.length) {
           errorMessage = combinedMessage;
