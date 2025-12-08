@@ -199,6 +199,9 @@ export const getGlobalCollection = (key) => {
 
 export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   const manualAppNames = loadManualAppNames();
+  const launchCollection = readSessionCollection('subidLaunchData');
+  const launchSelections = normalizeLaunchSelections(launchCollection.value);
+  const launchLookupBySubId = new Map(launchSelections.map((entry) => [entry.subId, entry]));
   const storedSelections = loadStoredAppSelections({
     storageKey: appSelectionGlobalKey,
     onError: (message, error) => logDeepDive('error', message, { error }),
@@ -206,6 +209,7 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
 
   let selectionSource = 'appSelectionResponses';
   let selections = normalizeAppSelections(storedSelections);
+  let hydratedFromLaunch = 0;
 
   if (!selections.length) {
     const cachedSelections = getGlobalCollection(appSelectionGlobalKey);
@@ -217,6 +221,15 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   }
 
   const entriesFromSelections = selections.flatMap((entry) => {
+    const launchSelection = launchLookupBySubId.get(entry.subId);
+    const domain = entry.domain || launchSelection?.domain || '';
+    const integrationKey = entry.integrationKey || launchSelection?.integrationKey || '';
+    const metadataFields = entry.metadataFields || launchSelection?.metadataFields || {};
+
+    if ((!entry.domain || !entry.integrationKey) && (domain && integrationKey)) {
+      hydratedFromLaunch += 1;
+    }
+
     const metadataKeys = entry.metadataFields ? Object.keys(entry.metadataFields) : [];
     const appIds = extractAppIds(entry.response);
     const fallbackAppIds = appIds.length ? appIds : metadataKeys;
@@ -230,24 +243,21 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
     return fallbackAppIds.map((appId) => ({
       subId: entry.subId,
       appId,
-      domain: entry.domain,
-      integrationKey: entry.integrationKey,
+      domain,
+      integrationKey,
       appName: appNames.get(appId),
       selected: isSelectedEntry(entry.selectionState?.[appId]),
-      ...extractMetadataFieldsForApp(entry.metadataFields, appId, lookback),
+      ...extractMetadataFieldsForApp(metadataFields, appId, lookback),
     }));
   });
 
   let selectionEntries = entriesFromSelections;
 
   if (!entriesFromSelections.length) {
-    const launchData = readSessionCollection('subidLaunchData');
-    const normalizedLaunchData = normalizeLaunchSelections(launchData.value);
-
-    if (normalizedLaunchData.length) {
-      selectionEntries = normalizedLaunchData;
+    if (launchSelections.length) {
+      selectionEntries = launchSelections;
       selectionSource = 'subidLaunchData';
-    } else if (!launchData.found) {
+    } else if (!launchCollection.found) {
       selectionSource = 'none';
     } else {
       selectionSource = 'subidLaunchData';
@@ -295,6 +305,7 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
     credentialReady: selectionDiagnostics.credentialReady,
     missingRequired: selectionDiagnostics.missingRequired,
     missingExamples: selectionDiagnostics.missingExamples,
+    hydratedFromLaunch,
   });
 
   return applyManualAppNames(selectionEntries, manualAppNames);
