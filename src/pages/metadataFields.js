@@ -12,6 +12,7 @@ import { applyBannerTone, ensureMessageRegion, renderRegionBanner, setBannerText
 import {
   applyManualAppNames,
   loadManualAppNames,
+  getManualAppName,
   setManualAppName,
 } from '../services/appNames.js';
 
@@ -148,7 +149,7 @@ const updateMetadataSnapshotEntry = (
     version: metadataFieldStorageVersion,
     updatedAt: new Date().toISOString(),
     appId: entry.appId,
-    appName: entry.appName || manualAppNames?.get(entry.appId) || '',
+    appName: entry.appName || getManualAppName(manualAppNames, entry.subId, entry.appId) || '',
     subId: entry.subId,
     domain: entry.domain,
     integrationKey: entry.integrationKey,
@@ -219,14 +220,14 @@ const updateAppSelectionMetadataFields = (
   }
 };
 
-const syncMetadataSnapshotAppName = (appId, appName) => {
+const syncMetadataSnapshotAppName = (appId, appName, subId) => {
   if (!appId) {
     return;
   }
 
   let updated = false;
   metadataSnapshot.forEach((record, key) => {
-    if (record.appId === appId) {
+    if (record.appId === appId && (!subId || record.subId === subId)) {
       metadataSnapshot.set(key, {
         ...record,
         appName,
@@ -478,7 +479,7 @@ const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncApp
   const openModal = (entry) => {
     activeEntry = entry;
     appIdTarget.textContent = entry?.appId || '';
-    const existingName = entry?.appName || manualAppNames.get(entry?.appId) || '';
+    const existingName = getManualAppName(manualAppNames, entry?.subId, entry?.appId) || entry?.appName || '';
     appNameInput.value = existingName;
     updateManualAppNameFeedback('info', existingName ? 'Update the app name if needed.' : 'Enter an app name.');
 
@@ -504,11 +505,11 @@ const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncApp
       return;
     }
 
-    setManualAppName(manualAppNames, activeEntry.appId, appName);
-    syncAppName?.(activeEntry.appId, appName);
+    setManualAppName(manualAppNames, activeEntry.appId, appName, activeEntry.subId);
+    syncAppName?.(activeEntry.appId, appName, activeEntry.subId);
 
     entries
-      .filter((entry) => entry.appId === activeEntry.appId)
+      .filter((entry) => entry.appId === activeEntry.appId && entry.subId === activeEntry.subId)
       .forEach((entry) => {
         entry.appName = appName;
         populateAppNameCells(allRows, entry, appName);

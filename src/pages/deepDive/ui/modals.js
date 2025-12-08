@@ -165,7 +165,8 @@ export const setupManualAppNameModal = async (manualAppNames, rows, getRenderedR
   const openModal = (rowData) => {
     activeRow = rowData;
     appIdTarget.textContent = rowData?.appId || '';
-    const existingName = rowData?.appName || manualAppNames.get(rowData?.appId) || '';
+    const existingName =
+      getManualAppName(manualAppNames, rowData?.subId, rowData?.appId) || rowData?.appName || '';
     appNameInput.value = existingName;
     updateManualAppNameFeedback('info', existingName ? 'Update the app name if needed.' : 'Enter an app name.');
 
@@ -191,21 +192,21 @@ export const setupManualAppNameModal = async (manualAppNames, rows, getRenderedR
       return;
     }
 
-    setManualAppName(manualAppNames, activeRow.appId, appName);
+    setManualAppName(manualAppNames, activeRow.appId, appName, activeRow.subId);
 
     if (typeof syncAppName === 'function') {
-      await syncAppName(activeRow.appId, appName);
+      await syncAppName(activeRow.appId, appName, activeRow.subId);
     }
 
     rows
-      .filter((row) => row.appId === activeRow.appId)
+      .filter((row) => row.appId === activeRow.appId && row.subId === activeRow.subId)
       .forEach((row) => {
         row.appName = appName;
       });
 
     const renderedRows = typeof getRenderedRows === 'function' ? getRenderedRows() : [];
     renderedRows
-      .filter(({ rowData }) => rowData.appId === activeRow.appId)
+      .filter(({ rowData }) => rowData.appId === activeRow.appId && rowData.subId === activeRow.subId)
       .forEach(({ rowData, appNameButton, appIdCell }) => {
         rowData.appName = appName;
 
