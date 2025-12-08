@@ -1,6 +1,7 @@
 import { initDebugToggle } from '../ui/debugToggle.js';
+import { buildNavigation } from '../ui/navigation.js';
 
-export const initDeepDiveNavigation = () => {
+const initDeepDiveNavigation = () => {
   const deepDiveButton = document.getElementById('deep-dive-button');
 
   if (!deepDiveButton) {
@@ -12,7 +13,16 @@ export const initDeepDiveNavigation = () => {
   });
 };
 
-export const initNavigation = () => {
+export const renderNavigation = (targetSelector = '#nav-root', options = {}) => {
+  const target = document.querySelector(targetSelector);
+
+  if (!target) {
+    return;
+  }
+
+  const nav = buildNavigation(options);
+  target.replaceChildren(nav);
+
   initDebugToggle();
   initDeepDiveNavigation();
 };
