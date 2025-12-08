@@ -170,35 +170,54 @@ export const getGlobalCollection = (key) => {
   return [];
 };
 
-export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
-  const manualAppNames = loadManualAppNames();
+export const loadAppSelections = (
+  lookback = TARGET_LOOKBACK,
+  {
+    loadManualNames = loadManualAppNames,
+    storedAppSelectionsLoader = loadStoredAppSelections,
+    appIdExtractor = extractAppIds,
+    appNameExtractor = extractAppNamesFromResponse,
+    manualNameApplier = applyManualAppNames,
+    collectionLoader = getGlobalCollection,
+  } = {},
+) => {
+  const manualAppNames = loadManualNames();
   const selections = normalizeAppSelections(
-    loadStoredAppSelections({
+    storedAppSelectionsLoader({
       storageKey: appSelectionGlobalKey,
       onError: (message, error) => logDeepDive('error', message, { error }),
     }),
   );
 
+  const subidLookup = new Map(
+    collectionLoader('subidLaunchData')
+      .filter((entry) => entry?.subId && (entry.domain || entry.integrationKey))
+      .map((entry) => [entry.subId, entry]),
+  );
+
   const entries = selections.flatMap((entry) => {
-    const appIds = extractAppIds(entry.response);
+    const appIds = appIdExtractor(entry.response);
 
     if (!appIds.length) {
       return [];
     }
 
-    const appNames = extractAppNamesFromResponse(entry.response);
+    const appNames = appNameExtractor(entry.response);
+    const subidFallback = subidLookup.get(entry.subId);
+    const domain = entry.domain || subidFallback?.domain;
+    const integrationKey = entry.integrationKey || subidFallback?.integrationKey;
 
     return appIds.map((appId) => ({
       subId: entry.subId,
       appId,
-      domain: entry.domain,
-      integrationKey: entry.integrationKey,
+      domain,
+      integrationKey,
       appName: appNames.get(appId),
       ...extractMetadataFieldsForApp(entry.metadataFields, appId, lookback),
     }));
   });
 
-  return applyManualAppNames(entries, manualAppNames);
+  return manualNameApplier(entries, manualAppNames);
 };
 
 export const normalizeMetadataRecords = (records) =>
