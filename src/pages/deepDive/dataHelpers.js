@@ -194,12 +194,22 @@ export const getGlobalCollection = (key) => {
 
 export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   const manualAppNames = loadManualAppNames();
-  const selections = normalizeAppSelections(
-    loadStoredAppSelections({
-      storageKey: appSelectionGlobalKey,
-      onError: (message, error) => logDeepDive('error', message, { error }),
-    }),
-  );
+  const storedSelections = loadStoredAppSelections({
+    storageKey: appSelectionGlobalKey,
+    onError: (message, error) => logDeepDive('error', message, { error }),
+  });
+
+  let selectionSource = 'appSelectionResponses';
+  let selections = normalizeAppSelections(storedSelections);
+
+  if (!selections.length) {
+    const cachedSelections = getGlobalCollection(appSelectionGlobalKey);
+
+    if (cachedSelections.length) {
+      selections = normalizeAppSelections(cachedSelections);
+      selectionSource = 'deepDiveData';
+    }
+  }
 
   const entriesFromSelections = selections.flatMap((entry) => {
     const appIds = extractAppIds(entry.response);
@@ -221,7 +231,6 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
     }));
   });
 
-  let selectionSource = 'appSelectionResponses';
   let selectionEntries = entriesFromSelections;
 
   if (!entriesFromSelections.length) {
