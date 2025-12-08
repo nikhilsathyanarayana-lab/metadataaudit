@@ -126,88 +126,117 @@ export const runAggregationWithFallbackWindows = async ({
   for (const windowSize of normalizedFallbacks) {
     const baseWindow = Number(totalWindowDays);
     const chunkSize = Math.min(resolvedChunkSize, windowSize);
-    const shouldForceChunkedBase = windowSize === baseWindow && chunkSize < baseWindow;
-    const payloads =
-      windowSize === baseWindow && !shouldForceChunkedBase
-        ? [buildBasePayload(windowSize)]
-        : buildChunkedPayloads(windowSize, chunkSize);
+    const basePayload = buildBasePayload(windowSize);
+    const chunkedPayloads =
+      chunkSize < windowSize ? buildChunkedPayloads(windowSize, chunkSize) : null;
 
-    if (!Array.isArray(payloads) || !payloads.length) {
+    const attemptQueue = [];
+
+    if (windowSize === baseWindow) {
+      if (basePayload) {
+        attemptQueue.push({ payloads: [basePayload], chunkSizeUsed: chunkSize });
+      }
+
+      if (Array.isArray(chunkedPayloads) && chunkedPayloads.length) {
+        attemptQueue.push({ payloads: chunkedPayloads, chunkSizeUsed: chunkSize });
+      }
+    } else if (Array.isArray(chunkedPayloads) && chunkedPayloads.length) {
+      attemptQueue.push({ payloads: chunkedPayloads, chunkSizeUsed: chunkSize });
+    } else if (basePayload) {
+      attemptQueue.push({ payloads: [basePayload], chunkSizeUsed: chunkSize });
+    }
+
+    if (!attemptQueue.length) {
       continue;
     }
 
-    if (typeof onWindowSplit === 'function' && payloads.length > 1) {
-      onWindowSplit(windowSize, payloads.length);
-      updatePendingQueueCount(payloads.length, windowSize, 'split');
-    }
+    const runAttempt = async ({ payloads, chunkSizeUsed }) => {
+      if (!Array.isArray(payloads) || !payloads.length) {
+        return null;
+      }
 
-    const aggregatedResults = [];
+      if (typeof onWindowSplit === 'function' && payloads.length > 1) {
+        onWindowSplit(windowSize, payloads.length);
+        updatePendingQueueCount(payloads.length, windowSize, 'split');
+      }
 
-    const plannedRequestCount = payloads.length;
+      const aggregatedResults = [];
+      const plannedRequestCount = payloads.length;
 
-    try {
-      const scheduleAggregationRequest = (payload, index) =>
-        new Promise((resolve, reject) => {
-          const requestId = payload?.request?.requestId || `window-${windowSize}-${index + 1}`;
-          const payloadLength = typeof payload === 'string' ? payload.length : JSON.stringify(payload || {}).length;
-          const startTime = Date.now();
+      try {
+        const scheduleAggregationRequest = (payload, index) =>
+          new Promise((resolve, reject) => {
+            const requestId = payload?.request?.requestId || `window-${windowSize}-${index + 1}`;
+            const payloadLength = typeof payload === 'string' ? payload.length : JSON.stringify(payload || {}).length;
+            const startTime = Date.now();
 
-          requestLogger.debug('Dispatching aggregation request.', {
-            requestId,
-            windowSize,
-            chunkSize,
-            payloadLength,
+            requestLogger.debug('Dispatching aggregation request.', {
+              requestId,
+              windowSize,
+              chunkSize,
+              payloadLength,
+            });
+
+            setTimeout(() => {
+              postAggregationWithIntegrationKey(entry, payload, fetchImpl)
+                .then((response) => {
+                  const durationMs = Date.now() - startTime;
+                  requestLogger.debug('Aggregation response received.', {
+                    requestId,
+                    windowSize,
+                    durationMs,
+                    response,
+                  });
+                  resolve({ index, response });
+                })
+                .catch((error) => {
+                  const durationMs = Date.now() - startTime;
+                  requestLogger.debug('Aggregation request failed.', {
+                    requestId,
+                    windowSize,
+                    durationMs,
+                    error,
+                  });
+                  reject(error);
+                });
+            }, index * 3000);
           });
 
-          setTimeout(() => {
-            postAggregationWithIntegrationKey(entry, payload, fetchImpl)
-              .then((response) => {
-                const durationMs = Date.now() - startTime;
-                requestLogger.debug('Aggregation response received.', {
-                  requestId,
-                  windowSize,
-                  durationMs,
-                  response,
-                });
-                resolve({ index, response });
-              })
-              .catch((error) => {
-                const durationMs = Date.now() - startTime;
-                requestLogger.debug('Aggregation request failed.', {
-                  requestId,
-                  windowSize,
-                  durationMs,
-                  error,
-                });
-                reject(error);
-              });
-          }, index * 3000);
-        });
+        onRequestsPlanned?.(plannedRequestCount, windowSize);
+        updatePendingQueueCount(plannedRequestCount, windowSize);
+        requestCount += plannedRequestCount;
 
-      onRequestsPlanned?.(plannedRequestCount, windowSize);
-      updatePendingQueueCount(plannedRequestCount, windowSize);
-      requestCount += plannedRequestCount;
+        const responses = await Promise.all(
+          payloads.map((payload, index) => scheduleAggregationRequest(payload, index)),
+        );
 
-      const responses = await Promise.all(
-        payloads.map((payload, index) => scheduleAggregationRequest(payload, index)),
-      );
+        responses
+          .sort((a, b) => a.index - b.index)
+          .forEach(({ response }) => aggregate(aggregatedResults, response, windowSize));
 
-      responses
-        .sort((a, b) => a.index - b.index)
-        .forEach(({ response }) => aggregate(aggregatedResults, response, windowSize));
+        onRequestsSettled?.(plannedRequestCount, windowSize);
 
-      const chunkSizeUsed = payloads.length > 1 ? chunkSize : null;
-      onRequestsSettled?.(plannedRequestCount, windowSize);
+        return { aggregatedResults, chunkSizeUsed: payloads.length > 1 ? chunkSizeUsed : null };
+      } catch (error) {
+        lastError = error;
+        onRequestsSettled?.(plannedRequestCount, windowSize);
 
-      return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
-    } catch (error) {
-      lastError = error;
-      onRequestsSettled?.(plannedRequestCount, windowSize);
+        if (!isTooMuchDataOrTimeout(error)) {
+          const propagatedError = error;
+          propagatedError.requestCount = requestCount;
+          throw propagatedError;
+        }
 
-      if (!isTooMuchDataOrTimeout(error)) {
-        const propagatedError = error;
-        propagatedError.requestCount = requestCount;
-        throw propagatedError;
+        return null;
+      }
+    };
+
+    for (const attempt of attemptQueue) {
+      const result = await runAttempt(attempt);
+
+      if (result) {
+        const { aggregatedResults, chunkSizeUsed } = result;
+        return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
       }
     }
   }
