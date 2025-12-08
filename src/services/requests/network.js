@@ -260,7 +260,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     if (errorHint) {
       requestLogger.error('Aggregation request hint:', {
         hint: errorHint,
-        requestId: error?.details?.requestId || payload?.request?.requestId,
+        requestId: error?.details?.requestId || 'unknown request',
       });
     }
 
