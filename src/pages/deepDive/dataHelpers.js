@@ -420,15 +420,10 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
   }));
 };
 
-export const buildScanEntries = (
-  records,
-  manualAppNames,
-  targetLookback = TARGET_LOOKBACK,
-  selectionOverride = null,
-) => {
+export const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
   const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const mapped = new Map();
-  const selections = (selectionOverride || loadAppSelections(lookback)).filter(isSelectedEntry);
+  const selections = loadAppSelections(lookback).filter(isSelectedEntry);
   const selectionLookup = new Map(
     selections.map((selection) => [
       `${selection.subId || ''}::${selection.appId || ''}`,
@@ -462,64 +457,60 @@ export const buildScanEntries = (
         selectionsByAppId.get(record.appId) ||
         selectionsBySubId.get(record.subId || '');
 
-      const patchedRecord = {
-        ...record,
-        subId: record.subId || selection?.subId,
-        domain: record.domain,
-        integrationKey: record.integrationKey,
-      };
+      const domain = selection?.domain || record.domain;
+      const integrationKey = selection?.integrationKey || record.integrationKey;
 
-      const domainBeforePatch = patchedRecord.domain;
-      const integrationBeforePatch = patchedRecord.integrationKey;
-
-      if (!patchedRecord.domain && selection?.domain) {
-        patchedRecord.domain = selection.domain;
-      }
-
-      if (!patchedRecord.integrationKey && selection?.integrationKey) {
-        patchedRecord.integrationKey = selection.integrationKey;
-      }
-
-      const patched =
-        (!domainBeforePatch || !integrationBeforePatch) &&
-        Boolean(patchedRecord.domain && patchedRecord.integrationKey);
-
-      if (patched) {
-        logDeepDive('info', 'Patched scan entry with selection credentials.', {
+      if (!domain || !integrationKey) {
+        logDeepDive('warn', 'Skipping scan entry due to missing normalized credentials.', {
           appId: record.appId,
-          subId: patchedRecord.subId,
-          lookupKey,
-          domainFromRecord: Boolean(domainBeforePatch),
-          integrationFromRecord: Boolean(integrationBeforePatch),
-        });
-      }
-
-      if (!patchedRecord.domain || !patchedRecord.integrationKey) {
-        logDeepDive('warn', 'Skipping scan entry after patch attempt due to missing credentials.', {
-          appId: record.appId,
-          subId: patchedRecord.subId,
+          subId: record.subId,
           hasSelection: Boolean(selection),
-          lookupKey,
-          domainPresent: Boolean(patchedRecord.domain),
-          integrationPresent: Boolean(patchedRecord.integrationKey),
+          domainPresent: Boolean(domain),
+          integrationPresent: Boolean(integrationKey),
         });
         return;
       }
 
       const appName =
-        getManualAppName(manualAppNames, patchedRecord.subId, record.appId) ||
-        patchedRecord.appName ||
+        getManualAppName(manualAppNames, record.subId, record.appId) ||
+        record.appName ||
         selection?.appName ||
         '';
 
       mapped.set(record.appId, {
         appId: record.appId,
         appName,
-        subId: patchedRecord.subId || '',
-        domain: patchedRecord.domain,
-        integrationKey: patchedRecord.integrationKey,
+        subId: record.subId || selection?.subId || '',
+        domain,
+        integrationKey,
       });
     });
+
+  if (!mapped.size && selections.length) {
+    selections
+      .filter((selection) => selection?.appId && selection?.domain && selection?.integrationKey)
+      .forEach((selection) => {
+        const appName =
+          getManualAppName(manualAppNames, selection.subId, selection.appId) ||
+          selection.appName ||
+          '';
+
+        mapped.set(selection.appId, {
+          appId: selection.appId,
+          appName,
+          subId: selection.subId || '',
+          domain: selection.domain,
+          integrationKey: selection.integrationKey,
+        });
+      });
+
+    if (mapped.size) {
+      logDeepDive('info', 'Built deep dive scan entries from app selections.', {
+        plannedEntries: mapped.size,
+        lookback,
+      });
+    }
+  }
 
   return Array.from(mapped.values());
 };
