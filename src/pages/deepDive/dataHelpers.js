@@ -497,40 +497,49 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
     }
   });
 
-  const lookbackRecords = (Array.isArray(records) ? records : []).filter(
-    (record) => record?.windowDays === lookback,
-  );
-  const missingAppIdExamples = [];
-  const missingCredentialExamples = [];
-
-  lookbackRecords.forEach((record) => {
-    if (!record?.appId) {
-      logDeepDive('warn', 'Skipping deep dive record due to missing appId.', {
-        subId: record?.subId,
-        windowDays: record?.windowDays,
-      });
-
-      if (missingAppIdExamples.length < 3) {
-        missingAppIdExamples.push({ subId: record?.subId, windowDays: record?.windowDays });
+  records
+    .filter((record) => record.windowDays === lookback)
+    .forEach((record) => {
+      if (!record?.appId) {
+        logDeepDive('warn', 'Skipping deep dive record due to missing appId.', {
+          subId: record?.subId,
+          windowDays: record?.windowDays,
+        });
+        return;
       }
       return;
     }
 
-    const lookupKey = `${record.subId || ''}::${record.appId}`;
-    const selection =
-      selectionLookup.get(lookupKey) ||
-      selectionLookup.get(`::${record.appId}`) ||
-      selectionsByAppId.get(record.appId) ||
-      selectionsBySubId.get(record.subId || '');
+      const lookupKey = `${record.subId || ''}::${record.appId}`;
+      const selection =
+        selectionLookup.get(lookupKey) ||
+        selectionLookup.get(`::${record.appId}`) ||
+        selectionsByAppId.get(record.appId) ||
+        selectionsBySubId.get(record.subId || '');
 
-    const domain = selection?.domain || record.domain;
-    const integrationKey = selection?.integrationKey || record.integrationKey;
+      const domain = selection?.domain || record.domain;
+      const integrationKey = selection?.integrationKey || record.integrationKey;
 
-    if (!domain || !integrationKey) {
-      const missingFields = [];
+      if (!domain || !integrationKey) {
+        const missingFields = [];
 
-      if (!domain) {
-        missingFields.push('domain');
+        if (!domain) {
+          missingFields.push('domain');
+        }
+
+        if (!integrationKey) {
+          missingFields.push('integrationKey');
+        }
+
+        logDeepDive('warn', 'Skipping scan entry due to missing normalized credentials.', {
+          appId: record.appId,
+          subId: record.subId,
+          hasSelection: Boolean(selection),
+          domainPresent: Boolean(domain),
+          integrationPresent: Boolean(integrationKey),
+          missingFields,
+        });
+        return;
       }
 
       if (!integrationKey) {
