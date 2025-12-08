@@ -7,14 +7,17 @@ import {
   ensureDeepDiveAccumulatorEntry,
   getOutstandingPendingCalls,
   getOutstandingMetadataCalls,
+  getNextQueuedPendingCall,
+  hasQueuedPendingCalls,
   metadata_api_calls,
   markPendingMetadataCallStarted,
   updateMetadataApiCalls,
-  registerPendingMetadataCall,
   resolvePendingMetadataCall,
+  settlePendingWindowPlan,
   summarizePendingMetadataCallProgress,
   updateMetadataCollections,
   updatePendingMetadataCallRequestCount,
+  updatePendingCallWindowPlan,
 } from '../deepDive/aggregation.js';
 import {
   DEEP_DIVE_CONCURRENCY,
@@ -41,11 +44,9 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   const setProcessingError = progressHandlers?.setProcessingError;
 
   const targetLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
-  const queue = entries.slice();
-  stageDeepDiveCallPlan(queue, targetLookback);
-  queue.forEach(registerPendingMetadataCall);
+  const requestTable = stageDeepDiveCallPlan(entries, targetLookback);
   logDeepDive('info', 'Prepared deep dive request queue', {
-    queuedEntries: queue.length,
+    queuedEntries: requestTable.length,
     requestedLookback: lookback,
     targetLookback,
   });
@@ -95,7 +96,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     targetLookback,
   });
 
-  const entryLookup = new Map(queue.map((entry) => [entry.appId, entry]));
+  const entryLookup = new Map(requestTable.map((entry) => [entry.appId, entry]));
   const pendingResolvers = new Map();
 
   let resolveMetadataCompletion;
@@ -130,11 +131,12 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
     const startTime = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     await yieldToBrowser();
-    markPendingMetadataCallStarted(entry);
     let requestSummary = { requestCount: 1 };
     let apiCompleted = false;
-    const syncPendingQueue = (plannedCount) => {
-      updatePendingMetadataCallRequestCount(entry, normalizeRequestCount(plannedCount));
+    const syncPendingQueue = (plannedCount, windowSize, reason = 'planned') => {
+      const normalizedCount = normalizeRequestCount(plannedCount);
+      updatePendingMetadataCallRequestCount(entry, normalizedCount);
+      updatePendingCallWindowPlan(entry, normalizedCount, windowSize, reason);
       syncApiProgress();
       syncProcessingProgress();
     };
@@ -146,9 +148,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           payloadCount,
         });
         updateDeepDiveCallPlanStatus(entry, 'Split', `Split into ${payloadCount} windows.`);
-        updatePendingMetadataCallRequestCount(entry, normalizeRequestCount(payloadCount));
-        syncApiProgress();
-        syncProcessingProgress();
+        syncPendingQueue(payloadCount, windowSize, 'split');
         scheduleDomUpdate(() => {
           setApiStatus?.(
             `Splitting ${windowSize}-day deep dive into ${payloadCount} request${payloadCount === 1 ? '' : 's'}…`,
@@ -166,7 +166,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         onWindowSplit,
         onRequestsPlanned: syncPendingQueue,
         updatePendingQueue: syncPendingQueue,
-        onRequestsSettled: () => {
+        onRequestsSettled: (plannedCount, windowSize) => {
+          settlePendingWindowPlan(entry, normalizeRequestCount(plannedCount), windowSize);
           syncApiProgress();
           syncProcessingProgress();
         },
@@ -175,6 +176,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       const resolvedRequestCount = normalizeRequestCount(requestSummary);
 
       updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
+      settlePendingWindowPlan(entry, resolvedRequestCount, requestSummary?.appliedWindow);
       syncApiProgress();
       syncProcessingProgress();
 
@@ -232,6 +234,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       const resolvedRequestCount = normalizeRequestCount(requestSummary);
 
       updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
+      settlePendingWindowPlan(entry, resolvedRequestCount, requestSummary?.appliedWindow);
       syncApiProgress();
       syncProcessingProgress();
       const timedOut = error?.name === 'AbortError' || /timed out/i.test(error?.message || '');
@@ -276,7 +279,6 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     }
   };
 
-  const requestQueue = [];
   let activeRequests = 0;
   let lastDispatchAtMs = 0;
   let lastCompletionAtMs = 0;
@@ -352,7 +354,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const tryResolveCompletion = () => {
     const { completed, total } = summarizePendingMetadataCallProgress();
-    const queueDrained = requestQueue.length === 0 && activeRequests === 0;
+    const queueDrained = !hasQueuedPendingCalls() && activeRequests === 0;
 
     if (total > 0 && completed >= total && queueDrained) {
       resolveMetadataCompletion?.('completed');
@@ -364,31 +366,33 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       return;
     }
 
-    const nextRequest = requestQueue.shift();
-    if (!nextRequest) {
+    const nextEntry = getNextQueuedPendingCall();
+
+    if (!nextEntry) {
       return;
     }
 
-    const { entry, resolver } = nextRequest;
+    const resolver = pendingResolvers.get(nextEntry.appId);
 
-    if (resolver.resolved) {
+    if (resolver?.resolved) {
       dispatchNextRequest();
       return;
     }
 
     activeRequests += 1;
+    markPendingMetadataCallStarted(nextEntry);
 
     const elapsedSinceLastDispatch = Date.now() - lastDispatchAtMs;
     const delayMs = Math.max(DEEP_DIVE_REQUEST_SPACING_MS - Math.max(elapsedSinceLastDispatch, 0), 0);
 
     logDeepDive('debug', 'Dispatching deep dive request', {
-      appId: entry.appId,
-      subId: entry.subId,
+      appId: nextEntry.appId,
+      subId: nextEntry.subId,
       delayMs,
       activeRequests,
     });
 
-    updateDeepDiveCallPlanStatus(entry, 'Calling');
+    updateDeepDiveCallPlanStatus(nextEntry, 'Calling');
 
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -396,10 +400,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
     lastDispatchAtMs = Date.now();
 
-    if (resolver.cancelled) {
+    if (resolver?.cancelled) {
       logDeepDive('warn', 'Skipping cancelled deep dive request', {
-        appId: entry.appId,
-        subId: entry.subId,
+        appId: nextEntry.appId,
+        subId: nextEntry.subId,
         reason: resolver.reason || 'unknown',
       });
       resolver.safeResolve();
@@ -410,10 +414,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     }
 
     try {
-      await processEntry(entry);
+      await processEntry(nextEntry);
     } finally {
       recordRequestSettled();
-      resolver.safeResolve();
+      resolver?.safeResolve();
       activeRequests -= 1;
       tryResolveCompletion();
       dispatchNextRequest();
@@ -448,11 +452,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       });
 
       pendingResolvers.set(entry.appId, resolver);
-      requestQueue.push({ entry, resolver });
       dispatchNextRequest();
     });
 
-  const scheduledRequests = queue.map((entry, index) => scheduleDeepDiveRequest(entry, index));
+  const scheduledRequests = requestTable.map((entry, index) => scheduleDeepDiveRequest(entry, index));
 
   logDeepDive('debug', 'Queued deep dive requests for execution', {
     scheduledCount: scheduledRequests.length,
