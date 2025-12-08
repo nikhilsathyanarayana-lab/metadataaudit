@@ -30,7 +30,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - **Metadata fields progress text**: `setupProgressTracker()` on `metadata_fields.html` counts dispatched vs. completed Engage aggregation calls. Payload splits (for oversized datasets) increment the total call count so the progress text reflects the additional requests.
 - **Deep Dive queueing**: `runDeepDiveScan()` registers every pending metadata request before dispatch and updates `metadata_pending_api_calls` as windows are split, started, and resolved. Progress indicators pull from these pending call summaries, ensuring the UI stays in sync even if retries or splits change the total request volume mid-run.
 - **Request pacing**: Deep Dive requests run with a concurrency of two and staggered 3-second delays per concurrency bucket to reduce API pressure. The spacing is calculated from the request index so batches stay predictable regardless of list size.
-- **Developer diagnostics**: `window.showPendingDeepDiveRequests()` surfaces queued or in-flight Deep Dive calls in a console table, while `window.metadata_api_calls` lists completion/error records for each request. Use these helpers to correlate UI progress bars with actual network activity when debugging.
+- **Developer diagnostics**: `window.showPendingApiQueue()` surfaces queued or in-flight API calls in a console table, while `window.metadata_api_calls` lists completion/error records for each request. Use these helpers to correlate UI progress bars with actual network activity when debugging.
 
 ## Integration API workflow
 1. **index.html**
@@ -96,10 +96,10 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Expected input: None; maintained by `registerPendingMetadataCall()`, `markPendingMetadataCallStarted()`, and `resolvePendingMetadataCall()`.
   - Sample invocation: `window.metadata_pending_api_calls.filter((call) => call.status !== 'completed')`.
   - Output: Array of pending call entries `{ appId, subId, status, queuedAt, startedAt, completedAt, error }`.
-- `window.showPendingDeepDiveRequests()`
-  - Context: Deep Dive page debugging to review outstanding API traffic before scans finish.
+- `window.showPendingApiQueue()`
+  - Context: Page-agnostic debugging to review outstanding API traffic before pending calls finish.
   - Expected input: None; invoked directly from the console.
-  - Sample invocation: `window.showPendingDeepDiveRequests()`.
+  - Sample invocation: `window.showPendingApiQueue()`.
   - Output: Returns the outstanding pending call objects and prints a `console.table` showing `appId`, `subId`, `status`, and timestamps.
 - `window.showDeepDiveCallPlan()`
   - Context: Deep Dive request planning visibility after a scan is staged on `deep_dive.html`.
