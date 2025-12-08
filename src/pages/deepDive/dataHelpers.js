@@ -296,22 +296,42 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
 export const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
   const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const mapped = new Map();
+  const selections = loadAppSelections(lookback);
+  const selectionLookup = new Map(
+    selections.map((selection) => [
+      `${selection.subId || ''}::${selection.appId || ''}`,
+      selection,
+    ]),
+  );
 
   records
     .filter((record) => record.windowDays === lookback)
     .forEach((record) => {
-      if (!record?.appId || !record?.domain || !record?.integrationKey) {
+      if (!record?.appId) {
         return;
       }
 
-      const appName = getManualAppName(manualAppNames, record.subId, record.appId) || record.appName || '';
+      const lookupKey = `${record.subId || ''}::${record.appId}`;
+      const selection = selectionLookup.get(lookupKey);
+      const domain = record.domain || selection?.domain;
+      const integrationKey = record.integrationKey || selection?.integrationKey;
+
+      if (!domain || !integrationKey) {
+        return;
+      }
+
+      const appName =
+        getManualAppName(manualAppNames, record.subId, record.appId) ||
+        record.appName ||
+        selection?.appName ||
+        '';
 
       mapped.set(record.appId, {
         appId: record.appId,
         appName,
-        subId: record.subId || '',
-        domain: record.domain,
-        integrationKey: record.integrationKey,
+        subId: record.subId || selection?.subId || '',
+        domain,
+        integrationKey,
       });
     });
 
