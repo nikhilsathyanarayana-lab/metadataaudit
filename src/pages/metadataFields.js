@@ -34,6 +34,7 @@ const STATUS_REGION_ID = 'page-status-banner';
 const storageKey = 'appSelectionResponses';
 const metadataFieldStorageKey = 'metadataFieldRecords';
 const metadataFieldStorageVersion = 1;
+const MIN_METADATA_REQUEST_DELAY_MS = 3000;
 let metadataFieldsReadyPromise = Promise.resolve();
 let metadataSnapshot = new Map();
 const aggregationHintsByApp = new Map();
@@ -255,6 +256,27 @@ const syncMetadataSnapshotAppName = (appId, appName, subId) => {
 };
 
 const createMessageRegion = () => ensureMessageRegion('metadata-fields-messages');
+
+const createThrottledFetch = (delayMs = MIN_METADATA_REQUEST_DELAY_MS, baseFetch = fetch) => {
+  let queue = Promise.resolve();
+  let nextAvailableAt = 0;
+
+  return (...args) => {
+    queue = queue.catch(() => {}).then(async () => {
+      const now = Date.now();
+      const waitMs = Math.max(0, nextAvailableAt - now);
+
+      if (waitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+
+      nextAvailableAt = Date.now() + delayMs;
+      return baseFetch(...args);
+    });
+
+    return queue;
+  };
+};
 
 const reportMetadataError = createErrorReporter({
   logError: (message, error) => metadataLogger.error(message, error),
@@ -567,6 +589,7 @@ const fetchAndPopulate = (
   const abortedEntries = new Set();
   const queueEntries = new Map();
   const updateProgressText = () => queueBanner.render();
+  const throttledFetch = createThrottledFetch();
 
   clearPendingCallQueue();
   updateProgressText();
@@ -691,6 +714,7 @@ const fetchAndPopulate = (
         maxWindowHint: shouldSkipLargeWindow ? startingWindowHint : undefined,
         preferredChunkSize,
         updatePendingQueue,
+        fetchImpl: throttledFetch,
         onRequestsPlanned: () => updateProgressText(),
         onRequestsSettled: () => {
           updateProgressText();
@@ -780,7 +804,7 @@ const fetchAndPopulate = (
       return;
     }
 
-    queueIntervalId = setInterval(dispatchNext, 3000);
+    queueIntervalId = setInterval(dispatchNext, MIN_METADATA_REQUEST_DELAY_MS);
     setTimeout(dispatchNext, 0);
   };
 
