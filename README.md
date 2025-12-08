@@ -112,6 +112,17 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Sample invocation: `window.validateData()`.
   - Output: Returns an array of per-app summaries, prints console tables for coverage by app, and surfaces any shape anomalies detected in visitor or account metadata.
 
+## App selection flow details
+- **Launch data hydration**: `initAppSelection()` parses `sessionStorage.subidLaunchData` to rebuild the SubID rows that originated from `index.html`. If no rows exist it surfaces `API information not found` and blocks progression.
+- **Request queue + status banner**: Each SubID fetch registers a queue entry via `registerPendingCall()` so the shared status banner can summarize pending vs. completed requests. The banner is refreshed when requests are planned, started, settled, or superseded to keep progress text accurate even if payloads split.
+- **Fetching app lists**: `fetchAppsForEntry()` is called per SubID/domain/integration key (and optional lookback window) with callbacks for planned/settled counts. Responses are stored as `{ subId, domain, integrationKey, response, windowDays }` objects. Failed or timed-out SubIDs are recorded separately for user-facing warnings.
+- **Merging responses**: `mergeAppResponsesBySubId()` consolidates duplicate SubID entries by normalizing app IDs and combining `selectionState` maps. When multiple responses are merged, a synthetic `{ results: [{ appId }] }` payload is constructed so downstream filtering and Deep Dive hydration can still extract IDs reliably.
+- **Selection state + persistence**: `buildSelectionState()` seeds each app entry with `{ appId, appName, selected }`, honoring manual names from `manualAppNames` and any previously chosen rows. Selections, app names, and window lookback are persisted in `sessionStorage.appSelectionResponses` after each fetch or toggle so refreshes keep the state.
+- **Table rendering + toggles**: `populateTableFromResponses()` renders one row per SubID/app with manual name buttons, tooltips, and per-row checkboxes. Header toggles update all visible rows, sync the indeterminate state, and disable the Continue button until at least one checkbox is selected. Empty responses render a friendly fallback row instead of leaving the table blank.
+- **Manual naming sync**: The shared naming modal is initialized through `setupManualAppNameModal()`, and any saved name updates flow back through `syncCachedAppName()` to rewrite cached selection state for both the current session and any previously stored app IDs.
+- **Window selector behavior**: The lookback dropdown (`app-selection-window`) defaults to 7 days and triggers `fetchAndPopulate()` whenever it changes. Active fetches are tokenized so superseded responses resolve their pending-call entries without overwriting newer requests.
+- **Proceed handling**: Clicking Continue gathers the checked rows, filters each source response to only the chosen app IDs, reapplies manual names, and writes the narrowed selection back to `appSelectionResponses` before navigating to `metadata_fields.html`. Errors during this phase surface inline alerts instead of redirecting.
+
 ## Maintenance notes
 - Clear `sessionStorage` between runs to avoid stale SubID or manual naming data.
 - Keep secrets out of exports; integration keys and cookies are never written to disk.
