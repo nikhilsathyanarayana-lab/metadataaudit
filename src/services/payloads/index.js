@@ -87,7 +87,7 @@ export const createChunkedPayloadBuilder = ({
       windowDays: normalizedWindow,
     });
 
-    applyRequestIdSuffix?.(payload, { ...context, chunkIndex });
+    applyRequestIdSuffix?.(payload, { ...context, chunkDays, chunkIndex });
 
     payloads.push(payload);
 
@@ -162,8 +162,15 @@ const buildChunkedMetaEventsPayloadsBase = createChunkedPayloadBuilder({
   applyTimeSeriesUpdates: (payload, { chunkDays, startOffset }) => {
     applyPrimaryTimeSeriesWindow(payload, buildWindowTimeSeries(startOffset, chunkDays));
   },
-  applyRequestIdSuffix: (payload, { chunkIndex }) => {
-    appendChunkSuffix(payload, chunkIndex, 'meta-events');
+  applyRequestIdSuffix: (payload, { appId, chunkDays, chunkIndex }) => {
+    if (!payload?.request) {
+      return;
+    }
+
+    const chunkLabel = Number.isFinite(chunkDays) ? `${chunkDays}d` : 'chunk';
+    const baseRequestId = appId ? `meta-events-${appId}-${chunkLabel}` : `meta-events-${chunkLabel}`;
+
+    payload.request.requestId = `${baseRequestId}-chunk-${chunkIndex}`;
   },
 });
 
