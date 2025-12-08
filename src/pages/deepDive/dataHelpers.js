@@ -5,6 +5,7 @@ import {
   metadataFieldGlobalKey,
   LOOKBACK_OPTIONS,
   TARGET_LOOKBACK,
+  logDeepDive,
 } from './constants.js';
 import { extractAppIds } from '../../services/appUtils.js';
 import { getManualAppName } from '../../services/appNames.js';
@@ -21,6 +22,58 @@ export const dedupeAndSortFields = (fields) => {
   }
 
   return [];
+};
+
+const normalizeCollectionRecords = (candidate, key, source) => {
+  if (Array.isArray(candidate)) {
+    return candidate;
+  }
+
+  if (candidate && typeof candidate === 'object') {
+    if (Array.isArray(candidate.records)) {
+      return candidate.records;
+    }
+
+    logDeepDive('warn', `Unexpected ${source} structure for ${key}; expected records array.`, {
+      key,
+      source,
+      shape: Object.keys(candidate),
+    });
+
+    return null;
+  }
+
+  if (candidate !== undefined && candidate !== null) {
+    logDeepDive('warn', `Ignored non-object ${source} data for ${key}.`, {
+      key,
+      source,
+      type: typeof candidate,
+    });
+  }
+
+  return null;
+};
+
+const readSessionCollection = (key) => {
+  if (typeof sessionStorage === 'undefined') {
+    logDeepDive('debug', 'Session storage unavailable for deep dive collections.', { key });
+    return { found: false };
+  }
+
+  try {
+    const raw = sessionStorage.getItem(key);
+
+    if (!raw) {
+      logDeepDive('debug', 'No session storage entry for deep dive collection.', { key });
+      return { found: false };
+    }
+
+    const parsed = JSON.parse(raw);
+    return { found: true, value: parsed };
+  } catch (error) {
+    logDeepDive('error', `Unable to parse session storage collection for ${key}.`, { key, error });
+    return { found: true, value: null };
+  }
 };
 
 export const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -85,17 +138,30 @@ export const getGlobalCollection = (key) => {
     return [];
   }
 
+  const sessionCandidate = readSessionCollection(key);
+  if (sessionCandidate.found) {
+    const normalizedSessionRecords = normalizeCollectionRecords(
+      sessionCandidate.value,
+      key,
+      'sessionStorage',
+    );
+
+    if (Array.isArray(normalizedSessionRecords)) {
+      return normalizedSessionRecords;
+    }
+
+    logDeepDive('warn', 'Falling back to window collection after malformed session cache.', { key });
+  }
+
   const fromNamespace = window?.deepDiveData?.[key];
   const direct = window?.[key];
-  const candidate = fromNamespace ?? direct;
+  const candidate = normalizeCollectionRecords(fromNamespace ?? direct, key, 'window');
 
   if (Array.isArray(candidate)) {
     return candidate;
   }
 
-  if (candidate && typeof candidate === 'object' && Array.isArray(candidate.records)) {
-    return candidate.records;
-  }
+  logDeepDive('warn', 'No deep dive collection available from session storage or window scope.', { key });
 
   return [];
 };
@@ -313,10 +379,17 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
 
       const lookupKey = `${record.subId || ''}::${record.appId}`;
       const selection = selectionLookup.get(lookupKey);
-      const domain = record.domain || selection?.domain;
-      const integrationKey = record.integrationKey || selection?.integrationKey;
+      const domain = selection?.domain || record.domain;
+      const integrationKey = selection?.integrationKey || record.integrationKey;
 
       if (!domain || !integrationKey) {
+        logDeepDive('warn', 'Skipping scan entry due to missing credentials.', {
+          appId: record.appId,
+          subId: record.subId,
+          hasSelection: Boolean(selection),
+          domainPresent: Boolean(domain),
+          integrationPresent: Boolean(integrationKey),
+        });
         return;
       }
 
