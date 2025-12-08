@@ -8,6 +8,7 @@ import { runAggregationWithFallbackWindows } from '../services/requests/network.
 import { loadTemplate } from '../controllers/modalLoader.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { createLogger } from '../utils/logger.js';
+import { applyBannerTone, ensureMessageRegion, renderRegionBanner, setBannerText } from '../ui/statusBanner.js';
 import {
   applyManualAppNames,
   loadManualAppNames,
@@ -293,33 +294,10 @@ const setupProgressTracker = (initialTotalCalls) => {
   return { updateText, addCalls, recordDispatch, recordResponse, getTotalCalls: () => totalCalls };
 };
 
-const createMessageRegion = () => {
-  const existing = document.getElementById('metadata-fields-messages');
-  if (existing) {
-    return existing;
-  }
-
-  const region = document.createElement('div');
-  region.id = 'metadata-fields-messages';
-  region.className = 'page-messages';
-
-  const mainContent = document.querySelector('main.content');
-  mainContent?.parentNode?.insertBefore(region, mainContent);
-  return region;
-};
+const createMessageRegion = () => ensureMessageRegion('metadata-fields-messages');
 
 const showMessage = (region, message, tone = 'info') => {
-  if (!region) {
-    return;
-  }
-
-  const alert = document.createElement('p');
-  alert.className = tone === 'error' ? 'alert' : 'status-banner';
-  alert.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-  alert.textContent = message;
-
-  region.innerHTML = '';
-  region.appendChild(alert);
+  renderRegionBanner(region, message, tone, { ariaLive: tone === 'error' ? undefined : 'polite' });
 };
 
 const parseStoredSelection = () => {
@@ -465,9 +443,8 @@ const updateManualAppNameFeedback = (tone, message) => {
     return;
   }
 
-  feedback.textContent = message;
-  feedback.className = tone === 'error' ? 'alert' : 'status-banner';
-  feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  setBannerText(feedback, message);
+  applyBannerTone(feedback, tone);
 };
 
 const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncAppName) => {

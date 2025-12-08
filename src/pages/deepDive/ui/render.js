@@ -1,5 +1,11 @@
 // UI helpers for rendering deep dive tables, headers, and on-page feedback.
 import { LOOKBACK_OPTIONS, TARGET_LOOKBACK, logDeepDive } from '../constants.js';
+import {
+  applyBannerTone,
+  ensureMessageRegion as ensureBannerRegion,
+  renderRegionBanner,
+  setBannerText,
+} from '../../../ui/statusBanner.js';
 
 export const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -214,42 +220,10 @@ export const setupLookbackControls = (onChange, initialLookback = TARGET_LOOKBAC
   return activeLookback;
 };
 
-export const ensureMessageRegion = () => {
-  const existing = document.getElementById('deep-dive-messages');
-  if (existing) {
-    return existing;
-  }
-
-  const region = document.createElement('div');
-  region.id = 'deep-dive-messages';
-  region.className = 'page-messages';
-
-  const mainContent = document.querySelector('main.content');
-  if (mainContent?.parentNode) {
-    mainContent.parentNode.insertBefore(region, mainContent);
-  } else if (document.body) {
-    document.body.insertBefore(region, document.body.firstChild);
-  }
-  return region;
-};
+export const ensureMessageRegion = () => ensureBannerRegion('deep-dive-messages');
 
 export const showMessage = (region, message, tone = 'info') => {
-  if (!region) {
-    return;
-  }
-
-  region.innerHTML = '';
-
-  if (!message) {
-    return;
-  }
-
-  const alert = document.createElement('p');
-  alert.className = tone === 'error' ? 'alert' : 'status-banner';
-  alert.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-  alert.textContent = message;
-
-  region.appendChild(alert);
+  renderRegionBanner(region, message, tone, { ariaLive: tone === 'error' ? undefined : 'polite' });
 };
 
 export const reportDeepDiveError = (message, error, region = null) => {
@@ -265,8 +239,8 @@ export const reportDeepDiveError = (message, error, region = null) => {
   const fallbackTarget = processingProgressText || apiProgressText;
 
   if (fallbackTarget) {
-    fallbackTarget.textContent = message;
-    fallbackTarget.setAttribute('role', 'alert');
+    setBannerText(fallbackTarget, message);
+    applyBannerTone(fallbackTarget, 'error');
   }
 };
 

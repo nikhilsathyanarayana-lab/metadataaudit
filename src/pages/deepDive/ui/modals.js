@@ -1,6 +1,7 @@
 // Modal setup for app-name editing and regex format validation within the deep dive UI.
 import { loadTemplate } from '../../../controllers/modalLoader.js';
 import { setManualAppName } from '../../../services/appNames.js';
+import { applyBannerTone, setBannerText } from '../../../ui/statusBanner.js';
 
 const updateRegexFeedback = (tone, message) => {
   const feedback = document.getElementById('regex-format-modal-feedback');
@@ -9,9 +10,8 @@ const updateRegexFeedback = (tone, message) => {
     return;
   }
 
-  feedback.textContent = message;
-  feedback.className = tone === 'error' ? 'alert' : 'status-banner';
-  feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  setBannerText(feedback, message);
+  applyBannerTone(feedback, tone);
 };
 
 export const setupRegexFormatModal = async () => {
@@ -130,9 +130,8 @@ const updateManualAppNameFeedback = (tone, message) => {
     return;
   }
 
-  feedback.textContent = message;
-  feedback.className = tone === 'error' ? 'alert' : 'status-banner';
-  feedback.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  setBannerText(feedback, message);
+  applyBannerTone(feedback, tone);
 };
 
 export const setupManualAppNameModal = async (manualAppNames, rows, getRenderedRows, syncAppName) => {
