@@ -9,11 +9,11 @@ const buildManualAppNameKey = (subId, appId) => {
   const normalizedAppId = appId === undefined || appId === null ? '' : String(appId);
   const normalizedSubId = subId === undefined || subId === null ? '' : String(subId);
 
-  if (!normalizedAppId) {
+  if (!normalizedAppId || !normalizedSubId) {
     return '';
   }
 
-  return normalizedSubId ? `${normalizedSubId}::${normalizedAppId}` : normalizedAppId;
+  return `${normalizedSubId}::${normalizedAppId}`;
 };
 
 export const getManualAppName = (appNames = manualAppNameCache, subId, appId) => {
@@ -22,7 +22,7 @@ export const getManualAppName = (appNames = manualAppNameCache, subId, appId) =>
   }
 
   const key = buildManualAppNameKey(subId, appId);
-  return appNames.get(key) || (subId ? appNames.get(buildManualAppNameKey('', appId)) : '');
+  return appNames.get(key) || '';
 };
 
 // Retrieves stored manual app name overrides from sessionStorage, caching results for reuse.
@@ -42,7 +42,16 @@ export const loadManualAppNames = (storageKey = MANUAL_APP_NAME_STORAGE_KEY) => 
 
     const parsed = JSON.parse(raw);
     const entries = parsed && typeof parsed === 'object' ? Object.entries(parsed) : [];
-    manualAppNameCache = new Map(entries);
+    const namesWithSub = entries.filter(([key]) => {
+      if (typeof key !== 'string') {
+        return false;
+      }
+
+      const [storedSubId, storedAppId] = key.split('::');
+      return Boolean(storedSubId) && Boolean(storedAppId);
+    });
+
+    manualAppNameCache = new Map(namesWithSub);
   } catch (error) {
     appNamesLogger.warn('Unable to access manual app names from storage:', error);
   }
