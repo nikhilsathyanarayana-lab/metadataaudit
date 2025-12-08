@@ -21,3 +21,4 @@
 ## Workflow expectations
 - Standard flow: request → questions → code suggestions → GitHub PR.
 - For front-end changes impacting visuals, provide a screenshot when feasible.
+- Run `jslint` locally to catch style or syntax issues before submitting changes.
