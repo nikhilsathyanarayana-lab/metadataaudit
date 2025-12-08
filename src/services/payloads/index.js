@@ -62,12 +62,13 @@ export const createChunkedPayloadBuilder = ({
   }
 
   const payloads = [];
-  const totalChunks = Math.ceil(normalizedWindow / chunkSize);
+  let chunkRemaining = normalizedWindow;
+  let chunkIndex = 1;
 
-  for (let chunkIndex = 1; chunkIndex <= totalChunks; chunkIndex += 1) {
-    const startOffset = (chunkIndex - 1) * chunkSize;
-    const remaining = normalizedWindow - startOffset;
-    const chunkDays = Math.min(chunkSize, remaining);
+  while (chunkRemaining > 0) {
+    const startOffset = normalizedWindow - chunkRemaining;
+    const chunkDays = Math.min(chunkSize, chunkRemaining);
+    chunkRemaining -= chunkDays;
 
     const payload = typeof buildBasePayload === 'function'
       ? buildBasePayload({ ...context, windowDays: normalizedWindow, chunkDays, chunkIndex })
@@ -87,6 +88,8 @@ export const createChunkedPayloadBuilder = ({
     applyRequestIdSuffix?.(payload, { ...context, chunkIndex });
 
     payloads.push(payload);
+
+    chunkIndex += 1;
   }
 
   return payloads;

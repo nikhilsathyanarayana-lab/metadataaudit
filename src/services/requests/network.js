@@ -22,6 +22,7 @@ const logAggregationRequestPayload = (endpoint, payload, status, responseBody) =
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
 export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 const DEFAULT_AGGREGATION_TIMEOUT_MS = 60_000;
+const DEFAULT_CHUNK_SIZE = 30;
 
 const normalizeFallbackWindows = (windowDays) => {
   const normalized = Number(windowDays);
@@ -93,22 +94,25 @@ export const runAggregationWithFallbackWindows = async ({
 
   const hintWindow = Number(maxWindowHint);
   const preferredChunk = Number(preferredChunkSize);
-  const filteredFallbacks = Number.isFinite(hintWindow)
-    ? fallbackWindows.filter((windowSize) => windowSize <= hintWindow)
+  const resolvedChunkSize = Number.isFinite(preferredChunk) && preferredChunk > 0
+    ? preferredChunk
+    : Number.isFinite(hintWindow) && hintWindow > 0
+      ? hintWindow
+      : DEFAULT_CHUNK_SIZE;
+  const normalizedFallbacks = Number.isFinite(hintWindow) && hintWindow > 0
+    ? Array.from(
+        new Set([
+          Number(totalWindowDays),
+          hintWindow,
+          ...fallbackWindows.filter((candidate) => candidate < hintWindow),
+        ]),
+      )
     : fallbackWindows;
-  const normalizedFallbacks = filteredFallbacks.length ? filteredFallbacks : fallbackWindows;
-
-  if (fallbackWindows.length !== normalizedFallbacks.length) {
-    logger.info(
-      `Skipping oversized aggregation windows (${fallbackWindows.filter((size) => size > hintWindow).join(', ')}) in favor of ${hintWindow}-day chunks due to prior limits.`,
-    );
-  }
 
   for (const windowSize of normalizedFallbacks) {
     const baseWindow = Number(totalWindowDays);
-    const shouldForceChunkedBase =
-      windowSize === baseWindow && Number.isFinite(preferredChunk) && preferredChunk > 0 && preferredChunk < baseWindow;
-    const chunkSize = shouldForceChunkedBase ? preferredChunk : windowSize;
+    const chunkSize = Math.min(resolvedChunkSize, windowSize);
+    const shouldForceChunkedBase = windowSize === baseWindow && chunkSize < baseWindow;
     const payloads =
       windowSize === baseWindow && !shouldForceChunkedBase
         ? [buildBasePayload(windowSize)]
