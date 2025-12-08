@@ -464,12 +464,22 @@ export const initAppSelection = async () => {
           operation: 'appSelection',
         });
 
-        const handleRequestsPlanned = (plannedCount) => {
+        const updatePendingQueue = (plannedCount) => {
           if (!isActiveRequest()) {
             return;
           }
 
-          updatePendingCallRequestCount(queueEntry, plannedCount);
+          const previousCount = Math.max(1, Number(queueEntry?.requestCount) || 1);
+          const normalizedCount = Math.max(previousCount, Number(plannedCount) || 0, 1);
+          updatePendingCallRequestCount(queueEntry, normalizedCount);
+          refreshProgressFromQueue();
+        };
+
+        const handleRequestsPlanned = () => {
+          if (!isActiveRequest()) {
+            return;
+          }
+
           refreshProgressFromQueue();
         };
 
@@ -479,7 +489,7 @@ export const initAppSelection = async () => {
           }
 
           if (settledCount) {
-            updatePendingCallRequestCount(queueEntry, settledCount);
+            updatePendingQueue(settledCount);
           }
           refreshProgressFromQueue();
         };
@@ -490,6 +500,7 @@ export const initAppSelection = async () => {
           response = await fetchAppsForEntry(entry, currentWindowDays, undefined, {
             onRequestsPlanned: handleRequestsPlanned,
             onRequestsSettled: handleRequestsSettled,
+            updatePendingQueue,
           });
         } catch (error) {
           response = { errorType: 'failed', errorHint: error?.message, requestCount: 1 };

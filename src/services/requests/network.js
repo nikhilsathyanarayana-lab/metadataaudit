@@ -84,6 +84,7 @@ export const runAggregationWithFallbackWindows = async ({
   preferredChunkSize,
   onRequestsPlanned,
   onRequestsSettled,
+  updatePendingQueue,
 }) => {
   const fallbackWindows = normalizeFallbackWindows(totalWindowDays);
   const logger = entry?.appId ? createLogger(`Request-${entry.appId}`) : requestLogger;
@@ -92,6 +93,18 @@ export const runAggregationWithFallbackWindows = async ({
   };
   let lastError = null;
   let requestCount = 0;
+  let pendingQueueCount = 0;
+
+  const updatePendingQueueCount = (plannedCount, windowSize, reason = 'planned') => {
+    const normalizedPlanned = Math.max(1, Number(plannedCount) || 0);
+
+    if (normalizedPlanned <= pendingQueueCount) {
+      return;
+    }
+
+    pendingQueueCount = normalizedPlanned;
+    updatePendingQueue?.(pendingQueueCount, windowSize, reason);
+  };
 
   const hintWindow = Number(maxWindowHint);
   const preferredChunk = Number(preferredChunkSize);
@@ -125,6 +138,7 @@ export const runAggregationWithFallbackWindows = async ({
 
     if (typeof onWindowSplit === 'function' && payloads.length > 1) {
       onWindowSplit(windowSize, payloads.length);
+      updatePendingQueueCount(payloads.length, windowSize, 'split');
     }
 
     const aggregatedResults = [];
@@ -171,6 +185,7 @@ export const runAggregationWithFallbackWindows = async ({
         });
 
       onRequestsPlanned?.(plannedRequestCount, windowSize);
+      updatePendingQueueCount(plannedRequestCount, windowSize);
       requestCount += plannedRequestCount;
 
       const responses = await Promise.all(
@@ -214,7 +229,7 @@ export const buildRequestHeaders = (integrationKey) => ({
 export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch, callbacks = {}) => {
   const requestIdPrefix = 'apps-list';
   let requestCount = 1;
-  const { onRequestsPlanned, onRequestsSettled } = callbacks || {};
+  const { onRequestsPlanned, onRequestsSettled, updatePendingQueue } = callbacks || {};
 
   const logAggregationResponseDetails = (error) => {
     const { responseStatus, responseBody, details } = error || {};
@@ -244,6 +259,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
         ),
       onRequestsPlanned,
       onRequestsSettled,
+      updatePendingQueue,
     });
 
     requestCount = Math.max(1, totalRequests || 1);
