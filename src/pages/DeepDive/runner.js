@@ -351,7 +351,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   let lastOutstandingCount = 0;
 
   const startRequestWatchdog = () => {
-    const WATCHDOG_INTERVAL_MS = 15000;
+    const WATCHDOG_INTERVAL_MS = 60000;
     const WATCHDOG_IDLE_THRESHOLD_MS = 45000;
     const watchdogStartedAtMs = Date.now();
 
