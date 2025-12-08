@@ -8,11 +8,11 @@ const isDebugLoggingEnabled = () =>
   typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
 
 const logAggregationRequestPayload = (endpoint, payload, status, responseBody) => {
-  if (!isDebugLoggingEnabled()) {
+  if (!isDebugLoggingEnabled() && (!status || status < 400)) {
     return;
   }
 
-  requestLogger.info('Aggregation request payload (debug):', {
+  requestLogger.error('Aggregation request payload (debug):', {
     endpoint,
     status: status ?? 'unknown status',
     payload,
