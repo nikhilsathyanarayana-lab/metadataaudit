@@ -37,7 +37,6 @@ const applyDebugState = (enabled, toggleControl, statusTarget) => {
   if (typeof window !== 'undefined') {
     window[DEBUG_FLAG] = enabled;
     window[LEGACY_DEBUG_FLAG] = enabled;
-    window.dispatchEvent(new CustomEvent('debug-mode-changed', { detail: { enabled } }));
   }
 
   if (toggleControl) {
