@@ -23,7 +23,27 @@ const logAggregationRequestPayload = (endpoint, payload, status, responseBody) =
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
 export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
 const DEFAULT_AGGREGATION_TIMEOUT_MS = 60_000;
-const DEFAULT_CHUNK_SIZE = 30;
+const deriveChunkSizes = (windowSize, fallbackWindows, preferredChunkSize, maxWindowHint) => {
+  const chunkSizes = [];
+
+  if (Number.isFinite(preferredChunkSize) && preferredChunkSize > 0 && preferredChunkSize < windowSize) {
+    chunkSizes.push(preferredChunkSize);
+  }
+
+  if (Number.isFinite(maxWindowHint) && maxWindowHint > 0 && maxWindowHint < windowSize) {
+    chunkSizes.push(maxWindowHint);
+  }
+
+  fallbackWindows
+    .filter((candidate) => candidate > 0 && candidate < windowSize)
+    .forEach((candidate) => {
+      if (!chunkSizes.includes(candidate)) {
+        chunkSizes.push(candidate);
+      }
+    });
+
+  return chunkSizes;
+};
 
 const normalizeFallbackWindows = (windowDays) => {
   const normalized = Number(windowDays);
@@ -108,11 +128,6 @@ export const runAggregationWithFallbackWindows = async ({
 
   const hintWindow = Number(maxWindowHint);
   const preferredChunk = Number(preferredChunkSize);
-  const resolvedChunkSize = Number.isFinite(preferredChunk) && preferredChunk > 0
-    ? preferredChunk
-    : Number.isFinite(hintWindow) && hintWindow > 0
-      ? hintWindow
-      : DEFAULT_CHUNK_SIZE;
   const normalizedFallbacks = Number.isFinite(hintWindow) && hintWindow > 0
     ? Array.from(
         new Set([
@@ -124,29 +139,8 @@ export const runAggregationWithFallbackWindows = async ({
     : fallbackWindows;
 
   for (const windowSize of normalizedFallbacks) {
-    const baseWindow = Number(totalWindowDays);
-    const chunkSize = Math.min(resolvedChunkSize, windowSize);
     const basePayload = buildBasePayload(windowSize);
-    const chunkedPayloads =
-      chunkSize < windowSize ? buildChunkedPayloads(windowSize, chunkSize) : null;
-
-    const attemptQueue = [];
-
-    if (windowSize === baseWindow) {
-      if (basePayload) {
-        attemptQueue.push({ payloads: [basePayload], chunkSizeUsed: chunkSize });
-      }
-
-      if (Array.isArray(chunkedPayloads) && chunkedPayloads.length) {
-        attemptQueue.push({ payloads: chunkedPayloads, chunkSizeUsed: chunkSize });
-      }
-    } else if (Array.isArray(chunkedPayloads) && chunkedPayloads.length) {
-      attemptQueue.push({ payloads: chunkedPayloads, chunkSizeUsed: chunkSize });
-    } else if (basePayload) {
-      attemptQueue.push({ payloads: [basePayload], chunkSizeUsed: chunkSize });
-    }
-
-    if (!attemptQueue.length) {
+    if (!basePayload) {
       continue;
     }
 
@@ -173,7 +167,7 @@ export const runAggregationWithFallbackWindows = async ({
             requestLogger.debug('Dispatching aggregation request.', {
               requestId,
               windowSize,
-              chunkSize,
+              chunkSize: chunkSizeUsed,
               payloadLength,
             });
 
@@ -231,8 +225,23 @@ export const runAggregationWithFallbackWindows = async ({
       }
     };
 
-    for (const attempt of attemptQueue) {
-      const result = await runAttempt(attempt);
+    const attemptChunkSizes = deriveChunkSizes(windowSize, normalizedFallbacks, preferredChunk, hintWindow);
+
+    const baseResult = await runAttempt({ payloads: [basePayload], chunkSizeUsed: null });
+
+    if (baseResult) {
+      const { aggregatedResults, chunkSizeUsed } = baseResult;
+      return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
+    }
+
+    for (const chunkSize of attemptChunkSizes) {
+      const chunkedPayloads = buildChunkedPayloads(windowSize, chunkSize);
+
+      if (!Array.isArray(chunkedPayloads) || !chunkedPayloads.length) {
+        continue;
+      }
+
+      const result = await runAttempt({ payloads: chunkedPayloads, chunkSizeUsed: chunkSize });
 
       if (result) {
         const { aggregatedResults, chunkSizeUsed } = result;

@@ -153,6 +153,38 @@ export const initAppSelection = async () => {
       return { ...entry, selectionState };
     });
 
+  const mergeAppResponsesBySubId = (responses) => {
+    const merged = new Map();
+
+    responses.forEach((entry) => {
+      const key = entry?.subId || entry?.domain || entry?.integrationKey || 'unknown';
+      const appIds = new Set(extractAppIds(entry.response).map((appId) => normalizeAppId(appId)));
+      const existing = merged.get(key);
+
+      if (existing) {
+        appIds.forEach((appId) => existing.appIds.add(appId));
+        existing.selectionState = { ...(existing.selectionState || {}), ...(entry.selectionState || {}) };
+      } else {
+        merged.set(key, {
+          ...entry,
+          appIds,
+          selectionState: { ...(entry.selectionState || {}) },
+        });
+      }
+    });
+
+    return Array.from(merged.values()).map((entry) => {
+      const mergedAppIds = Array.from(entry.appIds || []);
+      const response = mergedAppIds.length
+        ? { results: mergedAppIds.map((appId) => ({ appId })) }
+        : entry.response;
+
+      const normalizedEntry = { ...entry, response };
+      delete normalizedEntry.appIds;
+      return normalizedEntry;
+    });
+  };
+
   const syncCachedAppName = (appId, appName, subId) => {
     if (!appId || !appName) {
       return;
@@ -520,8 +552,9 @@ export const initAppSelection = async () => {
       }
 
       const successfulResponses = responses.filter(({ response }) => Boolean(response));
+      const mergedResponses = mergeAppResponsesBySubId(successfulResponses);
 
-      cachedResponses = buildSelectionState(successfulResponses, manualAppNames);
+      cachedResponses = buildSelectionState(mergedResponses, manualAppNames);
 
       if (cachedResponses.length) {
         persistResponses(cachedResponses);
