@@ -135,6 +135,7 @@ const normalizeAppSelections = (selections) =>
       domain: entry.domain,
       integrationKey: entry.integrationKey,
       metadataFields: normalizeSelectionMetadata(entry.metadataFields),
+      selectionState: entry.selectionState,
     }));
 
 const normalizeLaunchSelections = (launchEntries) =>
@@ -145,7 +146,18 @@ const normalizeLaunchSelections = (launchEntries) =>
       domain: entry.domain,
       integrationKey: entry.integrationKey,
       metadataFields: normalizeSelectionMetadata(entry.metadataFields),
+      selected: true,
     }));
+
+const isSelectedEntry = (entry) => {
+  const selectedValue = entry?.selected ?? entry;
+
+  if (selectedValue === undefined || selectedValue === null) {
+    return true;
+  }
+
+  return selectedValue === true || selectedValue === 1 || selectedValue === '1';
+};
 
 export const getGlobalCollection = (key) => {
   if (!key) {
@@ -204,6 +216,7 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
       domain: entry.domain,
       integrationKey: entry.integrationKey,
       appName: appNames.get(appId),
+      selected: isSelectedEntry(entry.selectionState?.[appId]),
       ...extractMetadataFieldsForApp(entry.metadataFields, appId, lookback),
     }));
   });
@@ -396,7 +409,8 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
     return groupedRecords;
   }
 
-  const selections = loadAppSelections(lookback);
+  const selections = loadAppSelections(lookback).filter(isSelectedEntry);
+
   return selections.map((entry) => ({
     appId: entry.appId,
     subId: entry.subId,
@@ -409,7 +423,7 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
 export const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
   const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const mapped = new Map();
-  const selections = loadAppSelections(lookback);
+  const selections = loadAppSelections(lookback).filter(isSelectedEntry);
   const selectionLookup = new Map(
     selections.map((selection) => [
       `${selection.subId || ''}::${selection.appId || ''}`,
@@ -443,13 +457,16 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
         selectionsByAppId.get(record.appId) ||
         selectionsBySubId.get(record.subId || '');
 
-      if (!selection?.domain || !selection?.integrationKey) {
+      const domain = selection?.domain || record.domain;
+      const integrationKey = selection?.integrationKey || record.integrationKey;
+
+      if (!domain || !integrationKey) {
         logDeepDive('warn', 'Skipping scan entry due to missing normalized credentials.', {
           appId: record.appId,
           subId: record.subId,
           hasSelection: Boolean(selection),
-          domainPresent: Boolean(selection?.domain),
-          integrationPresent: Boolean(selection?.integrationKey),
+          domainPresent: Boolean(domain),
+          integrationPresent: Boolean(integrationKey),
         });
         return;
       }
@@ -464,10 +481,36 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
         appId: record.appId,
         appName,
         subId: record.subId || selection?.subId || '',
-        domain: selection.domain,
-        integrationKey: selection.integrationKey,
+        domain,
+        integrationKey,
       });
     });
+
+  if (!mapped.size && selections.length) {
+    selections
+      .filter((selection) => selection?.appId && selection?.domain && selection?.integrationKey)
+      .forEach((selection) => {
+        const appName =
+          getManualAppName(manualAppNames, selection.subId, selection.appId) ||
+          selection.appName ||
+          '';
+
+        mapped.set(selection.appId, {
+          appId: selection.appId,
+          appName,
+          subId: selection.subId || '',
+          domain: selection.domain,
+          integrationKey: selection.integrationKey,
+        });
+      });
+
+    if (mapped.size) {
+      logDeepDive('info', 'Built deep dive scan entries from app selections.', {
+        plannedEntries: mapped.size,
+        lookback,
+      });
+    }
+  }
 
   return Array.from(mapped.values());
 };
