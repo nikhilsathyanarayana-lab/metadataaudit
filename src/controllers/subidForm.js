@@ -4,8 +4,31 @@ import {
   createModalControls,
   createRemoveButton,
 } from '../ui/components.js';
+import { createLogger } from '../utils/logger.js';
 
 const storageKey = 'subidLaunchData';
+const subidFormLogger = createLogger('SubIdForm', { alwaysInfo: true });
+
+const parseStoredLaunchData = () => {
+  try {
+    const raw = sessionStorage.getItem(storageKey);
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((entry) => entry?.subId && entry?.domain && entry?.integrationKey);
+  } catch (error) {
+    subidFormLogger.warn('Unable to load stored SubID data:', error);
+    return [];
+  }
+};
 
 const querySubIdFormElements = () => {
   const fieldsContainer = document.getElementById('subid-fields');
@@ -57,7 +80,11 @@ class SubIdFormController {
     this.hideIntegrationModal = close;
 
     this.bindIntegrationModal();
-    this.addSubIdField();
+    const hydrated = this.hydrateStoredLaunchRows();
+
+    if (!hydrated) {
+      this.addSubIdField();
+    }
   }
 
   updateLaunchButtonState() {
@@ -95,17 +122,48 @@ class SubIdFormController {
     });
   }
 
+  hydrateStoredLaunchRows() {
+    const storedEntries = parseStoredLaunchData();
+
+    if (!storedEntries.length) {
+      this.updateLaunchButtonState();
+      return false;
+    }
+
+    this.fieldsContainer.innerHTML = '';
+    this.integrationKeys.clear();
+    this.subIdCount = 0;
+
+    storedEntries.forEach((entry) => {
+      this.addSubIdField({
+        subId: entry?.subId || '',
+        domain: entry?.domain || '',
+        integrationKey: entry?.integrationKey || '',
+        skipClearStoredData: true,
+      });
+    });
+
+    this.updateLaunchButtonState();
+    return true;
+  }
+
   clearStoredRunData() {
     ['subidLaunchData', 'appSelectionResponses', 'metadataFieldRecords'].forEach((key) =>
       sessionStorage.removeItem(key),
     );
   }
 
-  setIntegrationKeyForRow(rowId, key) {
+  setIntegrationKeyForRow(rowId, key, options = {}) {
+    const { skipClearStoredData = false } = options;
     const normalizedKey = key.trim();
     const existingKey = this.integrationKeys.get(rowId) || '';
 
-    if (normalizedKey && normalizedKey !== existingKey && !this.hasClearedStoredDataForSession) {
+    if (
+      normalizedKey &&
+      normalizedKey !== existingKey &&
+      !this.hasClearedStoredDataForSession &&
+      !skipClearStoredData
+    ) {
       this.clearStoredRunData();
       this.hasClearedStoredDataForSession = true;
     }
@@ -209,7 +267,7 @@ class SubIdFormController {
     this.updateLaunchButtonState();
   }
 
-  addSubIdField() {
+  addSubIdField({ subId = '', domain = '', integrationKey = '', skipClearStoredData = false } = {}) {
     this.subIdCount += 1;
     const rowId = `row-${this.subIdCount}`;
 
@@ -230,8 +288,12 @@ class SubIdFormController {
     input.name = 'subid[]';
     input.placeholder = 'Enter SubID';
     input.required = true;
+    input.value = subId;
 
     const domainSelect = createDomainSelect();
+    if (domain) {
+      domainSelect.value = domain;
+    }
 
     const integrationButton = document.createElement('button');
     integrationButton.type = 'button';
@@ -257,6 +319,11 @@ class SubIdFormController {
 
     input.addEventListener('input', this.updateLaunchButtonState);
     input.addEventListener('blur', this.updateLaunchButtonState);
+
+    if (integrationKey) {
+      this.setIntegrationKeyForRow(rowId, integrationKey, { skipClearStoredData });
+      integrationButton.textContent = 'Edit key';
+    }
 
     this.renumberRows();
     this.attachAddButton();
