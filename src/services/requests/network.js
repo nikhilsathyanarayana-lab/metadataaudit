@@ -283,7 +283,7 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
   };
 
   try {
-    const { aggregatedResults, requestCount: totalRequests } = await runAggregationWithFallbackWindows({
+    const { aggregatedResults, requestCount: totalRequests, lastError } = await runAggregationWithFallbackWindows({
       entry,
       totalWindowDays: windowDays,
       buildBasePayload: (totalWindow) => buildAppListingPayload(totalWindow, requestIdPrefix),
@@ -305,6 +305,20 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
     if (Array.isArray(aggregatedResults)) {
       const uniqueAppIds = Array.from(new Set(aggregatedResults));
       return { results: uniqueAppIds.map((appId) => ({ appId })), requestCount };
+    }
+
+    if (lastError) {
+      logAggregationResponseDetails(lastError);
+      const errorHint = lastError?.details?.hint || lastError?.hint;
+
+      if (errorHint) {
+        requestLogger.error('Aggregation request hint:', {
+          hint: errorHint,
+          requestId: lastError?.details?.requestId || 'unknown request',
+        });
+      }
+
+      return { errorType: isTooMuchDataOrTimeout(lastError) ? 'timeout' : 'failed', requestCount, errorHint };
     }
   } catch (error) {
     requestLogger.error('Aggregation request encountered an error:', error);
