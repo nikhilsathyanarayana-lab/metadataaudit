@@ -55,11 +55,11 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 
 ## Debug logging
 - Logging is centralized through `src/utils/logger.js`, which prefixes console output with the calling scope (for example, `[AppSelection]` or `[WorkbookUI]`).
-- Debug statements are suppressed by default; set `window.DEBUG_LOGGING = true` before triggering interactions to surface debug-level messages across the app and request helpers.
-- Deep Dive pages gate all non-error logs unless `window.DEBUG_DEEP_DIVE` is enabled. Toggle that flag in the console when diagnosing exports or metadata alignment issues without flooding the console during normal use.
+- Debug statements are suppressed by default; set `window.DEBUG_LOGGING = true` before triggering interactions to surface debug-level messages across the app and request helpers. The debug toggle control also writes `window.DEBUG_DEEP_DIVE` for backward compatibility.
+- Deep Dive pages gate all non-error logs unless debug logging is enabled. Use the toggle in the navigation bar or set `window.DEBUG_LOGGING = true` manually when diagnosing exports or metadata alignment issues without flooding the console during normal use.
 
 ### Deep Dive diagnostics
-- **Enable verbose logging**: Open the console on `deep_dive.html` and set `window.DEBUG_DEEP_DIVE = true;` before starting a scan. Logs stream to the browser console and inherit the `[DeepDive]` prefix with timestamps when the flag is active.
+- **Enable verbose logging**: Open the console on `deep_dive.html` and set `window.DEBUG_LOGGING = true;` (or `window.DEBUG_DEEP_DIVE = true;` for legacy scripts) before starting a scan. Logs stream to the browser console and inherit the `[DeepDive]` prefix with timestamps when the flag is active.
 - **API lifecycle cues**: During a run you should see `Prepared deep dive request queue` (total calls staged), `Starting deep dive scan` (execution begins), `Scheduling deep dive request` / `Queued deep dive requests for execution` (async dispatch), and `Deep dive scan completed` (all calls resolved).
 - **Processing progress cues**: Each queued app emits `Processing deep dive entry`, followed by either `Deep dive entry completed` (success) or `Deep dive entry marked as failed` / `Deep dive request failed` when responses error. Splits logged as `Splitting deep dive request into smaller windows` show when oversized date ranges are divided for retries. Use these messages to correlate UI progress bars with background processing when capturing diagnostics.
 

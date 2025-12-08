@@ -3,11 +3,12 @@ import { createLogger } from '../../utils/logger.js';
 import { buildAppListingPayload, buildChunkedAppListingPayloads } from '../payloads/index.js';
 import { createAggregationError, isTooMuchDataOrTimeout } from './errors.js';
 
-const requestLogger = createLogger('Requests', { debugFlag: 'DEBUG_DEEP_DIVE', alwaysInfo: true });
-const isDeepDiveDebugEnabled = () => typeof window !== 'undefined' && window.DEBUG_DEEP_DIVE === true;
+const requestLogger = createLogger('Requests', { alwaysInfo: true });
+const isDebugLoggingEnabled = () =>
+  typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
 
 const logAggregationRequestPayload = (endpoint, payload, status, responseBody) => {
-  if (!isDeepDiveDebugEnabled()) {
+  if (!isDebugLoggingEnabled()) {
     return;
   }
 
