@@ -378,8 +378,47 @@ const extractJwtToken = (cookieHeaderValue) => {
   return match?.[1] || '';
 };
 
+const hydrateAggregationEntry = (entry) => {
+  const hydratedEntry = { ...(entry || {}) };
+
+  if (hydratedEntry.domain && hydratedEntry.integrationKey) {
+    return hydratedEntry;
+  }
+
+  if (typeof sessionStorage === 'undefined') {
+    return hydratedEntry;
+  }
+
+  try {
+    const raw = sessionStorage.getItem('subidLaunchData');
+
+    if (!raw) {
+      return hydratedEntry;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      return hydratedEntry;
+    }
+
+    const matchedEntry = parsed.find((candidate) => candidate?.subId === hydratedEntry.subId);
+
+    if (!matchedEntry) {
+      return hydratedEntry;
+    }
+
+    hydratedEntry.domain = hydratedEntry.domain || matchedEntry.domain;
+    hydratedEntry.integrationKey = hydratedEntry.integrationKey || matchedEntry.integrationKey;
+  } catch (error) {
+    requestLogger.warn('Unable to hydrate aggregation entry from session storage.', { error });
+  }
+
+  return hydratedEntry;
+};
+
 export const postAggregationWithIntegrationKey = async (entry, payload, fetchImpl = fetch) => {
-  const { domain, integrationKey, appId } = entry || {};
+  const { domain, integrationKey, appId } = hydrateAggregationEntry(entry);
 
   if (!domain || !integrationKey) {
     throw new Error('Domain and integration key are required for the aggregation request.');
