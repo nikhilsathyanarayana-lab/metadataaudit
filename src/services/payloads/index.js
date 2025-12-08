@@ -1,6 +1,6 @@
 import { createLogger } from '../../utils/logger.js';
 
-const requestLogger = createLogger('Requests', { debugFlag: 'DEBUG_DEEP_DIVE' });
+const requestLogger = createLogger('Requests');
 
 const buildWindowTimeSeries = (startOffset, chunkDays) => ({
   first: `dateAdd(now(), -${startOffset}, "days")`,

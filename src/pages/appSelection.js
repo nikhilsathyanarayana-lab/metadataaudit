@@ -1,4 +1,4 @@
-// App Selection page: renders selectable apps per SubID and gates debug logs behind the DEBUG_DEEP_DIVE toggle.
+// App Selection page: renders selectable apps per SubID and gates debug logs behind the DEBUG_LOGGING toggle.
 import { createLogger } from '../utils/logger.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { fetchAppsForEntry } from '../services/requests/network.js';
@@ -6,7 +6,7 @@ import { getManualAppName, loadManualAppNames } from '../services/appNames.js';
 import { setupManualAppNameModal } from './deepDive/ui/modals.js';
 import { buildAppNameCell } from './deepDive/ui/render.js';
 
-const appSelectionLogger = createLogger('AppSelection', { debugFlag: 'DEBUG_DEEP_DIVE' });
+const appSelectionLogger = createLogger('AppSelection');
 
 export const initAppSelection = async () => {
   const proceedButton = document.getElementById('app-selection-continue');

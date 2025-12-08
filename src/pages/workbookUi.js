@@ -1,6 +1,7 @@
 import { buildAppListingPayload, buildExamplesPayload, buildMetadataFieldsPayload } from '../services/payloads/index.js';
 import { buildAggregationUrl, buildCookieHeaderValue, fetchAggregation } from '../services/requests/network.js';
 import { extractAppIds } from '../services/appUtils.js';
+import { applyBannerTone, createBanner, ensureMessageRegion, setBannerText } from '../ui/statusBanner.js';
 import { createLogger } from '../utils/logger.js';
 
 const workbookLogger = createLogger('WorkbookUI');
@@ -98,17 +99,7 @@ export const initWorkbookUi = () => {
     us: 'https://aggregations-dot-pendo-io.gke.us.pendo.io/api/s/{sub_id}/aggregation?all=true&cachepolicy=all:ignore',
   };
 
-  const messageRegion = document.querySelector('.page-messages') || (() => {
-    const region = document.createElement('div');
-    region.className = 'page-messages';
-
-    const content = document.querySelector('main.content');
-    content?.parentNode?.insertBefore(region, content);
-
-    return region;
-  })();
-
-  messageRegion.id = messageRegion.id || 'workbook-messages';
+  const messageRegion = ensureMessageRegion('workbook-messages');
 
   const ensureChild = (selector, createNode) => {
     const existing = messageRegion.querySelector(selector);
@@ -117,26 +108,23 @@ export const initWorkbookUi = () => {
     }
 
     const node = createNode();
-    messageRegion.appendChild(node);
-    return node;
+    if (node) {
+      messageRegion.appendChild(node);
+    }
+    return node || existing;
   };
 
-  const progressIndicator = ensureChild('#workbook-progress', () => {
-    const progress = document.createElement('p');
-    progress.id = 'workbook-progress';
-    progress.className = 'status-banner';
-    progress.textContent = 'Waiting to start the workbook run.';
-    return progress;
-  });
+  const progressIndicator = ensureChild('#workbook-progress', () =>
+    createBanner('Waiting to start the workbook run.', 'info', {
+      id: 'workbook-progress',
+      ariaLive: 'polite',
+    }),
+  );
 
-  const errorAlert = ensureChild('#workbook-errors', () => {
-    const alert = document.createElement('p');
-    alert.id = 'workbook-errors';
-    alert.className = 'alert';
-    alert.setAttribute('role', 'alert');
-    alert.hidden = true;
-    return alert;
-  });
+  const errorAlert = ensureChild('#workbook-errors', () => createBanner('', 'error', { id: 'workbook-errors' }));
+  if (errorAlert) {
+    errorAlert.hidden = true;
+  }
 
   const statusSteps = Array.from(document.querySelectorAll('[data-step]')).reduce((acc, element) => {
     const stepId = element.getAttribute('data-step');
@@ -189,9 +177,7 @@ export const initWorkbookUi = () => {
   };
 
   const setProgress = (message) => {
-    if (progressIndicator) {
-      progressIndicator.textContent = message;
-    }
+    setBannerText(progressIndicator, message);
   };
 
   const showMessage = (message, tone = 'error') => {
@@ -200,7 +186,8 @@ export const initWorkbookUi = () => {
     }
 
     if (tone === 'error' && errorAlert) {
-      errorAlert.textContent = message;
+      setBannerText(errorAlert, message);
+      applyBannerTone(errorAlert, 'error');
       errorAlert.hidden = false;
       return;
     }
@@ -211,7 +198,8 @@ export const initWorkbookUi = () => {
   const clearMessage = () => {
     if (errorAlert) {
       errorAlert.hidden = true;
-      errorAlert.textContent = '';
+      setBannerText(errorAlert, '');
+      applyBannerTone(errorAlert, 'error');
     }
   };
 

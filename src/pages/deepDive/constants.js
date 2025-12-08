@@ -11,6 +11,6 @@ export const DEEP_DIVE_CONCURRENCY = 2;
 export const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
 export const DEEP_DIVE_REQUEST_SPACING_MS = 3000;
 
-const deepDiveLogger = createLogger('DeepDive', { debugFlag: 'DEBUG_DEEP_DIVE' });
+const deepDiveLogger = createLogger('DeepDive');
 
 export const logDeepDive = deepDiveLogger.log;

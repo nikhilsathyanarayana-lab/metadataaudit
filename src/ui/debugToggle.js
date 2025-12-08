@@ -1,6 +1,7 @@
 import { createLogger } from '../utils/logger.js';
 
-const DEBUG_FLAG = 'DEBUG_DEEP_DIVE';
+const DEBUG_FLAG = 'DEBUG_LOGGING';
+const LEGACY_DEBUG_FLAG = 'DEBUG_DEEP_DIVE';
 const STORAGE_KEY = 'deepDiveDebugEnabled';
 
 const toggleLogger = createLogger('DebugToggle');
@@ -35,6 +36,7 @@ const readPersistedPreference = () => {
 const applyDebugState = (enabled, toggleControl, statusTarget) => {
   if (typeof window !== 'undefined') {
     window[DEBUG_FLAG] = enabled;
+    window[LEGACY_DEBUG_FLAG] = enabled;
   }
 
   if (toggleControl) {
@@ -58,7 +60,9 @@ export const initDebugToggle = () => {
   const initialState =
     typeof window !== 'undefined' && typeof window[DEBUG_FLAG] === 'boolean'
       ? Boolean(window[DEBUG_FLAG])
-      : persistedPreference;
+      : typeof window !== 'undefined' && typeof window[LEGACY_DEBUG_FLAG] === 'boolean'
+        ? Boolean(window[LEGACY_DEBUG_FLAG])
+        : persistedPreference;
 
   toggle.checked = initialState;
   applyDebugState(initialState, toggleControl, statusTarget);
@@ -66,7 +70,7 @@ export const initDebugToggle = () => {
   toggle.addEventListener('change', (event) => {
     const enabled = Boolean(event.target.checked);
     applyDebugState(enabled, toggleControl, statusTarget);
-    toggleLogger.info('Deep dive debug logging toggled.', { enabled });
+    toggleLogger.info('Debug logging toggled.', { enabled });
   });
 
   toggleLogger.info('Debug toggle initialized.', { enabled: initialState });

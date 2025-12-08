@@ -3,11 +3,12 @@ import { createLogger } from '../../utils/logger.js';
 import { buildAppListingPayload, buildChunkedAppListingPayloads } from '../payloads/index.js';
 import { createAggregationError, isTooMuchDataOrTimeout } from './errors.js';
 
-const requestLogger = createLogger('Requests', { debugFlag: 'DEBUG_DEEP_DIVE', alwaysInfo: true });
-const isDeepDiveDebugEnabled = () => typeof window !== 'undefined' && window.DEBUG_DEEP_DIVE === true;
+const requestLogger = createLogger('Requests', { alwaysInfo: true });
+const isDebugLoggingEnabled = () =>
+  typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
 
 const logAggregationRequestPayload = (endpoint, payload, status, responseBody) => {
-  if (!isDeepDiveDebugEnabled()) {
+  if (!isDebugLoggingEnabled()) {
     return;
   }
 
@@ -383,10 +384,22 @@ export const fetchAggregation = async (
   const token = extractJwtToken(cookieHeaderValue);
 
   if (!region || !subId) {
+    requestLogger.error('Aggregation proxy request missing region or subId.', {
+      endpoint: url,
+      region: region || 'missing region',
+      subId: subId || 'missing subId',
+      proxyEndpoint,
+    });
     throw new Error('Region and Sub ID are required for the proxy request.');
   }
 
   if (!token) {
+    requestLogger.error('Aggregation proxy request missing pendo.sess.jwt2 token.', {
+      endpoint: url,
+      region,
+      subId,
+      proxyEndpoint,
+    });
     throw new Error('Missing pendo.sess.jwt2 token for the proxy request.');
   }
 
@@ -409,6 +422,13 @@ export const fetchAggregation = async (
       credentials: 'same-origin',
     });
   } catch (networkError) {
+    requestLogger.error('Aggregation proxy request failed to send.', {
+      endpoint: url,
+      region,
+      subId,
+      proxyEndpoint,
+      message: networkError?.message,
+    });
     throw createAggregationError(
       networkError?.message || 'Aggregation proxy request could not be sent.',
       null,
@@ -447,6 +467,15 @@ export const fetchAggregation = async (
       ? `Aggregation request failed (${statusLabel}): ${detail}`
       : `Aggregation request failed (status ${statusLabel}).`;
 
+    requestLogger.error('Aggregation proxy responded with a non-OK status.', {
+      endpoint: url,
+      region,
+      subId,
+      proxyEndpoint,
+      status: response?.status ?? 'unknown status',
+      detail: detail || rawBody || 'no details provided',
+    });
+
     requestLogger.error('Aggregation response details:', {
       status: response?.status ?? 'unknown status',
       body: parsedBody ?? rawBody ?? '',
@@ -462,6 +491,14 @@ export const fetchAggregation = async (
   try {
     return parsedBody ?? JSON.parse(rawBody);
   } catch (parseError) {
+    requestLogger.error('Aggregation proxy returned invalid JSON.', {
+      endpoint: url,
+      region,
+      subId,
+      proxyEndpoint,
+      status: response?.status ?? 'unknown status',
+      rawBody,
+    });
     throw createAggregationError('Aggregation response was not valid JSON.', response?.status, rawBody);
   }
 };
