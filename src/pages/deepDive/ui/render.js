@@ -6,6 +6,7 @@ import {
   renderRegionBanner,
   setBannerText,
 } from '../../../ui/statusBanner.js';
+import { renderPendingQueueBanner } from '../../../ui/pendingQueueBanner.js';
 
 export const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -280,71 +281,68 @@ export const setExportAvailability = (enabled) => {
 };
 
 export const setupProgressTracker = () => {
-  const apiProgressText = document.getElementById('deep-dive-api-progress');
-  const processingProgressText = document.getElementById('deep-dive-processing-progress');
+  const statusState = {
+    processingCompleted: 0,
+    processingTotal: 0,
+    apiNote: '',
+    processingNote: '',
+    toneOverride: '',
+  };
 
-  const setTone = (target, tone = 'info') => {
-    if (!target) {
-      return;
-    }
+  const renderStatus = () =>
+    renderPendingQueueBanner({
+      regionId: 'page-status-banner',
+      beforeSelector: 'header.page-header',
+      formatMessage: ({ total, completed }) => {
+        const apiPart = total
+          ? `API calls ${Math.min(completed, total)}/${total}`
+          : 'Queue a deep dive to start API calls.';
 
-    target.classList.toggle('is-error', tone === 'error');
-    target.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+        const responsePart = statusState.processingTotal
+          ? ` · Responses ${Math.min(statusState.processingCompleted, statusState.processingTotal)}/${statusState.processingTotal}`
+          : '';
+
+        const notes = [statusState.apiNote, statusState.processingNote].filter(Boolean);
+        const notePart = notes.length ? ` · ${notes.join(' · ')}` : '';
+
+        return `${apiPart}${responsePart}${notePart}`.trim();
+      },
+      tone: ({ pendingCalls }) => {
+        if (statusState.toneOverride) {
+          return statusState.toneOverride;
+        }
+
+        return pendingCalls.some((call) => call?.status === 'failed') ? 'warning' : 'info';
+      },
+    });
+
+  const updateApiProgress = () => {
+    renderStatus();
+  };
+
+  const updateProcessingProgress = (completed = 0, total = 0) => {
+    statusState.processingCompleted = Math.max(0, Number(completed) || 0);
+    statusState.processingTotal = Math.max(0, Number(total) || 0);
+    renderStatus();
   };
 
   const setApiStatus = (message, tone = 'info') => {
-    if (!apiProgressText) {
-      return;
-    }
-
-    apiProgressText.textContent = message;
-    setTone(apiProgressText, tone);
+    statusState.apiNote = message || '';
+    statusState.toneOverride = tone === 'info' ? '' : tone;
+    renderStatus();
   };
 
   const setProcessingStatus = (message, tone = 'info') => {
-    if (!processingProgressText) {
-      return;
-    }
-
-    processingProgressText.textContent = message;
-    setTone(processingProgressText, tone);
+    statusState.processingNote = message || '';
+    statusState.toneOverride = tone === 'info' ? statusState.toneOverride : tone;
+    renderStatus();
   };
 
-  const updateApiProgress = (completed = 0, total = 0) => {
-    if (!total) {
-      setApiStatus('No API calls queued.');
-      return;
-    }
-
-    const boundedCompleted = Math.min(completed, total);
-    setApiStatus(`API calls: ${boundedCompleted}/${total}`);
-  };
-
-  const updateProcessingProgress = (completed = 0, total = 0, apiCompleted = total) => {
-    if (!total) {
-      setProcessingStatus('Response queue idle.');
-      return;
-    }
-
-    const normalizedTotal = Math.max(Number.isFinite(total) ? total : 0, 0);
-    const boundedApiCompleted = Math.min(
-      Math.max(Number.isFinite(apiCompleted) ? apiCompleted : 0, 0),
-      normalizedTotal,
-    );
-    const boundedCompleted = Math.min(
-      Math.max(Number.isFinite(completed) ? completed : 0, 0),
-      normalizedTotal,
-      boundedApiCompleted,
-    );
-    setProcessingStatus(`Responses: ${boundedCompleted}/${normalizedTotal}`);
-  };
-
-  updateApiProgress(0, 0);
-  updateProcessingProgress(0, 0, 0);
-
-  const setApiError = (message) => setApiStatus(message || 'API request failed.', 'error');
+  const setApiError = (message) => setApiStatus(message || 'API request failed.', 'warning');
   const setProcessingError = (message) =>
-    setProcessingStatus(message || 'Response handling failed.', 'error');
+    setProcessingStatus(message || 'Response handling failed.', 'warning');
+
+  renderStatus();
 
   return {
     updateApiProgress,

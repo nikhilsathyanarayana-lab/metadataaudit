@@ -75,7 +75,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const syncProcessingProgress = () =>
     scheduleDomUpdate(() => {
-      updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
     });
 
   const normalizeRequestCount = (summary) => {
@@ -115,7 +115,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   scheduleDomUpdate(() => {
     updateApiProgress?.(completedApiCalls, getTotalApiCalls());
-    updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls(), completedApiCalls);
+    updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
     setApiStatus?.('Starting deep dive scan…');
     setProcessingStatus?.('Waiting for the first API response…');
   });
@@ -407,7 +407,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
     scheduleDomUpdate(() => {
       updateApiProgress?.(completedApiCalls, totalApiCalls);
-      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
+      updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
       setApiError?.(outstandingMessage);
       setProcessingError?.(outstandingMessage);
     });
@@ -456,7 +456,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   scheduleDomUpdate(() => {
     updateApiProgress?.(completedApiCalls, totalApiCalls);
-    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls, completedApiCalls);
+    updateProcessingProgress?.(completedProcessingSteps, totalApiCalls);
     setApiStatus?.(completionLabel);
     setProcessingStatus?.(completionLabel);
   });
