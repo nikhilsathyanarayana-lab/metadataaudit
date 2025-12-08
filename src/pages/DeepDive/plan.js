@@ -15,6 +15,11 @@ const syncCallPlanToWindow = () => {
 const stageDeepDiveCallPlan = (entries, lookbackDays) => {
   const timestamp = new Date().toISOString();
 
+  logDeepDive('debug', 'Staging deep dive call plan', {
+    entryCount: entries.length,
+    lookbackDays,
+  });
+
   stagePendingCallTable(entries, lookbackDays);
 
   deepDiveCallPlan.forEach((entry) => {

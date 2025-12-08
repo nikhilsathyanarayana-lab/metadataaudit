@@ -1,6 +1,8 @@
 import { createLogger } from '../../utils/logger.js';
 
-const requestLogger = createLogger('Requests');
+const requestLogger = createLogger('Requests', {
+  debugFlag: ['DEBUG_LOGGING', 'DEBUG_DEEP_DIVE'],
+});
 
 const buildWindowTimeSeries = (startOffset, chunkDays) => ({
   first: `dateAdd(now(), -${startOffset + chunkDays}, "days")`,
@@ -121,34 +123,40 @@ export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appI
   );
 };
 
-export const buildMetaEventsPayload = (appId, windowDays = 7) => ({
-  response: { location: 'request', mimeType: 'application/json' },
-  request: {
-    requestId: `meta-events-${appId}-${windowDays}d`,
-    name: 'account-visitor-only',
-    pipeline: [
-      {
-        source: {
-          singleEvents: { appId },
-          timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+export const buildMetaEventsPayload = (appId, windowDays = 7) => {
+  const payload = {
+    response: { location: 'request', mimeType: 'application/json' },
+    request: {
+      requestId: `meta-events-${appId}-${windowDays}d`,
+      name: 'account-visitor-only',
+      pipeline: [
+        {
+          source: {
+            singleEvents: { appId },
+            timeSeries: { first: 'now()', count: -Number(windowDays), period: 'dayRange' },
+          },
         },
-      },
-      { filter: 'contains(type,`meta`)' },
-      { unmarshal: { metadata: 'title' } },
-      {
-        select: {
-          visitor: 'metadata.visitor',
-          account: 'metadata.account',
-          visitorId: 'visitorId',
-          accountId: 'accountId',
-          appId: 'appId',
+        { filter: 'contains(type,`meta`)' },
+        { unmarshal: { metadata: 'title' } },
+        {
+          select: {
+            visitor: 'metadata.visitor',
+            account: 'metadata.account',
+            visitorId: 'visitorId',
+            accountId: 'accountId',
+            appId: 'appId',
+          },
         },
-      },
-    ],
-  },
-});
+      ],
+    },
+  };
 
-export const buildChunkedMetaEventsPayloads = createChunkedPayloadBuilder({
+  requestLogger.debug('Built meta-events payload', { appId, windowDays });
+
+  return payload;
+};
+
+const buildChunkedMetaEventsPayloadsBase = createChunkedPayloadBuilder({
   parseArgs: ([appId, windowDays, chunkSize = 30]) => ({ appId, windowDays, chunkSize }),
   buildBasePayload: ({ appId, chunkDays }) => (appId ? buildMetaEventsPayload(appId, chunkDays) : null),
   applyTimeSeriesUpdates: (payload, { chunkDays, startOffset }) => {
@@ -158,6 +166,19 @@ export const buildChunkedMetaEventsPayloads = createChunkedPayloadBuilder({
     appendChunkSuffix(payload, chunkIndex, 'meta-events');
   },
 });
+
+export const buildChunkedMetaEventsPayloads = (appId, windowDays, chunkSize = 30) => {
+  const payloads = buildChunkedMetaEventsPayloadsBase(appId, windowDays, chunkSize);
+
+  requestLogger.debug('Built chunked meta-events payloads', {
+    appId,
+    windowDays,
+    chunkSize,
+    payloadCount: payloads?.length || 0,
+  });
+
+  return payloads;
+};
 
 export const buildAppListingPayload = (windowDays = 7, requestId = 'app-discovery') => ({
   response: { location: 'request', mimeType: 'application/json' },
