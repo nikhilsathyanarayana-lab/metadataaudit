@@ -128,7 +128,7 @@ const extractMetadataFieldsForApp = (metadataFields, appId, lookback = TARGET_LO
 
 const normalizeAppSelections = (selections) =>
   (Array.isArray(selections) ? selections : [])
-    .filter((entry) => entry?.subId && entry?.response)
+    .filter((entry) => entry?.subId && (entry?.response || entry?.metadataFields))
     .map((entry) => ({
       subId: entry.subId,
       response: entry.response,
@@ -212,15 +212,17 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   }
 
   const entriesFromSelections = selections.flatMap((entry) => {
+    const metadataKeys = entry.metadataFields ? Object.keys(entry.metadataFields) : [];
     const appIds = extractAppIds(entry.response);
+    const fallbackAppIds = appIds.length ? appIds : metadataKeys;
 
-    if (!appIds.length) {
+    if (!fallbackAppIds.length) {
       return [];
     }
 
     const appNames = extractAppNamesFromResponse(entry.response);
 
-    return appIds.map((appId) => ({
+    return fallbackAppIds.map((appId) => ({
       subId: entry.subId,
       appId,
       domain: entry.domain,
