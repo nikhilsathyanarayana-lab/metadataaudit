@@ -519,7 +519,7 @@ export const registerApiQueueInspector = () => {
 
 registerApiQueueInspector();
 
-const isResolvedCall = (call) => call?.status === 'completed';
+const isResolvedCall = (call) => call?.status === 'Completed';
 
 export const summarizePendingCallProgress = () =>
   metadata_pending_api_calls.reduce(
