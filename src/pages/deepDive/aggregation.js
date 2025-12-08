@@ -30,6 +30,9 @@ const getPendingQueueSnapshot = () =>
 const notifyRecordedCallObservers = () =>
   dispatchGlobalEvent('api-calls-updated', { calls: metadata_api_calls });
 
+let lastPendingSummarySignature = '';
+let lastPendingSummaryCount = 0;
+
 if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
   window.metadata_accounts = metadata_accounts;
@@ -464,7 +467,29 @@ export const registerApiQueueInspector = () => {
       };
     });
 
-    console.table(summarized);
+    const signature = JSON.stringify(summarized);
+    const hasChanges = signature !== lastPendingSummarySignature;
+
+    console.info(
+      'Pending API queue snapshot',
+      hasChanges ? '(updated)' : '(unchanged)',
+      `(${summarized.length} call${summarized.length === 1 ? '' : 's'})`,
+    );
+
+    if (hasChanges) {
+      console.groupCollapsed('Pending API queue details');
+      console.table(summarized);
+      console.groupEnd();
+      lastPendingSummarySignature = signature;
+      lastPendingSummaryCount = summarized.length;
+    } else {
+      console.info(`Skipping duplicate queue table; last summary covered ${lastPendingSummaryCount} call(s).`);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.pendingApiQueueSummary = summarized;
+    }
+
     return outstanding;
   };
 
