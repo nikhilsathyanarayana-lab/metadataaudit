@@ -1,66 +1,108 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { afterEach, beforeEach, test } from 'node:test';
+
 import { buildScanEntries } from './dataHelpers.js';
-import { TARGET_LOOKBACK } from './constants.js';
+import { appSelectionGlobalKey, TARGET_LOOKBACK } from './constants.js';
 
-test('buildScanEntries patches missing credentials from selection override', () => {
-  const manualAppNames = new Map();
-  const records = [
-    {
-      appId: 'app-1',
-      subId: 'sub-1',
-      windowDays: TARGET_LOOKBACK,
-      appName: '',
-    },
-  ];
-  const selections = [
-    {
-      appId: 'app-1',
-      subId: 'sub-1',
-      domain: 'example.com',
-      integrationKey: 'integration-key-1',
-      selected: true,
-      appName: 'Example App',
-    },
-  ];
+class MemoryStorage {
+  constructor(initial = {}) {
+    this.store = { ...initial };
+  }
 
-  const entries = buildScanEntries(records, manualAppNames, TARGET_LOOKBACK, selections);
+  getItem(key) {
+    return Object.prototype.hasOwnProperty.call(this.store, key)
+      ? this.store[key]
+      : null;
+  }
 
-  assert.equal(entries.length, 1);
-  assert.deepEqual(entries[0], {
-    appId: 'app-1',
-    appName: 'Example App',
+  setItem(key, value) {
+    this.store[key] = String(value);
+  }
+
+  removeItem(key) {
+    delete this.store[key];
+  }
+
+  clear() {
+    this.store = {};
+  }
+}
+
+const manualAppNames = new Map([
+  ['sub-1::app-1', 'Manual Override Name'],
+]);
+
+const selectionResponses = [
+  {
     subId: 'sub-1',
-    domain: 'example.com',
-    integrationKey: 'integration-key-1',
+    domain: 'valid.domain',
+    integrationKey: 'integration-one',
+    response: { results: [{ appId: 'app-1', appName: 'Selection App One' }] },
+  },
+  {
+    subId: 'sub-2',
+    domain: 'another.domain',
+    integrationKey: 'integration-two',
+    response: { results: [{ appId: 'app-2', appName: 'Selection App Two' }] },
+  },
+];
+
+const records = [
+  { appId: 'app-1', windowDays: TARGET_LOOKBACK, appName: 'Record App One', subId: 'sub-1' },
+  { appId: 'app-2', windowDays: TARGET_LOOKBACK, subId: 'unmatched-sub' },
+  { appId: 'app-3', windowDays: TARGET_LOOKBACK },
+];
+
+let originalWarn;
+let originalWindow;
+
+const setupEnvironment = () => {
+  const storage = new MemoryStorage({
+    [appSelectionGlobalKey]: JSON.stringify(selectionResponses),
   });
+
+  global.sessionStorage = storage;
+  global.window = { DEBUG_LOGGING: true };
+};
+
+beforeEach(() => {
+  originalWarn = console.warn;
+  originalWindow = global.window;
+
+  setupEnvironment();
 });
 
-test('buildScanEntries skips entries still missing credentials after patch attempt', () => {
-  const manualAppNames = new Map();
-  const records = [
-    {
-      appId: 'app-1',
-      windowDays: TARGET_LOOKBACK,
-    },
-    {
-      appId: 'app-2',
-      subId: 'sub-2',
-      windowDays: TARGET_LOOKBACK,
-    },
-  ];
-  const selections = [
-    {
-      appId: 'app-2',
-      domain: 'app2.example.com',
-      integrationKey: 'integration-key-2',
-      selected: true,
-    },
-  ];
+afterEach(() => {
+  console.warn = originalWarn;
+  global.window = originalWindow;
+  delete global.sessionStorage;
+});
 
-  const entries = buildScanEntries(records, manualAppNames, TARGET_LOOKBACK, selections);
+test('buildScanEntries skips missing credentials and builds valid entries', () => {
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
 
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].appId, 'app-2');
-  assert.equal(entries.some((entry) => entry.appId === 'app-1'), false);
+  const entries = buildScanEntries(records, manualAppNames, TARGET_LOOKBACK);
+
+  assert.strictEqual(entries.length, 2, 'Only valid selections should produce scan entries');
+
+  const appOne = entries.find((entry) => entry.appId === 'app-1');
+  assert.ok(appOne, 'App one entry should be present');
+  assert.strictEqual(appOne.appName, 'Manual Override Name');
+  assert.strictEqual(appOne.domain, 'valid.domain');
+  assert.strictEqual(appOne.integrationKey, 'integration-one');
+  assert.strictEqual(appOne.subId, 'sub-1');
+
+  const appTwo = entries.find((entry) => entry.appId === 'app-2');
+  assert.ok(appTwo, 'App two entry should be present');
+  assert.strictEqual(appTwo.appName, 'Selection App Two');
+  assert.strictEqual(appTwo.domain, 'another.domain');
+  assert.strictEqual(appTwo.integrationKey, 'integration-two');
+  assert.strictEqual(appTwo.subId, 'unmatched-sub');
+
+  assert.strictEqual(warnings.length, 1, 'One record without credentials should be skipped');
+  assert.ok(
+    warnings[0].some((arg) => typeof arg === 'string' && arg.includes('Skipping scan entry')),
+    'Missing credentials should trigger a warning message',
+  );
 });
