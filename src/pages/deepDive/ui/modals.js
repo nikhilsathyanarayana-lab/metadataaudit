@@ -1,6 +1,6 @@
 // Modal setup for app-name editing and regex format validation within the deep dive UI.
 import { loadTemplate } from '../../../controllers/modalLoader.js';
-import { setManualAppName } from '../../../services/appNames.js';
+import { getManualAppName, setManualAppName } from '../../../services/appNames.js';
 import { ensureMessageRegion, showMessage } from '../../../ui/messageHelpers.js';
 import { applyBannerTone, setBannerText } from '../../../ui/statusBanner.js';
 
