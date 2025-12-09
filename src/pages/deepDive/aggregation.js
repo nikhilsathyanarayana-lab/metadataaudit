@@ -397,12 +397,17 @@ const settlePendingDispatch = (entry, settledCount = 0, windowSize = null) => {
 
 export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
 
-export const stagePendingCallTable = (entries, lookbackDays) => {
+export const stagePendingCallTable = (entries, lookbackDays, operation = '') => {
   clearPendingCallQueue();
 
-  entries.forEach((entry) =>
-    registerPendingCall({ ...entry, lookbackDays }, { status: 'queued', lookbackDays }),
-  );
+  entries.forEach((entry) => {
+    const operationLabel = entry?.operation || operation || '';
+
+    registerPendingCall(
+      { ...entry, lookbackDays, operation: operationLabel },
+      { status: 'queued', lookbackDays, operation: operationLabel },
+    );
+  });
 
   return metadata_pending_api_calls;
 };

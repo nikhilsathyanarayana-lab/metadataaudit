@@ -14,13 +14,19 @@ const syncCallPlanToWindow = () => {
 
 const stageDeepDiveCallPlan = (entries, lookbackDays) => {
   const timestamp = new Date().toISOString();
+  const operation = 'deepDiveMetadata';
+
+  const plannedEntries = entries.map((entry) => ({
+    ...entry,
+    operation: entry?.operation || operation,
+  }));
 
   logDeepDive('debug', 'Staging deep dive call plan', {
-    entryCount: entries.length,
+    entryCount: plannedEntries.length,
     lookbackDays,
   });
 
-  stagePendingCallTable(entries, lookbackDays);
+  stagePendingCallTable(plannedEntries, lookbackDays, operation);
 
   deepDiveCallPlan.forEach((entry) => {
     entry.statusLabel = 'Queued';
