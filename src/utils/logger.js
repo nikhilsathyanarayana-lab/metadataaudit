@@ -40,7 +40,7 @@ const formatPrefix = (scopePrefix, level, debugEnabled) => {
 };
 
 export const createLogger = (scope = 'App', options = {}) => {
-  const { debugFlag = 'DEBUG_LOGGING', alwaysInfo = false } = options;
+  const { debugFlag = 'DEBUG_LOGGING', alwaysInfo = false, style } = options;
   const prefix = `[${scope}]`;
 
   const logWithLevel = (level, ...messages) => {
@@ -60,6 +60,12 @@ export const createLogger = (scope = 'App', options = {}) => {
 
     const logger = resolveLogger(normalizedLevel);
     const formattedPrefix = formatPrefix(prefix, normalizedLevel, debugEnabled);
+
+    if (style) {
+      logger(`%c${formattedPrefix}`, style, ...messages);
+      return;
+    }
+
     logger(formattedPrefix, ...messages);
   };
 

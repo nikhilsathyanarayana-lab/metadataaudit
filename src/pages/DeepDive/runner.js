@@ -29,6 +29,7 @@ import {
   TARGET_LOOKBACK,
   DEEP_DIVE_REQUEST_SPACING_MS,
   logDeepDive,
+  logDeepDiveWatchdog,
 } from '../deepDive/constants.js';
 import { scheduleDomUpdate, upsertDeepDiveRecord, yieldToBrowser } from '../deepDive/dataHelpers.js';
 import { stageDeepDiveCallPlan, updateDeepDiveCallPlanStatus } from './plan.js';
@@ -413,7 +414,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
       if (!outstanding.length && !windowDispatches.length) {
         if (lastOutstandingCount > 0) {
-          logDeepDive('debug', 'All deep dive requests completed; watchdog idle.');
+          logDeepDiveWatchdog('debug', 'All deep dive requests completed; watchdog idle.');
         }
         lastOutstandingCount = 0;
         return;
@@ -476,7 +477,35 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           ]),
         );
 
-        logDeepDive('info', 'Deep dive requests still running; watchdog continuing to monitor.', {
+        logDeepDiveWatchdog(
+          'info',
+          'Deep dive requests still running; watchdog continuing to monitor.',
+          {
+            outstandingCount: outstanding.length,
+            windowDispatchCount: windowDispatches.length,
+            idleForMs: Math.round(idleForMs),
+            lastDispatchAtMs: lastDispatchAtMs || null,
+            lastDispatchAtIso: lastDispatchAtMs ? new Date(lastDispatchAtMs).toISOString() : '',
+            lastCompletionAtMs: lastCompletionAtMs || null,
+            lastProcessingAtMs: lastProcessingAtMs || null,
+            lastProcessingAtIso: lastProcessingAtMs ? new Date(lastProcessingAtMs).toISOString() : '',
+            processingActive,
+            processingResponses,
+            activeRequests,
+            runningOperations,
+            runningProcessesDetected,
+            runningCount: runningCalls.length,
+            outstanding: pendingSummary,
+            windowDispatches,
+          },
+        );
+        return;
+      }
+
+      logDeepDiveWatchdog(
+        'warn',
+        'Deep dive requests appear stalled; no recent dispatch or completion.',
+        {
           outstandingCount: outstanding.length,
           windowDispatchCount: windowDispatches.length,
           idleForMs: Math.round(idleForMs),
@@ -488,30 +517,10 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           processingActive,
           processingResponses,
           activeRequests,
-          runningOperations,
-          runningProcessesDetected,
-          runningCount: runningCalls.length,
           outstanding: pendingSummary,
           windowDispatches,
-        });
-        return;
-      }
-
-      logDeepDive('warn', 'Deep dive requests appear stalled; no recent dispatch or completion.', {
-        outstandingCount: outstanding.length,
-        windowDispatchCount: windowDispatches.length,
-        idleForMs: Math.round(idleForMs),
-        lastDispatchAtMs: lastDispatchAtMs || null,
-        lastDispatchAtIso: lastDispatchAtMs ? new Date(lastDispatchAtMs).toISOString() : '',
-        lastCompletionAtMs: lastCompletionAtMs || null,
-        lastProcessingAtMs: lastProcessingAtMs || null,
-        lastProcessingAtIso: lastProcessingAtMs ? new Date(lastProcessingAtMs).toISOString() : '',
-        processingActive,
-        processingResponses,
-        activeRequests,
-        outstanding: pendingSummary,
-        windowDispatches,
-      });
+        },
+      );
     }, WATCHDOG_INTERVAL_MS);
   };
 
