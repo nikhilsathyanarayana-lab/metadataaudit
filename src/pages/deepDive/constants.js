@@ -7,7 +7,7 @@ export const appSelectionGlobalKey = 'appSelectionResponses';
 
 export const LOOKBACK_OPTIONS = [7, 30, 180];
 export const TARGET_LOOKBACK = 7;
-export const DEEP_DIVE_CONCURRENCY = 2;
+export const DEEP_DIVE_CONCURRENCY = 1;
 export const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
 export const DEEP_DIVE_REQUEST_SPACING_MS = 3000;
 
