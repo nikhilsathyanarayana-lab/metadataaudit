@@ -482,10 +482,85 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
               .filter(Boolean),
           ]),
         );
+        const operationCounts = runningCalls.reduce((acc, call) => {
+          const key = call.operation || 'unknown';
+          acc[key] = (acc[key] || 0) + 1;
+          return acc;
+        }, {});
+        const activityReasons = [];
+        const reasonSummaries = [];
+
+        if (runningCalls.length) {
+          const operationSummary = Object.entries(operationCounts).map(([operation, count]) => ({
+            operation,
+            count,
+          }));
+
+          activityReasons.push({
+            reason: 'in-flight-api-calls',
+            description: `${runningCalls.length} in-flight API call${runningCalls.length === 1 ? '' : 's'}`,
+            operationCounts: operationSummary,
+            oldestAgeMs: Math.max(...runningCalls.map((call) => call.ageMs || 0), 0),
+            runningCalls,
+          });
+
+          reasonSummaries.push(
+            `${runningCalls.length} in-flight API call${runningCalls.length === 1 ? '' : 's'} (${operationSummary
+              .map((entry) => `${entry.operation || 'unknown'}:${entry.count}`)
+              .join(', ') || 'operations unknown'})`,
+          );
+        }
+
+        if (hasActiveRequests) {
+          activityReasons.push({
+            reason: 'active-request-counter',
+            description: `${activeRequests} active request${activeRequests === 1 ? '' : 's'} recorded`,
+            activeRequests,
+          });
+          reasonSummaries.push(`${activeRequests} active request${activeRequests === 1 ? '' : 's'} recorded`);
+        }
+
+        if (processingActive) {
+          activityReasons.push({
+            reason: 'response-processing',
+            description: 'Response processing recently active',
+            lastProcessingAtMs: lastProcessingAtMs || null,
+            lastProcessingAtIso: lastProcessingAtMs ? new Date(lastProcessingAtMs).toISOString() : '',
+            idleForMs: Math.round(now - (lastProcessingAtMs || now)),
+          });
+          reasonSummaries.push(
+            `response processing active (last at ${lastProcessingAtMs ? new Date(lastProcessingAtMs).toISOString() : 'unknown'})`,
+          );
+        }
+
+        if (hasWindowDispatches) {
+          const dispatchSummaries = windowDispatches.map((dispatch) => ({
+            appId: dispatch.appId,
+            subId: dispatch.subId,
+            windowSize: dispatch.windowSize,
+            planned: dispatch.planned,
+            settled: dispatch.settled,
+            pendingSplit: dispatch.pendingSplit,
+            reason: dispatch.reason,
+            updatedAt: dispatch.updatedAt,
+          }));
+
+          activityReasons.push({
+            reason: 'window-dispatch',
+            description: `${windowDispatches.length} pending window dispatch${
+              windowDispatches.length === 1 ? '' : 'es'
+            }`,
+            dispatchSummaries,
+          });
+
+          reasonSummaries.push(
+            `${windowDispatches.length} pending window dispatch${windowDispatches.length === 1 ? '' : 'es'}`,
+          );
+        }
 
         logDeepDiveWatchdog(
           'info',
-          'Deep dive requests still running; watchdog continuing to monitor.',
+          `Deep dive requests still running; watchdog monitoring activity: ${reasonSummaries.join('; ')}.`,
           {
             outstandingCount: outstanding.length,
             windowDispatchCount: windowDispatches.length,
@@ -503,6 +578,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
             runningCount: runningCalls.length,
             outstanding: pendingSummary,
             windowDispatches,
+            activityReasons,
           },
         );
         return;
