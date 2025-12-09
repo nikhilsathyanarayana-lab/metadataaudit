@@ -169,11 +169,14 @@ const recordUnexpectedMetadataShape = (type, candidate, context = {}) => {
   });
 };
 
-export const getMetadataShapeAnomalies = () => ({
+export const getMetadataShapeAnomalies = () => {
   logDeepDiveFunctionCall('getMetadataShapeAnomalies');
-  visitor: Array.from(metadataShapeSamples.visitor.values()),
-  account: Array.from(metadataShapeSamples.account.values()),
-});
+
+  return {
+    visitor: Array.from(metadataShapeSamples.visitor.values()),
+    account: Array.from(metadataShapeSamples.account.values()),
+  };
+};
 
 const extractMetadataObject = (metadata = {}, item = {}, type, entry = {}) => {
   const paths = [
