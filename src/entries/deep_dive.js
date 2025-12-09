@@ -17,6 +17,16 @@ import { renderNavigation } from '../pages/navigation.js';
 import { clearPendingCallQueue } from '../pages/deepDive/aggregation.js';
 import { initApiCallConsoleLogger } from '../ui/apiCallConsoleLogger.js';
 
+const ensureDeepDiveNamespace = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (!window.deepDiveData || typeof window.deepDiveData !== 'object') {
+    window.deepDiveData = {};
+  }
+};
+
 const parseStoredRecords = (key) => {
   logDeepDiveFunctionCall('parseStoredRecords', { key });
   try {
@@ -37,6 +47,8 @@ const parseStoredRecords = (key) => {
 const hydrateDeepDiveDataFromStorage = () => {
   logDeepDiveFunctionCall('hydrateDeepDiveDataFromStorage');
   const deepDiveData = {};
+
+  ensureDeepDiveNamespace();
 
   const storedAppSelections = parseStoredRecords(appSelectionGlobalKey);
   if (storedAppSelections) {
