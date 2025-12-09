@@ -434,6 +434,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           appId: call.appId,
           status: call.status,
           running,
+          operation: call.operation || '',
           ageMs: Math.round(ageMs),
           requestCount: call.requestCount,
         };
@@ -465,6 +466,16 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       // If at least one pending call is actively running, downgrade the watchdog alert
       // to avoid flagging legitimate work as stalled.
       if (runningCalls.length || hasActiveRequests || processingActive || hasWindowDispatches) {
+        const runningOperations = Array.from(
+          new Set([
+            ...runningCalls.map((call) => call.operation).filter(Boolean),
+            ...pendingSummary
+              .filter((call) => call.running)
+              .map((call) => call.operation)
+              .filter(Boolean),
+          ]),
+        );
+
         logDeepDive('info', 'Deep dive requests still running; watchdog continuing to monitor.', {
           outstandingCount: outstanding.length,
           windowDispatchCount: windowDispatches.length,
@@ -477,6 +488,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           processingActive,
           processingResponses,
           activeRequests,
+          runningOperations,
           runningProcessesDetected,
           runningCount: runningCalls.length,
           outstanding: pendingSummary,
