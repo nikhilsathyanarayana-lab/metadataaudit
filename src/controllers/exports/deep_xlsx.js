@@ -381,28 +381,9 @@ const buildWorkbook = (
   );
   const totalDatasetCount = totalDatasets || 0;
   const valueLookup = valueLookupParam || new Map();
+  const fieldCountsBySub = new Map();
   const fieldAnalysisEntries = [];
   const appSheets = [];
-
-  const summaryRows = (subIds.length ? subIds : ['No Sub ID captured']).map((subId) => {
-    const datasetsForSub = datasetTotals.get(subId) || 0;
-    const resolvedSubId = subId || 'No Sub ID captured';
-
-    return {
-      'Sub ID': resolvedSubId,
-      Apps: distinctApps,
-      'Records Scanned': datasetTotals.size > 0 ? datasetsForSub : totalDatasetCount,
-    };
-  });
-
-  appendWorksheetFromRows(
-    workbook,
-    summaryRows,
-    'No deep dive metadata was available to summarize.',
-    'Overview',
-    sheetNames,
-    applyOverviewFormatting,
-  );
 
   const statusByApp = new Map(
     deepDiveRecords
@@ -490,6 +471,12 @@ const buildWorkbook = (
     const lookup = index.get(appSelection.appId);
     const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
+    const trackedSubId = subId || 'No Sub ID captured';
+
+    if (!fieldCountsBySub.has(trackedSubId)) {
+      fieldCountsBySub.set(trackedSubId, new Set());
+    }
+    const fieldSet = fieldCountsBySub.get(trackedSubId);
 
     const completeness = describeCompleteness(appSelection.appId);
     if (completeness.label !== 'Complete') {
@@ -507,6 +494,7 @@ const buildWorkbook = (
 
     const rows = appSelection.rows.map((selection) => {
       const stats = getValueStats(selection, valueLookup);
+      fieldSet.add(selection.fieldName);
       fieldAnalysisEntries.push({
         row: {
           Type: selection.type === 'account' ? 'Account' : 'Visitor',
@@ -552,6 +540,28 @@ const buildWorkbook = (
   const fieldAnalysisRows = fieldAnalysisEntries
     .sort((first, second) => (second.uniqueValueCount || 0) - (first.uniqueValueCount || 0))
     .map((entry) => entry.row);
+
+  const summaryRows = (subIds.length ? subIds : ['No Sub ID captured']).map((subId) => {
+    const datasetsForSub = datasetTotals.get(subId) || 0;
+    const resolvedSubId = subId || 'No Sub ID captured';
+    const fieldCount = fieldCountsBySub.get(resolvedSubId)?.size || 0;
+
+    return {
+      'Sub ID': resolvedSubId,
+      Apps: distinctApps,
+      'Total fields': fieldCount,
+      'Records Scanned': datasetTotals.size > 0 ? datasetsForSub : totalDatasetCount,
+    };
+  });
+
+  appendWorksheetFromRows(
+    workbook,
+    summaryRows,
+    'No deep dive metadata was available to summarize.',
+    'Overview',
+    sheetNames,
+    applyOverviewFormatting,
+  );
 
   appendWorksheetFromRows(
     workbook,
