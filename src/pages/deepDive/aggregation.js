@@ -1,5 +1,10 @@
 // Aggregation helpers for metadata visitors/accounts and field collection.
-import { DEEP_DIVE_AGGREGATION_BATCH_SIZE, TARGET_LOOKBACK, logDeepDive } from './constants.js';
+import {
+  DEEP_DIVE_AGGREGATION_BATCH_SIZE,
+  TARGET_LOOKBACK,
+  logDeepDive,
+  logDeepDiveFunctionCall,
+} from './constants.js';
 import { dedupeAndSortFields, yieldToBrowser } from './dataHelpers.js';
 
 export const metadata_visitors = [];
@@ -50,6 +55,7 @@ if (typeof window !== 'undefined') {
 }
 
 export const clearDeepDiveCollections = () => {
+  logDeepDiveFunctionCall('clearDeepDiveCollections');
   metadata_visitors.splice(0, metadata_visitors.length);
   metadata_accounts.splice(0, metadata_accounts.length);
   metadata_api_calls.splice(0, metadata_api_calls.length);
@@ -62,6 +68,7 @@ export const clearDeepDiveCollections = () => {
 };
 
 export const ensureDeepDiveAccumulatorEntry = (accumulator, entry) => {
+  logDeepDiveFunctionCall('ensureDeepDiveAccumulatorEntry', { appId: entry?.appId });
   if (!entry?.appId) {
     return null;
   }
@@ -163,6 +170,7 @@ const recordUnexpectedMetadataShape = (type, candidate, context = {}) => {
 };
 
 export const getMetadataShapeAnomalies = () => ({
+  logDeepDiveFunctionCall('getMetadataShapeAnomalies');
   visitor: Array.from(metadataShapeSamples.visitor.values()),
   account: Array.from(metadataShapeSamples.account.values()),
 });
@@ -197,6 +205,7 @@ const appendFieldsFromMetadataObject = (metadataObject, targetSet) => {
 };
 
 export const processDeepDiveResponseItems = async (response, onItem) => {
+  logDeepDiveFunctionCall('processDeepDiveResponseItems', { hasResponse: Boolean(response) });
   if (!onItem) {
     return;
   }
@@ -331,6 +340,7 @@ const upsertPendingCall = (entry, overrides = {}) => {
 };
 
 export const clearPendingCallQueue = () => {
+  logDeepDiveFunctionCall('clearPendingCallQueue');
   metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
   pendingWindowDispatches.clear();
   notifyPendingCallObservers();
@@ -395,9 +405,13 @@ const settlePendingDispatch = (entry, settledCount = 0, windowSize = null) => {
   return nextRecord;
 };
 
-export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
+export const registerPendingCall = (entry, overrides = {}) => {
+  logDeepDiveFunctionCall('registerPendingCall', { appId: entry?.appId });
+  return upsertPendingCall(entry, overrides);
+};
 
 export const stagePendingCallTable = (entries, lookbackDays, operation = '') => {
+  logDeepDiveFunctionCall('stagePendingCallTable', { entryCount: entries?.length || 0, lookbackDays });
   clearPendingCallQueue();
 
   entries.forEach((entry) => {
@@ -412,10 +426,13 @@ export const stagePendingCallTable = (entries, lookbackDays, operation = '') => 
   return metadata_pending_api_calls;
 };
 
-export const updatePendingCallRequestCount = (entry, requestCount = 1) =>
-  upsertPendingCall(entry, { requestCount: normalizeRequestCount(requestCount) });
+export const updatePendingCallRequestCount = (entry, requestCount = 1) => {
+  logDeepDiveFunctionCall('updatePendingCallRequestCount', { appId: entry?.appId });
+  return upsertPendingCall(entry, { requestCount: normalizeRequestCount(requestCount) });
+};
 
 export const updatePendingCallWindowPlan = (entry, plannedCount = 1, windowSize = null, reason = '') => {
+  logDeepDiveFunctionCall('updatePendingCallWindowPlan', { appId: entry?.appId, windowSize, reason });
   const key = normalizePendingKey(entry);
   const existingIndex = findPendingCallIndex(key);
 
@@ -455,10 +472,13 @@ export const updatePendingCallWindowPlan = (entry, plannedCount = 1, windowSize 
   return metadata_pending_api_calls[existingIndex];
 };
 
-export const markPendingCallStarted = (entry) =>
-  upsertPendingCall(entry, { status: 'in-flight', startedAt: new Date().toISOString() });
+export const markPendingCallStarted = (entry) => {
+  logDeepDiveFunctionCall('markPendingCallStarted', { appId: entry?.appId });
+  return upsertPendingCall(entry, { status: 'in-flight', startedAt: new Date().toISOString() });
+};
 
 export const resolvePendingCall = (entry, status = 'completed', error = '') => {
+  logDeepDiveFunctionCall('resolvePendingCall', { appId: entry?.appId, status });
   const existingIndex = findPendingCallIndex(entry);
 
   if (existingIndex === -1) {
@@ -478,6 +498,7 @@ export const resolvePendingCall = (entry, status = 'completed', error = '') => {
 };
 
 export const settlePendingWindowPlan = (entry, settledCount = 0, windowSize = null) => {
+  logDeepDiveFunctionCall('settlePendingWindowPlan', { appId: entry?.appId, settledCount, windowSize });
   const existingIndex = findPendingCallIndex(entry);
 
   if (existingIndex === -1) {
@@ -504,18 +525,25 @@ export const settlePendingWindowPlan = (entry, settledCount = 0, windowSize = nu
   return metadata_pending_api_calls[existingIndex];
 };
 
-export const trackPendingWindowDispatch = (entry, plannedCount = 0, windowSize = null, reason = '') =>
-  upsertPendingDispatch(entry, plannedCount, windowSize, reason);
+export const trackPendingWindowDispatch = (entry, plannedCount = 0, windowSize = null, reason = '') => {
+  logDeepDiveFunctionCall('trackPendingWindowDispatch', { appId: entry?.appId, plannedCount, windowSize });
+  return upsertPendingDispatch(entry, plannedCount, windowSize, reason);
+};
 
-export const settlePendingWindowDispatch = (entry, settledCount = 0, windowSize = null) =>
-  settlePendingDispatch(entry, settledCount, windowSize);
+export const settlePendingWindowDispatch = (entry, settledCount = 0, windowSize = null) => {
+  logDeepDiveFunctionCall('settlePendingWindowDispatch', { appId: entry?.appId, settledCount, windowSize });
+  return settlePendingDispatch(entry, settledCount, windowSize);
+};
 
-export const getPendingWindowDispatches = () =>
-  Array.from(pendingWindowDispatches.values()).filter(
+export const getPendingWindowDispatches = () => {
+  logDeepDiveFunctionCall('getPendingWindowDispatches');
+  return Array.from(pendingWindowDispatches.values()).filter(
     (record) => (record?.planned || 0) > (record?.settled || 0) || record?.pendingSplit,
   );
+};
 
 export const getOutstandingPendingCalls = () => {
+  logDeepDiveFunctionCall('getOutstandingPendingCalls');
   if (typeof window !== 'undefined' && typeof window.showPendingApiQueue === 'function') {
     const outstanding = window.showPendingApiQueue();
 
@@ -527,13 +555,18 @@ export const getOutstandingPendingCalls = () => {
   return getPendingQueueSnapshot();
 };
 
-export const hasQueuedPendingCalls = () =>
-  metadata_pending_api_calls.some((call) => call?.status === 'queued');
+export const hasQueuedPendingCalls = () => {
+  logDeepDiveFunctionCall('hasQueuedPendingCalls');
+  return metadata_pending_api_calls.some((call) => call?.status === 'queued');
+};
 
-export const getNextQueuedPendingCall = () =>
-  metadata_pending_api_calls.find((call) => call?.status === 'queued') || null;
+export const getNextQueuedPendingCall = () => {
+  logDeepDiveFunctionCall('getNextQueuedPendingCall');
+  return metadata_pending_api_calls.find((call) => call?.status === 'queued') || null;
+};
 
 export const registerApiQueueInspector = () => {
+  logDeepDiveFunctionCall('registerApiQueueInspector');
   if (typeof window === 'undefined' || window.showPendingApiQueue) {
     return;
   }
@@ -609,8 +642,9 @@ registerApiQueueInspector();
 
 const isResolvedCall = (call) => call?.status === 'Completed';
 
-export const summarizePendingCallProgress = () =>
-  metadata_pending_api_calls.reduce(
+export const summarizePendingCallProgress = () => {
+  logDeepDiveFunctionCall('summarizePendingCallProgress');
+  return metadata_pending_api_calls.reduce(
     (totals, call) => {
       const requestCount = normalizeRequestCount(call?.requestCount);
       totals.total += requestCount;
@@ -623,23 +657,39 @@ export const summarizePendingCallProgress = () =>
     },
     { total: 0, completed: 0 },
   );
+};
 
 // Metadata-specific aliases maintained for backwards compatibility.
-export const registerPendingMetadataCall = (entry) => registerPendingCall(entry);
+export const registerPendingMetadataCall = (entry) => {
+  logDeepDiveFunctionCall('registerPendingMetadataCall', { appId: entry?.appId });
+  return registerPendingCall(entry);
+};
 
-export const updatePendingMetadataCallRequestCount = (entry, requestCount = 1) =>
-  updatePendingCallRequestCount(entry, requestCount);
+export const updatePendingMetadataCallRequestCount = (entry, requestCount = 1) => {
+  logDeepDiveFunctionCall('updatePendingMetadataCallRequestCount', { appId: entry?.appId });
+  return updatePendingCallRequestCount(entry, requestCount);
+};
 
-export const markPendingMetadataCallStarted = (entry) => markPendingCallStarted(entry);
+export const markPendingMetadataCallStarted = (entry) => {
+  logDeepDiveFunctionCall('markPendingMetadataCallStarted', { appId: entry?.appId });
+  return markPendingCallStarted(entry);
+};
 
 export const resolvePendingMetadataCall = (entry, status = 'completed', error = '') =>
   resolvePendingCall(entry, status, error);
 
-export const getOutstandingMetadataCalls = () => getOutstandingPendingCalls();
+export const getOutstandingMetadataCalls = () => {
+  logDeepDiveFunctionCall('getOutstandingMetadataCalls');
+  return getOutstandingPendingCalls();
+};
 
-export const summarizePendingMetadataCallProgress = () => summarizePendingCallProgress();
+export const summarizePendingMetadataCallProgress = () => {
+  logDeepDiveFunctionCall('summarizePendingMetadataCallProgress');
+  return summarizePendingCallProgress();
+};
 
 export const updateMetadataApiCalls = (entry, status, error = '', datasetCount = 0) => {
+  logDeepDiveFunctionCall('updateMetadataApiCalls', { appId: entry?.appId, status });
   if (!entry?.appId) {
     return;
   }
@@ -658,6 +708,7 @@ export const updateMetadataApiCalls = (entry, status, error = '', datasetCount =
 };
 
 export const collectDeepDiveMetadataFields = async (response, accumulator, entry) => {
+  logDeepDiveFunctionCall('collectDeepDiveMetadataFields', { appId: entry?.appId, hasResponse: Boolean(response) });
   const target = ensureDeepDiveAccumulatorEntry(accumulator, entry);
   let datasetCount = 0;
 
@@ -851,6 +902,7 @@ function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation
 }
 
 export const updateMetadataCollections = async (response, entry) => {
+  logDeepDiveFunctionCall('updateMetadataCollections', { appId: entry?.appId, hasResponse: Boolean(response) });
   if (!entry?.appId) {
     return;
   }

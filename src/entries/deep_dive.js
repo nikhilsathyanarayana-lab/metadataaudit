@@ -4,6 +4,7 @@ import {
   deepDiveGlobalKey,
   metadataFieldGlobalKey,
   logDeepDive,
+  logDeepDiveFunctionCall,
 } from '../pages/deepDive/constants.js';
 import {
   exportDeepDiveJson,
@@ -17,6 +18,7 @@ import { clearPendingCallQueue } from '../pages/deepDive/aggregation.js';
 import { initApiCallConsoleLogger } from '../ui/apiCallConsoleLogger.js';
 
 const parseStoredRecords = (key) => {
+  logDeepDiveFunctionCall('parseStoredRecords', { key });
   try {
     const raw = sessionStorage.getItem(key);
 
@@ -33,6 +35,7 @@ const parseStoredRecords = (key) => {
 };
 
 const hydrateDeepDiveDataFromStorage = () => {
+  logDeepDiveFunctionCall('hydrateDeepDiveDataFromStorage');
   const deepDiveData = {};
 
   const storedAppSelections = parseStoredRecords(appSelectionGlobalKey);
@@ -59,6 +62,7 @@ hydrateDeepDiveDataFromStorage();
 installDeepDiveGlobalErrorHandlers();
 
 const registerApiResponseNotification = () => {
+  logDeepDiveFunctionCall('registerApiResponseNotification');
   if (typeof window === 'undefined') {
     return;
   }

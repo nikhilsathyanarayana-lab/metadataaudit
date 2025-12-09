@@ -14,6 +14,7 @@ import {
   TARGET_LOOKBACK,
   deepDiveGlobalKey,
   logDeepDive,
+  logDeepDiveFunctionCall,
 } from '../deepDive/constants.js';
 import { summarizeJsonShape } from '../deepDive/shapeUtils.js';
 import {
@@ -29,6 +30,7 @@ import { stageDeepDiveCallPlan } from './plan.js';
 import { runDeepDiveScan } from './runner.js';
 
 const hydrateCachedExportCollections = () => {
+  logDeepDiveFunctionCall('hydrateCachedExportCollections');
   const cachedDeepDive =
     typeof window !== 'undefined' ? window.deepDiveData?.[deepDiveGlobalKey] : null;
 
@@ -92,6 +94,10 @@ const hydrateCachedExportCollections = () => {
   };
 
   const applySnapshot = (target, cachedCollection) => {
+    logDeepDiveFunctionCall('applySnapshot', {
+      hasTarget: Array.isArray(target),
+      hasCachedCollection: Boolean(cachedCollection),
+    });
     if (!Array.isArray(target) || !cachedCollection) {
       return false;
     }
@@ -126,6 +132,7 @@ const hydrateCachedExportCollections = () => {
 };
 
 const initDeepDive = async () => {
+  logDeepDiveFunctionCall('initDeepDive');
   try {
     logDeepDive('info', 'Initializing deep dive experience');
     const visitorTableBody = document.getElementById('visitor-deep-dive-table-body');
@@ -161,12 +168,14 @@ const initDeepDive = async () => {
     let selectedLookback = TARGET_LOOKBACK;
 
     const updateExportAvailability = () => {
+      logDeepDiveFunctionCall('updateExportAvailability');
       const hasAggregatedRows = metadata_visitors.length > 0 || metadata_accounts.length > 0;
 
       setExportAvailability(rows.length > 0 || deepDiveRecords.length > 0 || hasAggregatedRows);
     };
 
     const refreshTables = (lookback = selectedLookback) => {
+      logDeepDiveFunctionCall('refreshTables', { requestedLookback: lookback });
       try {
         selectedLookback = LOOKBACK_OPTIONS.includes(lookback) ? lookback : TARGET_LOOKBACK;
 
