@@ -16,7 +16,6 @@ import {
   resolvePendingMetadataCall,
   settlePendingWindowPlan,
   summarizePendingMetadataCallProgress,
-  updateMetadataCollections,
   updatePendingMetadataCallRequestCount,
   updatePendingCallWindowPlan,
   getPendingWindowDispatches,
@@ -291,10 +290,6 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           resolvedError: resolvedCall?.error,
         });
         updateDeepDiveCallPlanStatus(entry, 'Completed');
-        for (const response of requestSummary.aggregatedResults) {
-          markProcessingActivity();
-          await updateMetadataCollections(response, entry);
-        }
         logResponseFlowStep('response data persisted', {
           datasetCount,
           visitorFieldCount: normalizedFields?.visitorFields?.size || 0,

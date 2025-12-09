@@ -735,10 +735,24 @@ export const collectDeepDiveMetadataFields = async (response, accumulator, entry
       item.accountMetadata.forEach((field) => target.accountFields.add(field));
     }
 
+    if (visitorMetadata) {
+      const visitorId = item.visitorId || metadata.visitorId || '';
+      updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
+    }
+
+    if (accountMetadata) {
+      updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
+    }
+
     datasetCount += 1;
   });
 
   target.datasetCount = (target.datasetCount || 0) + datasetCount;
+
+  replaceRows(metadata_visitors, buildVisitorExportRows(metadataVisitorAggregation));
+  replaceRows(metadata_accounts, buildAccountExportRows(metadataAccountAggregation));
+
+  await yieldToBrowser();
 
   return target;
 };
@@ -899,32 +913,5 @@ function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation
 
   updateFieldCount('visitorId', visitorId || '');
 }
-
-export const updateMetadataCollections = async (response, entry) => {
-  logDeepDiveFunctionCall('updateMetadataCollections', { appId: entry?.appId, hasResponse: Boolean(response) });
-  if (!entry?.appId) {
-    return;
-  }
-
-  await processDeepDiveResponseItems(response, async (item) => {
-    const metadata = item.metadata && typeof item.metadata === 'object' ? item.metadata : {};
-    const visitorMetadata = extractMetadataObject(metadata, item, 'visitor', entry);
-    const accountMetadata = extractMetadataObject(metadata, item, 'account', entry);
-
-    if (visitorMetadata) {
-      const visitorId = item.visitorId || metadata.visitorId || '';
-      updateVisitorAggregation(visitorMetadata, entry, visitorId, metadataVisitorAggregation);
-    }
-
-    if (accountMetadata) {
-      updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
-    }
-  });
-
-  replaceRows(metadata_visitors, buildVisitorExportRows(metadataVisitorAggregation));
-  replaceRows(metadata_accounts, buildAccountExportRows(metadataAccountAggregation));
-
-  await yieldToBrowser();
-};
 
 
