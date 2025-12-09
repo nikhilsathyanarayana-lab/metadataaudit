@@ -3,7 +3,6 @@ import { buildChunkedMetaEventsPayloads, buildMetaEventsPayload } from '../../se
 import { runAggregationWithFallbackWindows } from '../../services/requests/network.js';
 import {
   clearDeepDiveCollections,
-  buildPendingRequestSignature,
   collectDeepDiveMetadataFields,
   ensureDeepDiveAccumulatorEntry,
   getOutstandingPendingCalls,
@@ -139,7 +138,6 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   });
 
   const entryLookup = new Map(requestTable.map((entry) => [entry.appId, entry]));
-  const buildResolverKey = (entry) => buildPendingRequestSignature(entry, targetLookback);
   const pendingResolvers = new Map();
 
   let resolveMetadataCompletion;
@@ -165,31 +163,30 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     setProcessingStatus?.('Waiting for the first API response…');
   });
 
-  const createResponseFlowLogger = (entry) => (step, details = {}) => {
-    const progress = summarizePendingMetadataCallProgress();
-    const pendingRecord = metadata_pending_api_calls.find(
-      (call) => call.appId === entry.appId && (call.subId || '') === (entry.subId || ''),
-    );
-
-    logDeepDive('debug', 'Deep dive response flow', step, {
-      appId: entry.appId,
-      subId: entry.subId,
-      pendingStatus: pendingRecord?.status || 'absent',
-      pendingRequestCount: pendingRecord?.requestCount ?? null,
-      pendingPlannedWindows: pendingRecord?.plannedWindows || [],
-      progress,
-      ...details,
-    });
-  };
-
-  const runAggregationPhase = async (entry) => {
+  const processEntry = async (entry) => {
     logDeepDive('info', 'Processing deep dive entry', {
       appId: entry.appId,
       subId: entry.subId,
       targetLookback,
     });
 
-    const logResponseFlowStep = createResponseFlowLogger(entry);
+    const logResponseFlowStep = (step, details = {}) => {
+      const progress = summarizePendingMetadataCallProgress();
+      const pendingRecord = metadata_pending_api_calls.find(
+        (call) => call.appId === entry.appId && (call.subId || '') === (entry.subId || ''),
+      );
+
+      logDeepDive('debug', 'Deep dive response flow', step, {
+        appId: entry.appId,
+        subId: entry.subId,
+        pendingStatus: pendingRecord?.status || 'absent',
+        pendingRequestCount: pendingRecord?.requestCount ?? null,
+        pendingPlannedWindows: pendingRecord?.plannedWindows || [],
+        progress,
+        ...details,
+      });
+    };
+
     const startTime = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     await yieldToBrowser();
     let requestSummary = { requestCount: 1 };
@@ -265,7 +262,69 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         );
       });
 
-      return { requestSummary, resolvedRequestCount, logResponseFlowStep, startTime };
+      let normalizedFields = null;
+      let datasetCount = 0;
+
+      markProcessingStart();
+
+      try {
+        for (const response of requestSummary.aggregatedResults) {
+          markProcessingActivity();
+          normalizedFields = await collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
+          datasetCount = Number.isFinite(normalizedFields?.datasetCount)
+            ? normalizedFields.datasetCount
+            : datasetCount;
+        }
+
+        upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
+        updateMetadataApiCalls(entry, 'success', '', datasetCount);
+        const resolvedCall = resolvePendingMetadataCall(entry, 'completed');
+        logResponseFlowStep('pending call resolved', {
+          resolvedStatus: resolvedCall?.status,
+          resolvedError: resolvedCall?.error,
+        });
+        updateDeepDiveCallPlanStatus(entry, 'Completed');
+        for (const response of requestSummary.aggregatedResults) {
+          markProcessingActivity();
+          await updateMetadataCollections(response, entry);
+        }
+        logResponseFlowStep('response data persisted', {
+          datasetCount,
+          visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
+          accountFieldCount: normalizedFields?.accountFields?.size || 0,
+        });
+      } finally {
+        markProcessingComplete();
+      }
+      successCount += 1;
+      completedProcessingSteps += resolvedRequestCount;
+      syncApiProgress();
+      syncProcessingProgress();
+      const durationMs =
+        (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
+        startTime;
+
+      logDeepDive('info', 'Deep dive entry completed', {
+        appId: entry.appId,
+        subId: entry.subId,
+        functionName: 'runDeepDiveScan',
+        lookbackDays: targetLookback,
+        requestCount: resolvedRequestCount,
+        responseCount: requestSummary?.aggregatedResults?.length || 0,
+        datasetCount,
+        visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
+        accountFieldCount: normalizedFields?.accountFields?.size || 0,
+        durationMs: Math.round(durationMs),
+        updatedTargets: {
+          accumulatorKey: `${entry.appId || 'unknown'}:${entry.subId || 'unknown'}`,
+          metadataCollections: 'metadata_api_calls, metadata_pending_api_calls',
+          callPlanStatus: 'Completed',
+          persistedCollections: Boolean(requestSummary?.aggregatedResults?.length),
+        },
+      });
+      if (onSuccessfulCall) {
+        scheduleDomUpdate(() => onSuccessfulCall());
+      }
     } catch (error) {
       const resolvedRequestCount = normalizeRequestCount(requestSummary);
 
@@ -323,110 +382,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     } finally {
       requestSummary = null;
     }
-
-    return null;
   };
-
-  const runProcessingPhase = async (entry, aggregationResult) => {
-    const { requestSummary, resolvedRequestCount, logResponseFlowStep, startTime } = aggregationResult;
-    let normalizedFields = null;
-    let datasetCount = 0;
-
-    markProcessingStart();
-
-    try {
-      for (const response of requestSummary.aggregatedResults) {
-        markProcessingActivity();
-        normalizedFields = await collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
-        datasetCount = Number.isFinite(normalizedFields?.datasetCount)
-          ? normalizedFields.datasetCount
-          : datasetCount;
-      }
-
-      upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
-      updateMetadataApiCalls(entry, 'success', '', datasetCount);
-      const resolvedCall = resolvePendingMetadataCall(entry, 'completed');
-      logResponseFlowStep('pending call resolved', {
-        resolvedStatus: resolvedCall?.status,
-        resolvedError: resolvedCall?.error,
-      });
-      updateDeepDiveCallPlanStatus(entry, 'Completed');
-      for (const response of requestSummary.aggregatedResults) {
-        markProcessingActivity();
-        await updateMetadataCollections(response, entry);
-      }
-      logResponseFlowStep('response data persisted', {
-        datasetCount,
-        visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
-        accountFieldCount: normalizedFields?.accountFields?.size || 0,
-      });
-
-      successCount += 1;
-      completedProcessingSteps += resolvedRequestCount;
-      syncApiProgress();
-      syncProcessingProgress();
-      const durationMs =
-        (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) -
-        startTime;
-
-      logDeepDive('info', 'Deep dive entry completed', {
-        appId: entry.appId,
-        subId: entry.subId,
-        functionName: 'runDeepDiveScan',
-        lookbackDays: targetLookback,
-        requestCount: resolvedRequestCount,
-        responseCount: requestSummary?.aggregatedResults?.length || 0,
-        datasetCount,
-        visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
-        accountFieldCount: normalizedFields?.accountFields?.size || 0,
-        durationMs: Math.round(durationMs),
-        updatedTargets: {
-          accumulatorKey: `${entry.appId || 'unknown'}:${entry.subId || 'unknown'}`,
-          metadataCollections: 'metadata_api_calls, metadata_pending_api_calls',
-          callPlanStatus: 'Completed',
-          persistedCollections: Boolean(requestSummary?.aggregatedResults?.length),
-        },
-      });
-      if (onSuccessfulCall) {
-        scheduleDomUpdate(() => onSuccessfulCall());
-      }
-    } catch (error) {
-      const detail = error?.message || 'Unable to process metadata events.';
-      const resolvedCall = resolvePendingMetadataCall(entry, 'failed', detail);
-      updateDeepDiveCallPlanStatus(entry, 'Error', detail);
-      updateMetadataApiCalls(entry, 'error', detail);
-      updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
-      settlePendingWindowPlan(entry, resolvedRequestCount, requestSummary?.appliedWindow);
-      settlePendingWindowDispatch(entry, resolvedRequestCount, requestSummary?.appliedWindow);
-      completedProcessingSteps += resolvedRequestCount;
-      syncApiProgress();
-      syncProcessingProgress();
-      logResponseFlowStep('response handling failed', {
-        apiCompleted: true,
-        resolvedRequestCount,
-        errorDetail: detail,
-        resolvedStatus: resolvedCall?.status,
-      });
-
-      scheduleDomUpdate(() => {
-        setProcessingError?.(`Deep dive response handling error for app ${entry.appId}: ${detail}`);
-      });
-
-      logDeepDive('error', 'Deep dive response handling failed', { appId: entry.appId, error });
-    } finally {
-      markProcessingComplete();
-    }
-  };
-
-  const queueProcessingPhase = (entry, aggregationResult) =>
-    Promise.resolve()
-      .then(() => runProcessingPhase(entry, aggregationResult))
-      .catch((error) => {
-        logDeepDive('error', 'Unhandled deep dive processing failure', { appId: entry.appId, error });
-      })
-      .finally(() => {
-        tryResolveCompletion();
-      });
 
   let activeRequests = 0;
   let lastDispatchAtMs = 0;
@@ -578,8 +534,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       return;
     }
 
-    const resolverKey = buildResolverKey(nextEntry);
-    const resolver = pendingResolvers.get(resolverKey);
+    const resolver = pendingResolvers.get(nextEntry.appId);
 
     if (resolver?.resolved) {
       dispatchNextRequest();
@@ -621,13 +576,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     }
 
     try {
-      const aggregationResult = await runAggregationPhase(nextEntry);
-
-      if (aggregationResult) {
-        queueProcessingPhase(nextEntry, aggregationResult);
-      } else {
-        tryResolveCompletion();
-      }
+      await processEntry(nextEntry);
     } finally {
       recordRequestSettled();
       resolver?.safeResolve();
@@ -639,47 +588,6 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
   const scheduleDeepDiveRequest = (entry, index) =>
     new Promise((resolve) => {
-      const resolverKey = buildResolverKey(entry);
-      const matchingPending = metadata_pending_api_calls.find(
-        (call) => buildPendingRequestSignature(call, targetLookback) === resolverKey,
-      );
-      const matchingRecorded = metadata_api_calls.find((call) => {
-        const signature = call?.timeSeriesKey || buildPendingRequestSignature(call, targetLookback);
-        return signature === resolverKey && call?.status === 'success';
-      });
-
-      if (pendingResolvers.has(resolverKey) || matchingRecorded) {
-        logDeepDive('info', 'Skipping duplicate deep dive request', {
-          appId: entry.appId,
-          subId: entry.subId,
-          queueIndex: index,
-          resolverKey,
-          reason: matchingRecorded ? 'already completed' : 'already scheduled',
-        });
-        resolvePendingMetadataCall(entry, 'Completed', 'Duplicate request skipped.');
-        updateDeepDiveCallPlanStatus(entry, 'Skipped', 'Duplicate request signature; skipped dispatch.');
-        syncApiProgress();
-        syncProcessingProgress();
-        resolve();
-        return;
-      }
-
-      if (matchingPending && matchingPending.status !== 'queued') {
-        logDeepDive('info', 'Skipping already in-flight deep dive request', {
-          appId: entry.appId,
-          subId: entry.subId,
-          queueIndex: index,
-          resolverKey,
-          status: matchingPending.status,
-        });
-        resolvePendingMetadataCall(entry, 'Completed', 'Duplicate request skipped.');
-        updateDeepDiveCallPlanStatus(entry, 'Skipped', 'Duplicate request signature; skipped dispatch.');
-        syncApiProgress();
-        syncProcessingProgress();
-        resolve();
-        return;
-      }
-
       const resolver = {
         resolved: false,
         cancelled: false,
@@ -694,7 +602,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           }
 
           resolver.resolved = true;
-          pendingResolvers.delete(resolverKey);
+          pendingResolvers.delete(entry.appId);
           resolve();
         },
       };
@@ -703,10 +611,9 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         appId: entry.appId,
         subId: entry.subId,
         queueIndex: index,
-        resolverKey,
       });
 
-      pendingResolvers.set(resolverKey, resolver);
+      pendingResolvers.set(entry.appId, resolver);
       dispatchNextRequest();
     });
 
