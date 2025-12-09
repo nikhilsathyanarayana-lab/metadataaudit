@@ -167,6 +167,7 @@ export const runAggregationWithFallbackWindows = async ({
 
       const aggregatedResults = [];
       const plannedRequestCount = payloads.length;
+      updatePendingQueueCount(plannedRequestCount, windowSize);
 
       try {
         const scheduleAggregationRequest = (payload, index) =>
@@ -208,7 +209,6 @@ export const runAggregationWithFallbackWindows = async ({
           });
 
         onRequestsPlanned?.(plannedRequestCount, windowSize);
-        updatePendingQueueCount(plannedRequestCount, windowSize);
         requestCount += plannedRequestCount;
 
         const responses = await Promise.all(
