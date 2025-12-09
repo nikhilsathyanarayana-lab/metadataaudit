@@ -393,14 +393,33 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       const pendingSummary = outstanding.map((call) => {
         const queuedAtMs = Date.parse(call.queuedAt);
         const ageMs = Number.isFinite(queuedAtMs) ? now - queuedAtMs : 0;
+        const running = call.status === 'in-flight';
 
         return {
           appId: call.appId,
           status: call.status,
+          running,
           ageMs: Math.round(ageMs),
           requestCount: call.requestCount,
         };
       });
+
+      const runningCalls = pendingSummary.filter((call) => call.running);
+
+      // If at least one pending call is actively running, downgrade the watchdog alert
+      // to avoid flagging legitimate work as stalled.
+      if (runningCalls.length) {
+        logDeepDive('info', 'Deep dive requests still running; watchdog continuing to monitor.', {
+          outstandingCount: outstanding.length,
+          idleForMs: Math.round(idleForMs),
+          lastDispatchAtMs: lastDispatchAtMs || null,
+          lastDispatchAtIso: lastDispatchAtMs ? new Date(lastDispatchAtMs).toISOString() : '',
+          lastCompletionAtMs: lastCompletionAtMs || null,
+          runningCount: runningCalls.length,
+          outstanding: pendingSummary,
+        });
+        return;
+      }
 
       logDeepDive('warn', 'Deep dive requests appear stalled; no recent dispatch or completion.', {
         outstandingCount: outstanding.length,
