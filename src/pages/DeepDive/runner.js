@@ -444,6 +444,23 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         processingResponses || (lastProcessingAtMs && now - lastProcessingAtMs < WATCHDOG_IDLE_THRESHOLD_MS);
       const hasWindowDispatches = windowDispatches.length > 0;
       const hasActiveRequests = activeRequests > 0;
+      const runningProcessesDetected = [];
+
+      if (runningCalls.length) {
+        runningProcessesDetected.push('pending-api-call');
+      }
+
+      if (hasActiveRequests) {
+        runningProcessesDetected.push('active-request-counter');
+      }
+
+      if (processingActive) {
+        runningProcessesDetected.push('response-processing');
+      }
+
+      if (hasWindowDispatches) {
+        runningProcessesDetected.push('window-dispatch');
+      }
 
       // If at least one pending call is actively running, downgrade the watchdog alert
       // to avoid flagging legitimate work as stalled.
@@ -460,6 +477,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
           processingActive,
           processingResponses,
           activeRequests,
+          runningProcessesDetected,
           runningCount: runningCalls.length,
           outstanding: pendingSummary,
           windowDispatches,
