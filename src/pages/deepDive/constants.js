@@ -15,4 +15,10 @@ const deepDiveLogger = createLogger('DeepDive', {
   debugFlag: ['DEBUG_LOGGING', 'DEBUG_DEEP_DIVE'],
 });
 
+const deepDiveWatchdogLogger = createLogger('DeepDive Watchdog', {
+  debugFlag: ['DEBUG_LOGGING', 'DEBUG_DEEP_DIVE'],
+  style: 'color: #1d4ed8; font-weight: 600;',
+});
+
 export const logDeepDive = deepDiveLogger.log;
+export const logDeepDiveWatchdog = deepDiveWatchdogLogger.log;
