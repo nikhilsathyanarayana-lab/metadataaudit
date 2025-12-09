@@ -877,8 +877,6 @@ const updateAccountAggregation = (accountMetadata, entry, aggregation) => {
     existingValues.set(normalizedValue, (existingValues.get(normalizedValue) || 0) + 1);
     target.fields.set(field, existingValues);
   });
-
-  replaceRows(metadata_accounts, buildAccountExportRows(aggregation));
 };
 
 function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation) {
@@ -900,8 +898,6 @@ function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation
   });
 
   updateFieldCount('visitorId', visitorId || '');
-
-  replaceRows(metadata_visitors, buildVisitorExportRows(aggregation));
 }
 
 export const updateMetadataCollections = async (response, entry) => {
@@ -924,6 +920,11 @@ export const updateMetadataCollections = async (response, entry) => {
       updateAccountAggregation(accountMetadata, entry, metadataAccountAggregation);
     }
   });
+
+  replaceRows(metadata_visitors, buildVisitorExportRows(metadataVisitorAggregation));
+  replaceRows(metadata_accounts, buildAccountExportRows(metadataAccountAggregation));
+
+  await yieldToBrowser();
 };
 
 
