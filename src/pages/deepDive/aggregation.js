@@ -20,6 +20,26 @@ const dispatchGlobalEvent = (name, detail = {}) => {
   window.dispatchEvent(new CustomEvent(name, { detail }));
 };
 
+const deriveTimeSeriesSignature = (entry, fallbackWindow = null) => {
+  if (!entry || typeof entry !== 'object') {
+    return 'unknown::unknown::unknown';
+  }
+
+  const appId = entry.appId || 'unknown';
+  const subId = entry.subId || '';
+  const timeSeries = entry?.request?.pipeline?.[0]?.source?.timeSeries;
+
+  if (timeSeries && typeof timeSeries === 'object') {
+    const { first = '', count = '', period = '' } = timeSeries;
+    return `${appId}::${subId}::${first}|${count}|${period}`;
+  }
+
+  const windowDays = Number(entry.lookbackDays ?? entry.windowDays ?? fallbackWindow);
+  const normalizedWindow = Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 'unknown';
+
+  return `${appId}::${subId}::window-${normalizedWindow}`;
+};
+
 const notifyPendingCallObservers = () =>
   dispatchGlobalEvent('pending-calls-updated', { calls: metadata_pending_api_calls });
 
@@ -397,6 +417,9 @@ const settlePendingDispatch = (entry, settledCount = 0, windowSize = null) => {
 
 export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
 
+export const buildPendingRequestSignature = (entry, fallbackWindow = null) =>
+  deriveTimeSeriesSignature(entry, fallbackWindow);
+
 export const stagePendingCallTable = (entries, lookbackDays) => {
   clearPendingCallQueue();
 
@@ -642,6 +665,7 @@ export const updateMetadataApiCalls = (entry, status, error = '', datasetCount =
   const callRecord = {
     appId: entry.appId,
     subId: entry.subId || '',
+    timeSeriesKey: deriveTimeSeriesSignature(entry),
     datasetCount: Number.isFinite(datasetCount) ? datasetCount : 0,
     status: status || 'unknown',
     error: error || '',
