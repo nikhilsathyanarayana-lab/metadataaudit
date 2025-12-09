@@ -520,12 +520,9 @@ const buildWorkbook = (
         'Expected format': selection.format,
         'Regex pattern': selection.regexPattern,
         Type: selection.type === 'account' ? 'Account' : 'Visitor',
-        'Data completeness': completeness.label,
-        'Top values': stats.topValues,
-        'Unique values': stats.uniqueValueCount,
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
         'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
-        'Needs review': stats.needsReview ? 'Yes' : 'No',
+        'Unique values': stats.uniqueValueCount,
       };
     });
 
