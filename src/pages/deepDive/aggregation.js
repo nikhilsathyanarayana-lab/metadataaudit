@@ -7,6 +7,7 @@ export const metadata_accounts = [];
 export const metadata_api_calls = [];
 export const metadata_pending_api_calls = [];
 export const pending_api_calls = metadata_pending_api_calls;
+const pendingWindowDispatches = new Map();
 const metadataVisitorAggregation = new Map();
 const metadataAccountAggregation = new Map();
 const metadataShapeSamples = { visitor: new Map(), account: new Map() };
@@ -53,6 +54,7 @@ export const clearDeepDiveCollections = () => {
   metadata_accounts.splice(0, metadata_accounts.length);
   metadata_api_calls.splice(0, metadata_api_calls.length);
   metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
+  pendingWindowDispatches.clear();
   metadataVisitorAggregation.clear();
   metadataAccountAggregation.clear();
   metadataShapeSamples.visitor.clear();
@@ -250,6 +252,16 @@ const normalizePendingKey = (entry) => {
   return candidate ? String(candidate) : '';
 };
 
+const getDispatchKey = (entry, windowSize) => {
+  const baseKey = normalizePendingKey(entry);
+  if (!baseKey) {
+    return '';
+  }
+  const normalizedWindow = Number(windowSize) || 'unknown';
+
+  return `${baseKey}::${normalizedWindow}`;
+};
+
 const findPendingCallIndex = (entry) => {
   const key = normalizePendingKey(entry);
 
@@ -320,7 +332,67 @@ const upsertPendingCall = (entry, overrides = {}) => {
 
 export const clearPendingCallQueue = () => {
   metadata_pending_api_calls.splice(0, metadata_pending_api_calls.length);
+  pendingWindowDispatches.clear();
   notifyPendingCallObservers();
+};
+
+const upsertPendingDispatch = (entry, plannedCount = 0, windowSize = null, reason = '') => {
+  const key = getDispatchKey(entry, windowSize);
+  const normalizedPlanned = Math.max(Number(plannedCount) || 0, 0);
+  const normalizedWindow = normalizeWindowSize(windowSize, null);
+
+  if (!key) {
+    return null;
+  }
+
+  const existing = pendingWindowDispatches.get(key) || {
+    queueKey: normalizePendingKey(entry),
+    appId: entry?.appId || '',
+    subId: entry?.subId || '',
+    windowSize: normalizedWindow,
+    planned: 0,
+    settled: 0,
+    pendingSplit: false,
+    reason: '',
+    updatedAt: '',
+  };
+
+  const nextRecord = {
+    ...existing,
+    planned: Math.max(existing.planned, normalizedPlanned),
+    pendingSplit: existing.pendingSplit || reason === 'split',
+    reason: reason || existing.reason || '',
+    updatedAt: new Date().toISOString(),
+  };
+
+  pendingWindowDispatches.set(key, nextRecord);
+
+  return nextRecord;
+};
+
+const settlePendingDispatch = (entry, settledCount = 0, windowSize = null) => {
+  const key = getDispatchKey(entry, windowSize);
+  const existing = pendingWindowDispatches.get(key);
+  const normalizedSettled = Math.max(Number(settledCount) || 0, 0);
+
+  if (!existing) {
+    return null;
+  }
+
+  const nextRecord = {
+    ...existing,
+    settled: Math.max(existing.settled || 0, normalizedSettled),
+    pendingSplit: existing.pendingSplit && normalizedSettled < (existing.planned || 0),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (nextRecord.settled >= nextRecord.planned) {
+    pendingWindowDispatches.delete(key);
+    return null;
+  }
+
+  pendingWindowDispatches.set(key, nextRecord);
+  return nextRecord;
 };
 
 export const registerPendingCall = (entry, overrides = {}) => upsertPendingCall(entry, overrides);
@@ -426,6 +498,17 @@ export const settlePendingWindowPlan = (entry, settledCount = 0, windowSize = nu
   notifyPendingCallObservers();
   return metadata_pending_api_calls[existingIndex];
 };
+
+export const trackPendingWindowDispatch = (entry, plannedCount = 0, windowSize = null, reason = '') =>
+  upsertPendingDispatch(entry, plannedCount, windowSize, reason);
+
+export const settlePendingWindowDispatch = (entry, settledCount = 0, windowSize = null) =>
+  settlePendingDispatch(entry, settledCount, windowSize);
+
+export const getPendingWindowDispatches = () =>
+  Array.from(pendingWindowDispatches.values()).filter(
+    (record) => (record?.planned || 0) > (record?.settled || 0) || record?.pendingSplit,
+  );
 
 export const getOutstandingPendingCalls = () => {
   if (typeof window !== 'undefined' && typeof window.showPendingApiQueue === 'function') {

@@ -19,6 +19,9 @@ import {
   updateMetadataCollections,
   updatePendingMetadataCallRequestCount,
   updatePendingCallWindowPlan,
+  getPendingWindowDispatches,
+  settlePendingWindowDispatch,
+  trackPendingWindowDispatch,
 } from '../deepDive/aggregation.js';
 import {
   DEEP_DIVE_CONCURRENCY,
@@ -76,6 +79,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   let completedProcessingSteps = 0;
   let successCount = 0;
   const deepDiveAccumulator = new Map();
+  let processingResponses = false;
+  let lastProcessingAtMs = 0;
 
   const getTotalApiCalls = () => {
     const { total } = summarizePendingMetadataCallProgress();
@@ -101,6 +106,20 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
     scheduleDomUpdate(() => {
       updateProcessingProgress?.(completedProcessingSteps, getTotalApiCalls());
     });
+
+  const markProcessingStart = () => {
+    processingResponses = true;
+    lastProcessingAtMs = Date.now();
+  };
+
+  const markProcessingActivity = () => {
+    lastProcessingAtMs = Date.now();
+  };
+
+  const markProcessingComplete = () => {
+    processingResponses = false;
+    lastProcessingAtMs = Date.now();
+  };
 
   const normalizeRequestCount = (summary) => {
     const count = Number.isFinite(summary?.requestCount)
@@ -176,6 +195,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       const normalizedCount = normalizeRequestCount(plannedCount);
       updatePendingMetadataCallRequestCount(entry, normalizedCount);
       updatePendingCallWindowPlan(entry, normalizedCount, windowSize, reason);
+      trackPendingWindowDispatch(entry, normalizedCount, windowSize, reason);
       syncApiProgress();
       syncProcessingProgress();
     };
@@ -207,6 +227,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         updatePendingQueue: syncPendingQueue,
         onRequestsSettled: (plannedCount, windowSize) => {
           settlePendingWindowPlan(entry, normalizeRequestCount(plannedCount), windowSize);
+          settlePendingWindowDispatch(entry, normalizeRequestCount(plannedCount), windowSize);
           syncApiProgress();
           syncProcessingProgress();
         },
@@ -244,29 +265,37 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       let normalizedFields = null;
       let datasetCount = 0;
 
-      for (const response of requestSummary.aggregatedResults) {
-        normalizedFields = await collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
-        datasetCount = Number.isFinite(normalizedFields?.datasetCount)
-          ? normalizedFields.datasetCount
-          : datasetCount;
-      }
+      markProcessingStart();
 
-      upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
-      updateMetadataApiCalls(entry, 'success', '', datasetCount);
-      const resolvedCall = resolvePendingMetadataCall(entry, 'completed');
-      logResponseFlowStep('pending call resolved', {
-        resolvedStatus: resolvedCall?.status,
-        resolvedError: resolvedCall?.error,
-      });
-      updateDeepDiveCallPlanStatus(entry, 'Completed');
-      for (const response of requestSummary.aggregatedResults) {
-        await updateMetadataCollections(response, entry);
+      try {
+        for (const response of requestSummary.aggregatedResults) {
+          markProcessingActivity();
+          normalizedFields = await collectDeepDiveMetadataFields(response, deepDiveAccumulator, entry);
+          datasetCount = Number.isFinite(normalizedFields?.datasetCount)
+            ? normalizedFields.datasetCount
+            : datasetCount;
+        }
+
+        upsertDeepDiveRecord(entry, normalizedFields, '', targetLookback);
+        updateMetadataApiCalls(entry, 'success', '', datasetCount);
+        const resolvedCall = resolvePendingMetadataCall(entry, 'completed');
+        logResponseFlowStep('pending call resolved', {
+          resolvedStatus: resolvedCall?.status,
+          resolvedError: resolvedCall?.error,
+        });
+        updateDeepDiveCallPlanStatus(entry, 'Completed');
+        for (const response of requestSummary.aggregatedResults) {
+          markProcessingActivity();
+          await updateMetadataCollections(response, entry);
+        }
+        logResponseFlowStep('response data persisted', {
+          datasetCount,
+          visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
+          accountFieldCount: normalizedFields?.accountFields?.size || 0,
+        });
+      } finally {
+        markProcessingComplete();
       }
-      logResponseFlowStep('response data persisted', {
-        datasetCount,
-        visitorFieldCount: normalizedFields?.visitorFields?.size || 0,
-        accountFieldCount: normalizedFields?.accountFields?.size || 0,
-      });
       successCount += 1;
       completedProcessingSteps += resolvedRequestCount;
       syncApiProgress();
@@ -301,6 +330,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
       updatePendingMetadataCallRequestCount(entry, resolvedRequestCount);
       settlePendingWindowPlan(entry, resolvedRequestCount, requestSummary?.appliedWindow);
+      settlePendingWindowDispatch(entry, resolvedRequestCount, requestSummary?.appliedWindow);
       syncApiProgress();
       syncProcessingProgress();
       const timedOut = error?.name === 'AbortError' || /timed out/i.test(error?.message || '');
@@ -325,6 +355,9 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       }
       completedProcessingSteps += resolvedRequestCount;
       syncProcessingProgress();
+      if (processingResponses) {
+        markProcessingComplete();
+      }
 
       logDeepDive('info', 'Deep dive entry marked as failed', {
         appId: entry.appId,
@@ -368,15 +401,17 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
 
     requestWatchdogTimer = setInterval(() => {
       const outstanding = getOutstandingPendingCalls();
+      const windowDispatches = getPendingWindowDispatches();
       const now = Date.now();
       const lastActivityAtMs = Math.max(
         lastCompletionAtMs || 0,
         lastDispatchAtMs || 0,
+        lastProcessingAtMs || 0,
         watchdogStartedAtMs,
       );
       const idleForMs = now - lastActivityAtMs;
 
-      if (!outstanding.length) {
+      if (!outstanding.length && !windowDispatches.length) {
         if (lastOutstandingCount > 0) {
           logDeepDive('debug', 'All deep dive requests completed; watchdog idle.');
         }
@@ -384,7 +419,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         return;
       }
 
-      lastOutstandingCount = outstanding.length;
+      lastOutstandingCount = outstanding.length + windowDispatches.length;
 
       if (idleForMs < WATCHDOG_IDLE_THRESHOLD_MS) {
         return;
@@ -405,29 +440,47 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       });
 
       const runningCalls = pendingSummary.filter((call) => call.running);
+      const processingActive =
+        processingResponses || (lastProcessingAtMs && now - lastProcessingAtMs < WATCHDOG_IDLE_THRESHOLD_MS);
+      const hasWindowDispatches = windowDispatches.length > 0;
+      const hasActiveRequests = activeRequests > 0;
 
       // If at least one pending call is actively running, downgrade the watchdog alert
       // to avoid flagging legitimate work as stalled.
-      if (runningCalls.length) {
+      if (runningCalls.length || hasActiveRequests || processingActive || hasWindowDispatches) {
         logDeepDive('info', 'Deep dive requests still running; watchdog continuing to monitor.', {
           outstandingCount: outstanding.length,
+          windowDispatchCount: windowDispatches.length,
           idleForMs: Math.round(idleForMs),
           lastDispatchAtMs: lastDispatchAtMs || null,
           lastDispatchAtIso: lastDispatchAtMs ? new Date(lastDispatchAtMs).toISOString() : '',
           lastCompletionAtMs: lastCompletionAtMs || null,
+          lastProcessingAtMs: lastProcessingAtMs || null,
+          lastProcessingAtIso: lastProcessingAtMs ? new Date(lastProcessingAtMs).toISOString() : '',
+          processingActive,
+          processingResponses,
+          activeRequests,
           runningCount: runningCalls.length,
           outstanding: pendingSummary,
+          windowDispatches,
         });
         return;
       }
 
       logDeepDive('warn', 'Deep dive requests appear stalled; no recent dispatch or completion.', {
         outstandingCount: outstanding.length,
+        windowDispatchCount: windowDispatches.length,
         idleForMs: Math.round(idleForMs),
         lastDispatchAtMs: lastDispatchAtMs || null,
         lastDispatchAtIso: lastDispatchAtMs ? new Date(lastDispatchAtMs).toISOString() : '',
         lastCompletionAtMs: lastCompletionAtMs || null,
+        lastProcessingAtMs: lastProcessingAtMs || null,
+        lastProcessingAtIso: lastProcessingAtMs ? new Date(lastProcessingAtMs).toISOString() : '',
+        processingActive,
+        processingResponses,
+        activeRequests,
         outstanding: pendingSummary,
+        windowDispatches,
       });
     }, WATCHDOG_INTERVAL_MS);
   };
