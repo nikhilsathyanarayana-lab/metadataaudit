@@ -154,7 +154,7 @@ const initDeepDive = async () => {
     const rows = [];
     const renderedRows = [];
     const getRenderedRows = () => renderedRows;
-    const openAppNameModal = await setupManualAppNameModal(
+    const appNameModal = await setupManualAppNameModal(
       manualAppNames,
       rows,
       getRenderedRows,
@@ -198,7 +198,7 @@ const initDeepDive = async () => {
             visitorTableBody,
             rows,
             'visitor',
-            openAppNameModal,
+            appNameModal?.open,
             openRegexModal,
             selectedLookback,
           ),
@@ -208,7 +208,7 @@ const initDeepDive = async () => {
             accountTableBody,
             rows,
             'account',
-            openAppNameModal,
+            appNameModal?.open,
             openRegexModal,
             selectedLookback,
           ),
