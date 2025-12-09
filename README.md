@@ -68,7 +68,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 - **Watchdog + staging**: `runDeepDiveScan()` logs the start, hydrates totals from `metadata_pending_api_calls`, and arms a stall watchdog so long-running or stuck calls are resolved with an error status.
 - **Staggered dispatch**: Requests are enqueued with `scheduleDeepDiveRequest()`; `dispatchNextRequest()` spaces them by the configured delay and enforces the concurrency cap before calling `markPendingMetadataCallStarted()`.
 - **API execution**: `runAggregationWithFallbackWindows()` issues the Engage aggregation request. When payloads are too large it triggers `onWindowSplit`, increasing the recorded request count and updating UI status text while making multiple API calls for the split windows.
-- **Response handling**: Successful responses flow through `collectDeepDiveMetadataFields()` and `updateMetadataCollections()`, log completion details, and resolve `metadata_pending_api_calls`. Failures capture whether the API call or response processing failed and mark the call plan status accordingly.
+- **Response handling**: Successful responses flow through `collectDeepDiveMetadataFields()`, which now normalizes metadata field names and persists visitor/account aggregations in a single pass. Completion details are logged before resolving `metadata_pending_api_calls`. Failures capture whether the API call or response processing failed and mark the call plan status accordingly.
 
 ## Console helpers
 - `window.deepDiveData`
@@ -77,12 +77,12 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Sample invocation: `window.deepDiveData?.metadataFieldRecords?.length`.
   - Output: Object keyed by the storage entries above with their cached record arrays.
 - `window.metadata_visitors`
-  - Context: Deep Dive scans after `updateMetadataCollections()` runs.
+  - Context: Deep Dive scans after `collectDeepDiveMetadataFields()` processes responses.
   - Expected input: None; filled when visitor metadata responses are aggregated.
   - Sample invocation: `window.metadata_visitors[0]?.apps[0]?.metadataFields`.
   - Output: Array of `{ subId, apps: [{ appId, metadataFields: [{ field, values: [{ value, count }] }] }] }` sorted for visitor exports.
 - `window.metadata_accounts`
-  - Context: Deep Dive scans after `updateMetadataCollections()` processes account metadata.
+  - Context: Deep Dive scans after `collectDeepDiveMetadataFields()` aggregates account metadata.
   - Expected input: None; values flow from account metadata aggregation.
   - Sample invocation: `window.metadata_accounts.find((row) => row.field === 'industry')`.
   - Output: Array of flat rows `{ subId, appId, field, value, count }` ordered for XLSX/JSON exports.
