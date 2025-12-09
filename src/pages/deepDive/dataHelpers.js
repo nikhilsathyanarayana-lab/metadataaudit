@@ -6,6 +6,7 @@ import {
   LOOKBACK_OPTIONS,
   TARGET_LOOKBACK,
   logDeepDive,
+  logDeepDiveFunctionCall,
 } from './constants.js';
 import { extractAppIds } from '../../services/appUtils.js';
 import { applyManualAppNames, getManualAppName, loadManualAppNames } from '../../services/appNames.js';
@@ -17,6 +18,7 @@ import {
 export { extractAppIds };
 
 export const dedupeAndSortFields = (fields) => {
+  logDeepDiveFunctionCall('dedupeAndSortFields', { hasFields: Boolean(fields) });
   if (fields instanceof Set) {
     return Array.from(fields).sort();
   }
@@ -85,9 +87,13 @@ const readSessionCollection = (key) => {
   }
 };
 
-export const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0));
+export const yieldToBrowser = () => {
+  logDeepDiveFunctionCall('yieldToBrowser');
+  return new Promise((resolve) => setTimeout(resolve, 0));
+};
 
 export const scheduleDomUpdate = (callback) => {
+  logDeepDiveFunctionCall('scheduleDomUpdate');
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(() => callback());
     return;
@@ -165,6 +171,7 @@ const isSelectedEntry = (entry) => {
 };
 
 export const getGlobalCollection = (key) => {
+  logDeepDiveFunctionCall('getGlobalCollection', { key });
   if (!key) {
     return [];
   }
@@ -198,6 +205,7 @@ export const getGlobalCollection = (key) => {
 };
 
 export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
+  logDeepDiveFunctionCall('loadAppSelections', { lookback });
   const manualAppNames = loadManualAppNames();
   const launchCollection = readSessionCollection('subidLaunchData');
   const launchSelections = normalizeLaunchSelections(launchCollection.value);
@@ -311,12 +319,15 @@ export const loadAppSelections = (lookback = TARGET_LOOKBACK) => {
   return applyManualAppNames(selectionEntries, manualAppNames);
 };
 
-export const normalizeMetadataRecords = (records) =>
-  (Array.isArray(records) ? records : []).filter(
+export const normalizeMetadataRecords = (records) => {
+  logDeepDiveFunctionCall('normalizeMetadataRecords', { count: Array.isArray(records) ? records.length : 0 });
+  return (Array.isArray(records) ? records : []).filter(
     (record) => record?.appId && Number.isFinite(record?.windowDays),
   );
+};
 
 export const dedupeMetadataRecords = (...recordSets) => {
+  logDeepDiveFunctionCall('dedupeMetadataRecords', { setCount: recordSets.length });
   const deduped = new Map();
 
   recordSets
@@ -330,12 +341,15 @@ export const dedupeMetadataRecords = (...recordSets) => {
   return Array.from(deduped.values());
 };
 
-export const loadMetadataRecords = () =>
-  dedupeMetadataRecords(normalizeMetadataRecords(getGlobalCollection(metadataFieldGlobalKey)));
+export const loadMetadataRecords = () => {
+  logDeepDiveFunctionCall('loadMetadataRecords');
+  return dedupeMetadataRecords(normalizeMetadataRecords(getGlobalCollection(metadataFieldGlobalKey)));
+};
 
 const deepDiveRecords = [];
 
 export const loadDeepDiveRecords = () => {
+  logDeepDiveFunctionCall('loadDeepDiveRecords');
   const incomingRecords = getGlobalCollection(deepDiveGlobalKey)
     .filter((record) => record?.appId)
     .map((record) => ({
@@ -361,6 +375,7 @@ export const upsertDeepDiveRecord = (
   errorMessage = '',
   lookback = TARGET_LOOKBACK,
 ) => {
+  logDeepDiveFunctionCall('upsertDeepDiveRecord', { appId: entry?.appId, subId: entry?.subId });
   if (!entry?.appId) {
     return;
   }
@@ -397,6 +412,7 @@ export const upsertDeepDiveRecord = (
 };
 
 export const syncDeepDiveRecordsAppName = (appId, appName, subId) => {
+  logDeepDiveFunctionCall('syncDeepDiveRecordsAppName', { appId, subId });
   if (!appId) {
     return;
   }
@@ -415,6 +431,7 @@ export const syncDeepDiveRecordsAppName = (appId, appName, subId) => {
 };
 
 export const syncMetadataRecordsAppName = (appId, appName, metadataRecords, subId) => {
+  logDeepDiveFunctionCall('syncMetadataRecordsAppName', { appId, subId });
   if (!appId || !Array.isArray(metadataRecords)) {
     return metadataRecords;
   }
@@ -433,6 +450,7 @@ export const syncMetadataRecordsAppName = (appId, appName, metadataRecords, subI
 };
 
 export const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) => {
+  logDeepDiveFunctionCall('groupMetadataByApp', { recordCount: records?.length || 0, targetLookback });
   const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const grouped = new Map();
 
@@ -468,6 +486,10 @@ export const groupMetadataByApp = (records, targetLookback = TARGET_LOOKBACK) =>
 };
 
 export const buildRowsForLookback = (metadataRecords, lookback) => {
+  logDeepDiveFunctionCall('buildRowsForLookback', {
+    recordCount: metadataRecords?.length || 0,
+    lookback,
+  });
   const groupedRecords = groupMetadataByApp(metadataRecords, lookback);
 
   if (groupedRecords.length) {
@@ -486,6 +508,11 @@ export const buildRowsForLookback = (metadataRecords, lookback) => {
 };
 
 export const buildScanEntries = (records, manualAppNames, targetLookback = TARGET_LOOKBACK) => {
+  logDeepDiveFunctionCall('buildScanEntries', {
+    recordCount: records?.length || 0,
+    manualCount: manualAppNames ? Object.keys(manualAppNames).length : 0,
+    targetLookback,
+  });
   const lookback = LOOKBACK_OPTIONS.includes(targetLookback) ? targetLookback : TARGET_LOOKBACK;
   const mapped = new Map();
   const selections = loadAppSelections(lookback).filter(isSelectedEntry);
@@ -681,4 +708,7 @@ export const buildScanEntries = (records, manualAppNames, targetLookback = TARGE
   return Array.from(mapped.values());
 };
 
-export const getDeepDiveRecords = () => deepDiveRecords;
+export const getDeepDiveRecords = () => {
+  logDeepDiveFunctionCall('getDeepDiveRecords', { recordCount: deepDiveRecords.length });
+  return deepDiveRecords;
+};

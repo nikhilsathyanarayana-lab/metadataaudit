@@ -1,5 +1,9 @@
 // Maintains the deep dive call plan so UI and debug helpers can reflect queued work.
-import { DEEP_DIVE_REQUEST_SPACING_MS, logDeepDive } from '../deepDive/constants.js';
+import {
+  DEEP_DIVE_REQUEST_SPACING_MS,
+  logDeepDive,
+  logDeepDiveFunctionCall,
+} from '../deepDive/constants.js';
 import { metadata_pending_api_calls, stagePendingCallTable } from '../deepDive/aggregation.js';
 
 const API_CALL_TIMEOUT_MS = 60_000;
@@ -7,12 +11,14 @@ const API_CALL_TIMEOUT_MS = 60_000;
 const deepDiveCallPlan = metadata_pending_api_calls;
 
 const syncCallPlanToWindow = () => {
+  logDeepDiveFunctionCall('syncCallPlanToWindow');
   if (typeof window !== 'undefined') {
     window.deepDiveCallPlan = deepDiveCallPlan;
   }
 };
 
 const stageDeepDiveCallPlan = (entries, lookbackDays) => {
+  logDeepDiveFunctionCall('stageDeepDiveCallPlan', { entries: entries?.length, lookbackDays });
   const timestamp = new Date().toISOString();
   const operation = 'deepDiveMetadata';
 
@@ -45,6 +51,7 @@ const stageDeepDiveCallPlan = (entries, lookbackDays) => {
 };
 
 const updateDeepDiveCallPlanStatus = (entry, status, detail = '') => {
+  logDeepDiveFunctionCall('updateDeepDiveCallPlanStatus', { appId: entry?.appId || entry, status });
   const appId = typeof entry === 'string' ? entry : entry?.appId;
 
   if (!appId) {
@@ -70,6 +77,7 @@ const updateDeepDiveCallPlanStatus = (entry, status, detail = '') => {
 syncCallPlanToWindow();
 
 const calculateStallThreshold = (call) => {
+  logDeepDiveFunctionCall('calculateStallThreshold', { appId: call?.appId });
   const queueIndex = metadata_pending_api_calls.findIndex((item) => item?.appId === call?.appId);
   const position = queueIndex === -1 ? 1 : queueIndex + 1;
 

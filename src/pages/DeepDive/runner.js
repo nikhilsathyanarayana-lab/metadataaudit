@@ -30,11 +30,16 @@ import {
   DEEP_DIVE_REQUEST_SPACING_MS,
   logDeepDive,
   logDeepDiveWatchdog,
+  logDeepDiveFunctionCall,
 } from '../deepDive/constants.js';
 import { scheduleDomUpdate, upsertDeepDiveRecord, yieldToBrowser } from '../deepDive/dataHelpers.js';
 import { stageDeepDiveCallPlan, updateDeepDiveCallPlanStatus } from './plan.js';
 
 const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSuccessfulCall, onComplete) => {
+  logDeepDiveFunctionCall('runDeepDiveScan', {
+    entryCount: Array.isArray(entries) ? entries.length : 0,
+    lookback,
+  });
   const plannedEntries = Array.isArray(entries) ? [...entries] : [];
   clearDeepDiveCollections();
 
@@ -165,6 +170,7 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
   });
 
   const processEntry = async (entry) => {
+    logDeepDiveFunctionCall('processEntry', { appId: entry?.appId, subId: entry?.subId });
     logDeepDive('info', 'Processing deep dive entry', {
       appId: entry.appId,
       subId: entry.subId,

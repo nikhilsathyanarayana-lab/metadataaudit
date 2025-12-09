@@ -22,3 +22,6 @@ const deepDiveWatchdogLogger = createLogger('DeepDive Watchdog', {
 
 export const logDeepDive = deepDiveLogger.log;
 export const logDeepDiveWatchdog = deepDiveWatchdogLogger.log;
+export const logDeepDiveFunctionCall = (functionName, details = {}) => {
+  logDeepDive('debug', 'Deep dive function invoked', { functionName, ...details });
+};
