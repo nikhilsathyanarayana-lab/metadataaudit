@@ -473,7 +473,7 @@ const setupManualAppNameModal = async (manualAppNames, entries, allRows, syncApp
     }
   });
 
-  return openModal;
+  return { open: openModal, close: closeModal };
 };
 
 const parseMetadataFields = (apiResponse) => {
@@ -812,17 +812,17 @@ export const initMetadataFields = () => {
       }
     });
 
-    const openAppNameModal = await setupManualAppNameModal(
+    const appNameModal = await setupManualAppNameModal(
       manualAppNames,
       entries,
       allRows,
       syncMetadataSnapshotAppName,
     );
 
-    if (typeof openAppNameModal === 'function') {
+    if (appNameModal?.open) {
       allRows.forEach(({ entry, appNameButton }) => {
         if (appNameButton) {
-          appNameButton.addEventListener('click', () => openAppNameModal(entry));
+          appNameButton.addEventListener('click', () => appNameModal.open(entry));
           appNameButton.setAttribute('aria-label', `Set app name for ${entry.appId}`);
         }
       });

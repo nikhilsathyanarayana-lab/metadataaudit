@@ -252,5 +252,5 @@ export const setupManualAppNameModal = async (manualAppNames, rows, getRenderedR
     }
   });
 
-  return openModal;
+  return { open: openModal, close: closeModal };
 };

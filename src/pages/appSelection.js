@@ -32,7 +32,7 @@ export const initAppSelection = async () => {
   const rows = [];
   const renderedRows = [];
   const getRenderedRows = () => renderedRows;
-  let openAppNameModal = () => {};
+  let appNameModal = { open: () => {}, close: () => {} };
   const statusBanner = createSharedApiStatusBanner();
 
   if (!proceedButton || !tableBody) {
@@ -366,7 +366,7 @@ export const initAppSelection = async () => {
       subIdCell.dataset.label = 'Sub ID';
       subIdCell.textContent = rowData.subId;
 
-      const { cell: appNameCell, appNameButton } = buildAppNameCell(rowData, openAppNameModal);
+      const { cell: appNameCell, appNameButton } = buildAppNameCell(rowData, appNameModal?.open);
 
       const appIdCell = document.createElement('td');
       appIdCell.dataset.label = 'App ID';
@@ -618,7 +618,7 @@ export const initAppSelection = async () => {
     }
   };
 
-  openAppNameModal = await setupManualAppNameModal(
+  appNameModal = await setupManualAppNameModal(
     manualAppNames,
     rows,
     getRenderedRows,
