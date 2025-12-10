@@ -185,14 +185,14 @@ export const runAggregationWithFallbackWindows = async ({
               }
             }
 
-            requestLogger.debug('Dispatching aggregation request.', {
-              requestId,
-              windowSize,
-              chunkSize: chunkSizeUsed,
-              payloadLength,
-            });
-
             setTimeout(() => {
+              requestLogger.debug('Dispatching aggregation request.', {
+                requestId,
+                windowSize,
+                chunkSize: chunkSizeUsed,
+                payloadLength,
+              });
+
               postAggregationWithIntegrationKey(entry, payload, fetchImpl)
                 .then((response) => {
                   const durationMs = Date.now() - startTime;
