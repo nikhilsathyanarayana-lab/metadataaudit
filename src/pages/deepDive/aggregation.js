@@ -643,7 +643,15 @@ export const registerApiQueueInspector = () => {
 
 registerApiQueueInspector();
 
-const isResolvedCall = (call) => call?.status === 'Completed';
+const resolvedStatuses = ['completed', 'failed'];
+
+const isResolvedCall = (call) => {
+  if (!call?.status) {
+    return false;
+  }
+
+  return resolvedStatuses.includes(String(call.status).toLowerCase());
+};
 
 export const summarizePendingCallProgress = () => {
   logDeepDiveFunctionCall('summarizePendingCallProgress');
