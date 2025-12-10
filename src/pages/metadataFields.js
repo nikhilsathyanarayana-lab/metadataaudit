@@ -621,6 +621,22 @@ const fetchAndPopulate = (
 
   const isAborted = (entry) => abortedEntries.has(entryKey(entry));
 
+  const pendingDebugNotices = new Map();
+
+  const queueDebugApiCallNotice = (payload, windowDays, entry) => {
+    if (!isDebugLoggingEnabled() || !payloadHasTimeSeriesAndAppId(payload)) {
+      return;
+    }
+
+    const requestId = payload?.request?.requestId;
+
+    if (!requestId) {
+      return;
+    }
+
+    pendingDebugNotices.set(requestId, { payload, windowDays, entry });
+  };
+
   const postDebugApiCallNotice = (payload, windowDays, entry) => {
     if (!isDebugLoggingEnabled() || !payloadHasTimeSeriesAndAppId(payload)) {
       return;
@@ -744,13 +760,30 @@ const fetchAndPopulate = (
         maxWindowHint: shouldSkipLargeWindow ? startingWindowHint : undefined,
         preferredChunkSize,
         updatePendingQueue,
-        fetchImpl: throttledFetch,
+        fetchImpl: async (url, options) => {
+          if (isDebugLoggingEnabled() && options?.body) {
+            try {
+              const payload = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+              const requestId = payload?.request?.requestId;
+              const pending = requestId ? pendingDebugNotices.get(requestId) : null;
+
+              if (pending) {
+                pendingDebugNotices.delete(requestId);
+                postDebugApiCallNotice(pending.payload, pending.windowDays, pending.entry);
+              }
+            } catch (parseError) {
+              metadataLogger.warn('Unable to parse metadata request payload for debug logging.', parseError);
+            }
+          }
+
+          return throttledFetch(url, options);
+        },
         onRequestsPlanned: () => updateProgressText(),
         onRequestsSettled: () => {
           updateProgressText();
         },
         onBeforeRequest: (payload, context) =>
-          postDebugApiCallNotice(payload, context?.windowSize ?? windowDays, entry),
+          queueDebugApiCallNotice(payload, context?.windowSize ?? windowDays, entry),
       });
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
