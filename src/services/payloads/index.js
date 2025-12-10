@@ -224,6 +224,7 @@ export const buildChunkedAppListingPayloads = createChunkedPayloadBuilder({
 export const buildMetadataFieldsForAppPayload = (appId, windowDays) => ({
   response: { mimeType: 'application/json' },
   request: {
+    requestId: `metadata-fields-for-app-${appId}`,
     name: 'metadata-fields-for-app',
     pipeline: [
       {
