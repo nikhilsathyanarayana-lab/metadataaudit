@@ -623,6 +623,11 @@ const fetchAndPopulate = (
 
   const pendingDebugNotices = new Map();
 
+  const debugMessageContext = (windowDays, entry) => ({
+    appLabel: entry?.appId ? `app ${entry.appId}` : 'unknown app',
+    windowLabel: Number.isFinite(windowDays) ? `${windowDays}-day` : 'unknown window',
+  });
+
   const queueDebugApiCallNotice = (payload, windowDays, entry) => {
     if (!isDebugLoggingEnabled() || !payloadHasTimeSeriesAndAppId(payload)) {
       return;
@@ -634,6 +639,9 @@ const fetchAndPopulate = (
       return;
     }
 
+    const { appLabel, windowLabel } = debugMessageContext(windowDays, entry);
+
+    showMessage(messageRegion, `Queuing ${windowLabel} time series request for ${appLabel}.`, 'info');
     pendingDebugNotices.set(requestId, { payload, windowDays, entry });
   };
 
@@ -642,10 +650,9 @@ const fetchAndPopulate = (
       return;
     }
 
-    const appLabel = entry?.appId ? `app ${entry.appId}` : 'unknown app';
-    const windowLabel = Number.isFinite(windowDays) ? `${windowDays}-day` : 'unknown window';
+    const { appLabel, windowLabel } = debugMessageContext(windowDays, entry);
     const requestId = payload?.request?.requestId || 'unspecified request';
-    const message = `Dispatching ${windowLabel} time series request for ${appLabel}.`;
+    const message = `Sending ${windowLabel} time series request for ${appLabel}.`;
 
     showMessage(messageRegion, message, 'info');
     metadataLogger.info('Metadata fields API call (debug)', { appId: entry?.appId || '', windowDays, requestId });
