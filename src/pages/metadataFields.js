@@ -316,23 +316,21 @@ const syncMetadataSnapshotAppName = (appId, appName, subId) => {
 const createMessageRegion = () => ensureMessageRegion('metadata-fields-messages');
 
 const createThrottledFetch = (delayMs = MIN_METADATA_REQUEST_DELAY_MS, baseFetch = fetch) => {
-  let queue = Promise.resolve();
-  let nextAvailableAt = 0;
+  let lastDispatchedAt = 0;
 
-  return (...args) => {
-    queue = queue.catch(() => {}).then(async () => {
-      const now = Date.now();
-      const waitMs = Math.max(0, nextAvailableAt - now);
+  return async (...args) => {
+    const now = Date.now();
+    const scheduledStart = Math.max(now, lastDispatchedAt + delayMs);
 
-      if (waitMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-      }
+    lastDispatchedAt = scheduledStart;
 
-      nextAvailableAt = Date.now() + delayMs;
-      return baseFetch(...args);
-    });
+    const waitMs = Math.max(0, scheduledStart - now);
 
-    return queue;
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    return baseFetch(...args);
   };
 };
 
