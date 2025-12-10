@@ -813,7 +813,10 @@ const fetchAndPopulate = (
       const statusMatch = errorMessage.match(/\((\d{3})\)/);
       const statusCode = Number(statusMatch?.[1]) || null;
       const tooMuchData =
-        statusCode === 413 || RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '') || isTooMuchDataOrTimeout(error);
+        statusCode === 413
+        || statusCode === 408
+        || RESPONSE_TOO_LARGE_MESSAGE.test(errorMessage || '')
+        || isTooMuchDataOrTimeout(error);
       clientErrorWithoutRecovery = !tooMuchData && statusCode >= 400 && statusCode < 500;
       const cellMessage = tooMuchData ? 'too much data' : 'Error fetching data';
 
