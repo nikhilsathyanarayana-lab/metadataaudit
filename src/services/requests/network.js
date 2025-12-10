@@ -25,7 +25,6 @@ const logAggregationRequestPayload = (endpoint, payload, status, responseBody) =
 
 const normalizeDomain = (domain) => domain?.replace(/\/$/, '') || '';
 export const FALLBACK_WINDOW_SEQUENCE = [180, 60, 30, 10, 7, 1];
-const DEFAULT_AGGREGATION_TIMEOUT_MS = 60_000;
 const deriveChunkSizes = (windowSize, fallbackWindows, preferredChunkSize, maxWindowHint) => {
   const chunkSizes = [];
 
@@ -447,27 +446,17 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
   const querySuffix = queryParams.length ? `?${queryParams.join('&')}` : '';
   const endpoint = `${normalizeDomain(domain)}/api/v1/aggregation${querySuffix}`;
   let response;
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  let timedOut = false;
-  const timeoutId = controller
-    ? setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, DEFAULT_AGGREGATION_TIMEOUT_MS)
-    : null;
 
   try {
     response = await fetchImpl(endpoint, {
       method: 'POST',
       headers: buildRequestHeaders(integrationKey),
       body: JSON.stringify(payload),
-      signal: controller?.signal,
     });
   } catch (networkError) {
-    const timeoutMessage = `Aggregation request timed out after ${DEFAULT_AGGREGATION_TIMEOUT_MS / 1000} seconds.`;
     const abortedByBrowser = networkError?.name === 'AbortError';
     const failedToFetch = /failed to fetch/i.test(networkError?.message || '');
-    const isCorsBlocked = !timedOut && (abortedByBrowser || networkError?.name === 'TypeError' || failedToFetch);
+    const isCorsBlocked = abortedByBrowser || networkError?.name === 'TypeError' || failedToFetch;
     const corsHint = 'CORS/preflight blocked. Ensure the proxy or browser allows this request.';
 
     if (isCorsBlocked) {
@@ -478,8 +467,8 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
       });
     }
 
-    if (timedOut || networkError?.name === 'AbortError') {
-      throw createAggregationError(timeoutMessage, null, '', {
+    if (abortedByBrowser) {
+      throw createAggregationError('Aggregation request was aborted by the browser.', null, '', {
         isAbortError: true,
         endpoint,
         requestId,
@@ -495,10 +484,6 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
       requestId,
       hint: isCorsBlocked ? corsHint : undefined,
     });
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
   }
 
   const rawBody = await response?.text().catch(() => '');
