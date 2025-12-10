@@ -27,6 +27,8 @@ import {
   LOOKBACK_OPTIONS,
   TARGET_LOOKBACK,
   DEEP_DIVE_REQUEST_SPACING_MS,
+  DEEP_DIVE_MAX_WINDOW_HINT_DAYS,
+  DEEP_DIVE_CHUNK_SIZE_HINT_DAYS,
   logDeepDive,
   logDeepDiveWatchdog,
   logDeepDiveFunctionCall,
@@ -224,6 +226,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       requestSummary = await runAggregationWithFallbackWindows({
         entry,
         totalWindowDays: targetLookback,
+        maxWindowHint: DEEP_DIVE_MAX_WINDOW_HINT_DAYS,
+        preferredChunkSize: DEEP_DIVE_CHUNK_SIZE_HINT_DAYS,
         buildBasePayload: (windowSize) => buildMetaEventsPayload(entry.appId, windowSize),
         buildChunkedPayloads: (windowSize, chunkSize) =>
           buildChunkedMetaEventsPayloads(entry.appId, windowSize, chunkSize),
