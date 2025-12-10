@@ -46,6 +46,7 @@ export const isTooMuchDataOrTimeout = (error) => {
 
   return (
     status === 413
+    || status === 408
     || RESPONSE_TOO_LARGE_MESSAGE.test(messageText)
     || RESPONSE_TOO_LARGE_MESSAGE.test(normalizedBody || '')
     || AGGREGATION_TIMEOUT_MESSAGE.test(messageText)
