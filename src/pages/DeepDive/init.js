@@ -16,6 +16,7 @@ import {
   logDeepDive,
   logDeepDiveFunctionCall,
 } from '../deepDive/constants.js';
+import { DEFAULT_FORMAT_OPTION, REGEX_FORMAT_OPTION } from '../deepDive/formatOptions.js';
 import { summarizeJsonShape } from '../deepDive/shapeUtils.js';
 import {
   setExportAvailability,
@@ -28,6 +29,47 @@ import {
 import { setupManualAppNameModal, setupRegexFormatModal } from '../deepDive/ui/modals.js';
 import { stageDeepDiveCallPlan } from './plan.js';
 import { runDeepDiveScan } from './runner.js';
+
+const expectedFormatSelections = new Map();
+
+const buildFormatSelectionKey = (subId, appId, fieldName) => {
+  const normalizedSubId = subId === undefined || subId === null ? '' : String(subId);
+  const normalizedAppId = appId === undefined || appId === null ? '' : String(appId);
+  const normalizedField = fieldName ? String(fieldName) : '';
+
+  if (!normalizedSubId || !normalizedAppId || !normalizedField) {
+    return '';
+  }
+
+  return `${normalizedSubId}::${normalizedAppId}::${normalizedField}`;
+};
+
+const rememberFormatSelection = ({ appId, fieldName, option, regexPattern, subId }) => {
+  const key = buildFormatSelectionKey(subId, appId, fieldName);
+
+  if (!key) {
+    return;
+  }
+
+  if (!option || option === DEFAULT_FORMAT_OPTION) {
+    expectedFormatSelections.delete(key);
+    return;
+  }
+
+  const normalizedPattern = option === REGEX_FORMAT_OPTION ? regexPattern || '' : '';
+
+  expectedFormatSelections.set(key, { option, regexPattern: normalizedPattern });
+};
+
+const recallFormatSelection = (subId, appId, fieldName) => {
+  const key = buildFormatSelectionKey(subId, appId, fieldName);
+
+  if (!key) {
+    return undefined;
+  }
+
+  return expectedFormatSelections.get(key);
+};
 
 const hydrateCachedExportCollections = () => {
   logDeepDiveFunctionCall('hydrateCachedExportCollections');
@@ -154,6 +196,10 @@ const initDeepDive = async () => {
     const rows = [];
     const renderedRows = [];
     const getRenderedRows = () => renderedRows;
+    const persistExpectedFormat = ({ appId, fieldName, option, regexPattern, subId }) =>
+      rememberFormatSelection({ appId, fieldName, option, regexPattern, subId });
+    const lookupExpectedFormat = (subId, appId, fieldName) =>
+      recallFormatSelection(subId, appId, fieldName);
     const appNameModal = await setupManualAppNameModal(
       manualAppNames,
       rows,
@@ -201,6 +247,8 @@ const initDeepDive = async () => {
             appNameModal?.open,
             openRegexModal,
             selectedLookback,
+            lookupExpectedFormat,
+            persistExpectedFormat,
           ),
         );
         renderedRows.push(
@@ -211,6 +259,8 @@ const initDeepDive = async () => {
             appNameModal?.open,
             openRegexModal,
             selectedLookback,
+            lookupExpectedFormat,
+            persistExpectedFormat,
           ),
         );
 

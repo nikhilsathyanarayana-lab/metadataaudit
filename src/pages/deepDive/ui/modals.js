@@ -3,6 +3,7 @@ import { loadTemplate } from '../../../controllers/modalLoader.js';
 import { getManualAppName, setManualAppName } from '../../../services/appNames.js';
 import { ensureMessageRegion, showMessage } from '../../../ui/messageHelpers.js';
 import { applyBannerTone, setBannerText } from '../../../ui/statusBanner.js';
+import { REGEX_FORMAT_OPTION } from '../formatOptions.js';
 
 const updateRegexFeedback = (tone, message) => {
   const feedback = document.getElementById('regex-format-modal-feedback');
@@ -102,9 +103,13 @@ export const setupRegexFormatModal = async () => {
     }
 
     activeContext.select.dataset.regexPattern = pattern;
-    activeContext.select.value = 'regex';
-    activeContext.select.dataset.previousValue = 'regex';
+    activeContext.select.value = REGEX_FORMAT_OPTION;
+    activeContext.select.dataset.previousValue = REGEX_FORMAT_OPTION;
     activeContext.select.title = `Regex pattern: ${pattern}`;
+
+    if (typeof activeContext.onFormatChange === 'function') {
+      activeContext.onFormatChange({ option: REGEX_FORMAT_OPTION, regexPattern: pattern });
+    }
 
     closeModal(false);
   };
