@@ -311,6 +311,32 @@ const applyOverviewFormatting = (worksheet) => {
 
   headerRow.eachCell(styleCell);
 
+  const headerLookup = new Map();
+  headerRow.eachCell((cell, columnNumber) => {
+    const headerText = String(cell.value || '').trim().toLowerCase();
+    if (headerText) {
+      headerLookup.set(headerText, columnNumber);
+    }
+  });
+
+  const ensureColumnWidth = (headerText) => {
+    const columnIndex = headerLookup.get(headerText.toLowerCase());
+    if (!columnIndex) {
+      return;
+    }
+
+    const column = worksheet.getColumn(columnIndex);
+    if (!column) {
+      return;
+    }
+
+    const desiredWidth = Math.max(column.width || 0, headerText.length + 2);
+    column.width = desiredWidth;
+  };
+
+  ensureColumnWidth('Total fields');
+  ensureColumnWidth('Records Scanned');
+
   const subIdColumn = worksheet.getColumn(1);
   if (subIdColumn) {
     subIdColumn.width = subIdColumn.width ? subIdColumn.width * 3 : 30;
