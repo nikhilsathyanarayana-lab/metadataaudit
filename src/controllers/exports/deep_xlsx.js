@@ -16,6 +16,36 @@ const NULL_RATE_THRESHOLD = 0.2;
 const MATCH_RATE_THRESHOLD = 0.8;
 const LOOKBACK_WINDOWS = [180, 30, 7];
 
+const buildConsistentFieldCounts = (fieldSetsBySub = new Map()) => {
+  const intersectSets = (sets = []) => {
+    if (!sets.length) {
+      return 0;
+    }
+
+    const intersection = new Set(sets[0]);
+    sets.slice(1).forEach((set) => {
+      for (const value of Array.from(intersection)) {
+        if (!set.has(value)) {
+          intersection.delete(value);
+        }
+      }
+    });
+
+    return intersection.size;
+  };
+
+  const counts = new Map();
+
+  fieldSetsBySub.forEach((typeSets, subId) => {
+    counts.set(subId, {
+      account: intersectSets(typeSets.account),
+      visitor: intersectSets(typeSets.visitor),
+    });
+  });
+
+  return counts;
+};
+
 const buildDefaultFileName = (metadataRecords = []) => {
   const subId = metadataRecords.find((record) => record?.subId)?.subId || '';
   return sanitizeFileName(
@@ -334,6 +364,7 @@ const applyOverviewFormatting = (worksheet) => {
     column.width = desiredWidth;
   };
 
+  ensureColumnWidth('Consistent Fields');
   ensureColumnWidth('Total fields');
   ensureColumnWidth('Records Scanned');
 
@@ -408,6 +439,7 @@ const buildWorkbook = (
   const totalDatasetCount = totalDatasets || 0;
   const valueLookup = valueLookupParam || new Map();
   const fieldCountsBySub = new Map();
+  const fieldSetsBySub = new Map();
   const fieldAnalysisEntries = [];
   const appSheets = [];
 
@@ -498,6 +530,8 @@ const buildWorkbook = (
     const appName = normalizeAppName(lookup?.appName || appSelection.rows[0]?.appName || '');
     const subId = lookup?.subId || appSelection.rows[0]?.subId || '';
     const trackedSubId = subId || 'No Sub ID captured';
+    const accountFields = new Set();
+    const visitorFields = new Set();
 
     if (!fieldCountsBySub.has(trackedSubId)) {
       fieldCountsBySub.set(trackedSubId, new Set());
@@ -540,6 +574,16 @@ const buildWorkbook = (
         uniqueValueCount: parseCount(stats.uniqueValueCount),
       });
 
+      if (selection.fieldName) {
+        if (selection.type === 'account') {
+          accountFields.add(selection.fieldName);
+        }
+
+        if (selection.type === 'visitor') {
+          visitorFields.add(selection.fieldName);
+        }
+      }
+
       return {
         Sub: subId,
         Field: selection.fieldName,
@@ -552,6 +596,18 @@ const buildWorkbook = (
       };
     });
 
+    if (!fieldSetsBySub.has(trackedSubId)) {
+      fieldSetsBySub.set(trackedSubId, { account: [], visitor: [] });
+    }
+
+    const fieldSetsForSub = fieldSetsBySub.get(trackedSubId);
+    if (accountFields.size > 0) {
+      fieldSetsForSub.account.push(accountFields);
+    }
+    if (visitorFields.size > 0) {
+      fieldSetsForSub.visitor.push(visitorFields);
+    }
+
     const sheetLabel = appName || appSelection.appId || 'app';
 
     appSheets.push({
@@ -559,6 +615,8 @@ const buildWorkbook = (
       sheetLabel,
     });
   });
+
+  const consistentFieldCountsBySub = buildConsistentFieldCounts(fieldSetsBySub);
 
   const fieldAnalysisRows = fieldAnalysisEntries
     .sort((first, second) => (second.uniqueValueCount || 0) - (first.uniqueValueCount || 0))
@@ -568,11 +626,15 @@ const buildWorkbook = (
     const datasetsForSub = datasetTotals.get(subId) || 0;
     const resolvedSubId = subId || 'No Sub ID captured';
     const fieldCount = fieldCountsBySub.get(resolvedSubId)?.size || 0;
+    const consistentFieldCounts =
+      consistentFieldCountsBySub.get(resolvedSubId) || { account: 0, visitor: 0 };
+    const consistentFieldsLabel = `${consistentFieldCounts.visitor}(Visitor) ${consistentFieldCounts.account}(Account)`;
 
     return {
       'Sub ID': resolvedSubId,
       Apps: distinctApps,
       'Total fields': fieldCount,
+      'Consistent Fields': consistentFieldsLabel,
       'Records Scanned': datasetTotals.size > 0 ? datasetsForSub : totalDatasetCount,
     };
   });
