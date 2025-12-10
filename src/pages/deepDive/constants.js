@@ -10,6 +10,8 @@ export const TARGET_LOOKBACK = 7;
 export const DEEP_DIVE_CONCURRENCY = 1;
 export const DEEP_DIVE_AGGREGATION_BATCH_SIZE = 25;
 export const DEEP_DIVE_REQUEST_SPACING_MS = 3000;
+export const DEEP_DIVE_MAX_WINDOW_HINT_DAYS = 3;
+export const DEEP_DIVE_CHUNK_SIZE_HINT_DAYS = 3;
 
 const deepDiveLogger = createLogger('DeepDive', {
   debugFlag: ['DEBUG_LOGGING', 'DEBUG_DEEP_DIVE'],
