@@ -15,6 +15,7 @@ const TOP_VALUE_LIMIT = 3;
 const NULL_RATE_THRESHOLD = 0.2;
 const MATCH_RATE_THRESHOLD = 0.8;
 const LOOKBACK_WINDOWS = [180, 30, 7];
+const VALUE_ROW_LIMIT = 500;
 
 const buildConsistentFieldCounts = (fieldSetsBySub = new Map()) => {
   const intersectSets = (sets = []) => {
@@ -218,6 +219,7 @@ const getValueStats = (selection, valueLookup) => {
     .slice(0, TOP_VALUE_LIMIT)
     .map(([value, count]) => `${value} (${count})`)
     .join('; ');
+  // Preserve the full ordered list of values; any safety caps are applied during row rendering.
   const valueCounts = sortedValues.map(([value, count]) => ({ value, count: parseCount(count) }));
 
   const evaluator = getFormatEvaluator(selection.format, selection.regexPattern);
@@ -630,12 +632,23 @@ const buildWorkbook = (
         ? stats.valueCounts
         : [{ value: 'No values captured', count: '' }];
 
-      valueRows.forEach((entry) => {
+      const appliedValueLimit = VALUE_ROW_LIMIT > 0 ? VALUE_ROW_LIMIT : null;
+      const wasValueTruncated =
+        appliedValueLimit !== null && valueRows.length > appliedValueLimit;
+      const limitedValueRows = wasValueTruncated ? valueRows.slice(0, appliedValueLimit) : valueRows;
+
+      limitedValueRows.forEach((entry) => {
         const valueRow = baseRow();
         valueRow.Value = entry.value;
         valueRow.Count = entry.count;
         rows.push(valueRow);
       });
+
+      if (wasValueTruncated) {
+        const noteRow = baseRow();
+        noteRow.Value = `Additional values truncated (${valueRows.length - appliedValueLimit} more)`;
+        rows.push(noteRow);
+      }
     });
 
     if (!fieldSetsBySub.has(trackedSubId)) {
