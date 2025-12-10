@@ -532,6 +532,7 @@ const buildWorkbook = (
     const trackedSubId = subId || 'No Sub ID captured';
     const accountFields = new Set();
     const visitorFields = new Set();
+    const appDisplay = appName || appSelection.rows[0]?.appId || appSelection.appId || '';
 
     if (!fieldCountsBySub.has(trackedSubId)) {
       fieldCountsBySub.set(trackedSubId, new Set());
@@ -559,8 +560,7 @@ const buildWorkbook = (
         row: {
           Type: selection.type === 'account' ? 'Account' : 'Visitor',
           'Sub ID': subId,
-          App: appName || lookup?.appId || selection.appId,
-          'App ID': selection.appId,
+          App: appDisplay,
           'Metadata field': selection.fieldName,
           'Expected format': selection.format,
           'Regex pattern': selection.regexPattern,
