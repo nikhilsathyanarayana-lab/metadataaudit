@@ -204,6 +204,7 @@ const getValueStats = (selection, valueLookup) => {
       needsReview: false,
       uniqueValues: 0,
       uniqueValueCount: 0,
+      valueCounts: [],
     };
   }
 
@@ -217,6 +218,7 @@ const getValueStats = (selection, valueLookup) => {
     .slice(0, TOP_VALUE_LIMIT)
     .map(([value, count]) => `${value} (${count})`)
     .join('; ');
+  const valueCounts = sortedValues.map(([value, count]) => ({ value, count: parseCount(count) }));
 
   const evaluator = getFormatEvaluator(selection.format, selection.regexPattern);
   let matchRate = null;
@@ -242,6 +244,7 @@ const getValueStats = (selection, valueLookup) => {
     needsReview: mismatchConcern || nullConcern || missingRegex,
     uniqueValues,
     uniqueValueCount: uniqueValues,
+    valueCounts,
   };
 };
 
@@ -553,6 +556,7 @@ const buildWorkbook = (
       });
     }
 
+    let maxValueColumns = 0;
     const rows = appSelection.rows.map((selection) => {
       const stats = getValueStats(selection, valueLookup);
       fieldSet.add(selection.fieldName);
@@ -584,6 +588,12 @@ const buildWorkbook = (
         }
       }
 
+      maxValueColumns = Math.max(maxValueColumns, stats.valueCounts.length);
+      const valueColumns = {};
+      stats.valueCounts.forEach((entry, index) => {
+        valueColumns[String(index + 1)] = `${entry.value} (${entry.count})`;
+      });
+
       return {
         Sub: subId,
         Field: selection.fieldName,
@@ -593,8 +603,20 @@ const buildWorkbook = (
         'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
         'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
         'Unique values': stats.uniqueValueCount,
+        ...valueColumns,
       };
     });
+
+    if (maxValueColumns > 0) {
+      rows.forEach((row) => {
+        for (let index = 1; index <= maxValueColumns; index += 1) {
+          const columnLabel = String(index);
+          if (row[columnLabel] === undefined) {
+            row[columnLabel] = '';
+          }
+        }
+      });
+    }
 
     if (!fieldSetsBySub.has(trackedSubId)) {
       fieldSetsBySub.set(trackedSubId, { account: [], visitor: [] });
