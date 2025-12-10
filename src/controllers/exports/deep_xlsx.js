@@ -556,8 +556,27 @@ const buildWorkbook = (
       });
     }
 
-    let maxValueColumns = 0;
-    const rows = appSelection.rows.map((selection) => {
+    const rows = [];
+    const baseRow = () => ({
+      Sub: '',
+      Field: '',
+      'Expected format': '',
+      'Regex pattern': '',
+      'Match rate': '',
+      'Null/empty rate': '',
+      'Unique values': '',
+      Value: '',
+      Count: '',
+    });
+
+    const orderedSelections = [...appSelection.rows].sort((first, second) => {
+      if (first.type === second.type) {
+        return 0;
+      }
+      return first.type === 'visitor' ? -1 : 1;
+    });
+
+    orderedSelections.forEach((selection, index) => {
       const stats = getValueStats(selection, valueLookup);
       fieldSet.add(selection.fieldName);
       fieldAnalysisEntries.push({
@@ -588,35 +607,36 @@ const buildWorkbook = (
         }
       }
 
-      maxValueColumns = Math.max(maxValueColumns, stats.valueCounts.length);
-      const valueColumns = {};
-      stats.valueCounts.forEach((entry, index) => {
-        valueColumns[String(index + 1)] = `${entry.value} (${entry.count})`;
-      });
-
-      return {
-        Sub: subId,
-        Field: selection.fieldName,
-        'Expected format': selection.format,
-        'Regex pattern': selection.regexPattern,
-        Type: selection.type === 'account' ? 'Account' : 'Visitor',
-        'Match rate': stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`,
-        'Null/empty rate': `${Math.round(stats.nullRate * 100)}%`,
-        'Unique values': stats.uniqueValueCount,
-        ...valueColumns,
-      };
-    });
-
-    if (maxValueColumns > 0) {
-      rows.forEach((row) => {
-        for (let index = 1; index <= maxValueColumns; index += 1) {
-          const columnLabel = String(index);
-          if (row[columnLabel] === undefined) {
-            row[columnLabel] = '';
-          }
+      if (index > 0) {
+        const previousSelection = orderedSelections[index - 1];
+        if (previousSelection.type === 'visitor' && selection.type === 'account') {
+          rows.push(baseRow());
         }
+      }
+
+      const matchRateLabel =
+        stats.matchRate === null ? 'N/A' : `${Math.round(stats.matchRate * 100)}%`;
+      const headerRow = baseRow();
+      headerRow.Sub = subId;
+      headerRow.Field = `${selection.fieldName || ''} (${selection.type})`;
+      headerRow['Expected format'] = selection.format;
+      headerRow['Regex pattern'] = selection.regexPattern;
+      headerRow['Match rate'] = matchRateLabel;
+      headerRow['Null/empty rate'] = `${Math.round(stats.nullRate * 100)}%`;
+      headerRow['Unique values'] = stats.uniqueValueCount;
+      rows.push(headerRow);
+
+      const valueRows = stats.valueCounts.length
+        ? stats.valueCounts
+        : [{ value: 'No values captured', count: '' }];
+
+      valueRows.forEach((entry) => {
+        const valueRow = baseRow();
+        valueRow.Value = entry.value;
+        valueRow.Count = entry.count;
+        rows.push(valueRow);
       });
-    }
+    });
 
     if (!fieldSetsBySub.has(trackedSubId)) {
       fieldSetsBySub.set(trackedSubId, { account: [], visitor: [] });
