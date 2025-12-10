@@ -103,6 +103,7 @@ export const runAggregationWithFallbackWindows = async ({
   aggregateResults,
   fetchImpl = fetch,
   onWindowSplit,
+  onBeforeRequest,
   maxWindowHint,
   preferredChunkSize,
   onRequestsPlanned,
@@ -175,6 +176,14 @@ export const runAggregationWithFallbackWindows = async ({
             const requestId = payload?.request?.requestId || `window-${windowSize}-${index + 1}`;
             const payloadLength = typeof payload === 'string' ? payload.length : JSON.stringify(payload || {}).length;
             const startTime = Date.now();
+
+            if (typeof onBeforeRequest === 'function') {
+              try {
+                onBeforeRequest(payload, { windowSize, chunkSizeUsed, requestId, entry });
+              } catch (hookError) {
+                requestLogger.warn('onBeforeRequest hook failed.', hookError);
+              }
+            }
 
             requestLogger.debug('Dispatching aggregation request.', {
               requestId,

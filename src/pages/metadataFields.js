@@ -44,6 +44,60 @@ let metadataSnapshot = new Map();
 const aggregationHintsByApp = new Map();
 const queueBanner = createSharedApiStatusBanner();
 
+const isDebugLoggingEnabled = () =>
+  typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
+
+const payloadHasTimeSeriesAndAppId = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+
+  const queue = [payload.request || payload];
+  const visited = new Set();
+  let hasTimeSeries = false;
+  let hasAppId = false;
+
+  while (queue.length) {
+    const current = queue.shift();
+
+    if (!current || typeof current !== 'object' || visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    if (current.timeSeries && typeof current.timeSeries === 'object') {
+      hasTimeSeries = true;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(current, 'appId')) {
+      const appIdValue = current.appId;
+      if (typeof appIdValue === 'string') {
+        hasAppId = appIdValue.trim().length > 0;
+      } else {
+        hasAppId = appIdValue !== undefined && appIdValue !== null;
+      }
+    }
+
+    if (hasTimeSeries && hasAppId) {
+      return true;
+    }
+
+    Object.values(current).forEach((value) => {
+      if (typeof value === 'object' && value) {
+        if (Array.isArray(value)) {
+          value.forEach((child) => queue.push(child));
+          return;
+        }
+
+        queue.push(value);
+      }
+    });
+  }
+
+  return hasTimeSeries && hasAppId;
+};
+
 const getAggregationHint = (appId) => aggregationHintsByApp.get(appId) || {};
 
 const updateAggregationHint = (appId, windowDays, chunkSizeUsed) => {
@@ -567,6 +621,20 @@ const fetchAndPopulate = (
 
   const isAborted = (entry) => abortedEntries.has(entryKey(entry));
 
+  const postDebugApiCallNotice = (payload, windowDays, entry) => {
+    if (!isDebugLoggingEnabled() || !payloadHasTimeSeriesAndAppId(payload)) {
+      return;
+    }
+
+    const appLabel = entry?.appId ? `app ${entry.appId}` : 'unknown app';
+    const windowLabel = Number.isFinite(windowDays) ? `${windowDays}-day` : 'unknown window';
+    const requestId = payload?.request?.requestId || 'unspecified request';
+    const message = `Dispatching ${windowLabel} time series request for ${appLabel}.`;
+
+    showMessage(messageRegion, message, 'info');
+    metadataLogger.info('Metadata fields API call (debug)', { appId: entry?.appId || '', windowDays, requestId });
+  };
+
   const removePendingForEntry = (entry) => {
     const key = entryKey(entry);
     let removedCount = 0;
@@ -681,6 +749,8 @@ const fetchAndPopulate = (
         onRequestsSettled: () => {
           updateProgressText();
         },
+        onBeforeRequest: (payload, context) =>
+          postDebugApiCallNotice(payload, context?.windowSize ?? windowDays, entry),
       });
 
       if (!Array.isArray(requestSummary?.aggregatedResults)) {
