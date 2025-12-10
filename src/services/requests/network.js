@@ -327,6 +327,17 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
         buildChunkedAppListingPayloads(windowSize, chunkSize, requestIdPrefix),
       aggregateResults: (collector, response) => collector.push(...extractAppIds(response)),
       fetchImpl,
+      onBeforeRequest: (_payload, details = {}) => {
+        const { requestId, windowSize, chunkSizeUsed } = details;
+        const subId = entry?.subId || 'unknown SubID';
+
+        requestLogger.info('Sending app discovery request.', {
+          requestId: requestId || 'unknown request',
+          subId,
+          windowSize: windowSize ?? windowDays,
+          chunkSize: chunkSizeUsed || null,
+        });
+      },
       onWindowSplit: (windowSize, payloadCount) =>
         requestLogger.info(
           `App discovery request split into ${payloadCount} window(s) at ${windowSize}-day scope.`,
