@@ -2,6 +2,11 @@
 import { LOOKBACK_OPTIONS, TARGET_LOOKBACK, logDeepDive } from '../constants.js';
 import { ensureMessageRegion as ensureBannerRegion, createErrorReporter } from '../../../ui/messageHelpers.js';
 import { createSharedApiStatusBanner } from '../../../ui/pendingQueueBanner.js';
+import {
+  DEFAULT_FORMAT_OPTION,
+  FORMAT_OPTIONS,
+  REGEX_FORMAT_OPTION,
+} from '../formatOptions.js';
 
 export const createEmptyRow = (tableBody, message) => {
   const row = document.createElement('tr');
@@ -39,11 +44,15 @@ export const buildAppNameCell = (rowData, openModal) => {
   return { cell, appNameButton };
 };
 
-const REGEX_FORMAT_OPTION = 'regex';
-const DEFAULT_FORMAT_OPTION = 'unknown';
-const FORMAT_OPTIONS = ['email', 'text', REGEX_FORMAT_OPTION, 'number', DEFAULT_FORMAT_OPTION];
-
-export const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelected) => {
+export const buildFormatSelect = (
+  appId,
+  subId,
+  appName,
+  fieldName,
+  onRegexSelected,
+  savedFormat,
+  onFormatChange,
+) => {
   const select = document.createElement('select');
   select.className = 'format-select';
   const labelParts = [`Sub ID ${subId || 'unknown'}`, `App ID ${appId}`];
@@ -62,8 +71,19 @@ export const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelec
     select.appendChild(option);
   });
 
-  select.value = DEFAULT_FORMAT_OPTION;
-  select.dataset.previousValue = DEFAULT_FORMAT_OPTION;
+  const initialOption = savedFormat && FORMAT_OPTIONS.includes(savedFormat.option)
+    ? savedFormat.option
+    : DEFAULT_FORMAT_OPTION;
+  select.value = initialOption;
+  select.dataset.previousValue = initialOption;
+
+  if (initialOption === REGEX_FORMAT_OPTION) {
+    select.dataset.regexPattern = savedFormat?.regexPattern || '';
+
+    if (select.dataset.regexPattern) {
+      select.title = `Regex pattern: ${select.dataset.regexPattern}`;
+    }
+  }
 
   select.addEventListener('change', () => {
     const selectedValue = select.value;
@@ -77,6 +97,7 @@ export const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelec
           appId,
           appName,
           fieldName,
+          onFormatChange,
           select,
           subId,
           previousValue,
@@ -89,12 +110,25 @@ export const buildFormatSelect = (appId, subId, appName, fieldName, onRegexSelec
     select.dataset.regexPattern = '';
     select.dataset.previousValue = selectedValue;
     select.title = '';
+
+    if (typeof onFormatChange === 'function') {
+      onFormatChange({ option: selectedValue, regexPattern: '' });
+    }
   });
 
   return select;
 };
 
-export const renderTable = (tableBody, rows, type, openModal, openRegexModal, lookback) => {
+export const renderTable = (
+  tableBody,
+  rows,
+  type,
+  openModal,
+  openRegexModal,
+  lookback,
+  getExpectedFormat,
+  onFormatChange,
+) => {
   tableBody.innerHTML = '';
 
   if (!rows.length) {
@@ -139,13 +173,29 @@ export const renderTable = (tableBody, rows, type, openModal, openRegexModal, lo
       formatCell.dataset.label = 'Expected format';
 
       if (hasFields) {
+        const savedFormat =
+          typeof getExpectedFormat === 'function'
+            ? getExpectedFormat(rowData.subId, rowData.appId, fieldName)
+            : undefined;
+        const persistFormat = typeof onFormatChange === 'function'
+          ? (format) =>
+            onFormatChange({
+              ...format,
+              appId: rowData.appId,
+              fieldName,
+              subId: rowData.subId,
+            })
+          : null;
+
         formatCell.appendChild(
           buildFormatSelect(
             rowData.appId,
             rowData.subId,
             rowData.appName,
             fieldName,
-            openRegexModal,
+            (context) => openRegexModal?.({ ...context, onFormatChange: persistFormat }),
+            savedFormat,
+            persistFormat,
           ),
         );
       } else {
