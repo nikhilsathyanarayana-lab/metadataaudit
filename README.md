@@ -1,23 +1,17 @@
 # Metadata Audit
 
 ## Overview
-Metadata Audit is a static web application that helps Pendo teams validate subscription metadata. It streamlines two paths:
-
-- **Integration API flow** for most audits. Users supply a SubID, domain, and integration key to pull metadata directly from the Engage API.
-- **Cookie-based workbook flow** for superuser cookie audits. Requests are routed through a PHP proxy to avoid CORS issues and staged for workbook exports.
-
-Both flows share page-level controllers written in vanilla JavaScript and store in-progress state in `sessionStorage` between screens.
+Metadata Audit is a static web application that helps Pendo teams validate subscription metadata. The Integration API flow lets users supply a SubID, domain, and integration key to pull metadata directly from the Engage API. Page-level controllers are written in vanilla JavaScript and store in-progress state in `sessionStorage` between screens.
 
 ## Quick start
 - **Hosted use**: The Integration API flow can run from any static host (e.g., GitHub Pages) because all requests go straight to the Engage API.
 - **Local development**:
-  1. Ensure PHP with cURL is available so the cookie workflow can call `proxy.php`.
-  2. Serve the project from the repo root:
+  1. Serve the project from the repo root:
      ```bash
      php -S localhost:8000
      ```
-  3. Open `http://localhost:8000/index.html` for Integration API testing or `http://localhost:8000/cookie_method.html` for the cookie workbook.
-- **Auth inputs**: Provide either an integration key with read access or a `pendo.sess.jwt2` cookie (only needed for the cookie flow). Use any modern browser that supports the Fetch API.
+  2. Open `http://localhost:8000/index.html` for Integration API testing.
+- **Auth inputs**: Provide an integration key with read access. Use any modern browser that supports the Fetch API.
 
 ## Local storage and cached state
 - **SubID launch data (`subidLaunchData`)**: `initSubIdForm()` serializes each SubID + domain + integration key row before redirecting to app selection so users can refresh or navigate without losing entries. Empty rows are pruned on save to keep the cache small.
@@ -47,11 +41,6 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
    - `bootstrapShared()` keeps export modals available.
    - `initDeepDive()` reads `appSelectionResponses` and `metadataFieldRecords` from the shared namespace on page load, populates the 7-day metadata columns immediately, lets users refine expected field formats, issues deeper metadata scans for the chosen lookback, and aligns results with manual app naming before enabling exports.
    - JSON exports (`metadata-deep-dive-visitors.json`, `metadata-deep-dive-accounts.json`) nest Sub ID → App ID and summarize each metadata field as value/count pairs. App names persist separately in `sessionStorage` under `manualAppNames`.
-
-## Cookie workbook workflow
-- `cookie_method.html` uses `initWorkbookUi()` to collect SubID, environment, cookie, and optional examples settings.
-- Aggregation requests are assembled with helpers in `src/services/requests.js` and posted through `proxy.php` using a `cookie` header built by `buildCookieHeaderValue()`.
-- Responses are parsed into CSV-ready rows with `parseExamples()` before triggering downloads for downstream Excel processing.
 
 ## Debug logging
 - Logging is centralized through `src/utils/logger.js`, which prefixes console output with the calling scope (for example, `[AppSelection]` or `[WorkbookUI]`).
@@ -114,7 +103,7 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
 
 ## Maintenance notes
 - Clear `sessionStorage` between runs to avoid stale SubID or manual naming data.
-- Keep secrets out of exports; integration keys and cookies are never written to disk.
+- Keep secrets out of exports; integration keys are never written to disk.
 - XLSX downloads use the open-source ExcelJS build from the CDN so header styling applied in-browser persists in the saved workbook. Keep
   export tooling open-source unless otherwise directed.
 

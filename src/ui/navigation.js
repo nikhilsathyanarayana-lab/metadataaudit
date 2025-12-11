@@ -1,7 +1,4 @@
-const NAV_LINKS = [
-  { id: 'integration', href: 'index.html', label: 'Integration API' },
-  { id: 'cookie', href: 'cookie_method.html', label: 'Cookie' },
-];
+const NAV_LINKS = [{ id: 'integration', href: 'index.html', label: 'Integration API' }];
 
 const buildLink = ({ id, href, label }, activePage) => {
   const link = document.createElement('a');
