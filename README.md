@@ -101,17 +101,6 @@ Both flows share page-level controllers written in vanilla JavaScript and store 
   - Expected input: None; invoked directly from the console.
   - Sample invocation: `window.showPendingApiQueue()`.
   - Output: Returns the outstanding pending call objects and prints a `console.table` showing `appId`, `subId`, `status`, and timestamps.
-- `window.describeJsonFileStructure()`
-  - Context: Quickly inspect the shape of exported Deep Dive JSON files without loading them into the UI.
-  - Expected input: Invoked from the console; triggers a JSON file picker and parses the selected file.
-  - Sample invocation: `window.describeJsonFileStructure()`.
-  - Output: Logs a nested summary of the JSON structure (including array lengths and object keys) via `console.dir` and returns the summarized shape object.
-- `window.validateData()`
-  - Context: Deep Dive post-run validation to summarize metadata coverage and flag unexpected record shapes.
-  - Expected input: None; relies on cached deep dive and aggregation results already loaded on the page.
-  - Sample invocation: `window.validateData()`.
-  - Output: Returns an array of per-app summaries, prints console tables for coverage by app, and surfaces any shape anomalies detected in visitor or account metadata.
-
 ## App selection flow details
 - **Launch data hydration**: `initAppSelection()` parses `sessionStorage.subidLaunchData` to rebuild the SubID rows that originated from `index.html`. If no rows exist it surfaces `API information not found` and blocks progression.
 - **Request queue + status banner**: Each SubID fetch registers a queue entry via `registerPendingCall()` so the shared status banner can summarize pending vs. completed requests. The banner is refreshed when requests are planned, started, settled, or superseded to keep progress text accurate even if payloads split.
