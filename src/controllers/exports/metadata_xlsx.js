@@ -35,22 +35,36 @@ const extractCellValue = (cell) => {
 };
 
 // Converts a metadata table into an array-of-arrays structure for worksheet hydration.
-const collectTableAoA = (table) => {
+const collectTableAoA = (table, appNameLookup = new Map()) => {
   if (!table) {
     return null;
   }
 
   const headers = Array.from(table.querySelectorAll('thead th')).map((th) => th.textContent.trim());
-  const rows = Array.from(table.querySelectorAll('tbody tr')).map((row) =>
-    Array.from(row.querySelectorAll('td')).map(extractCellValue),
-  );
+  const rows = Array.from(table.querySelectorAll('tbody tr')).map((row) => {
+    const cells = Array.from(row.querySelectorAll('td')).map(extractCellValue);
+
+    const appIdIndex = headers.indexOf('App ID');
+    const appNameIndex = headers.indexOf('App Name');
+
+    if (appIdIndex >= 0 && appNameIndex >= 0) {
+      const appId = cells[appIdIndex];
+      const preferredName = appNameLookup.get(appId);
+
+      if (preferredName) {
+        cells[appNameIndex] = preferredName;
+      }
+    }
+
+    return cells;
+  });
 
   return [headers, ...rows];
 };
 
 // Adds a worksheet to the export workbook from a metadata table, handling empty states gracefully.
-const appendTableSheet = (workbook, table, label, sheetNames) => {
-  const aoa = collectTableAoA(table);
+const appendTableSheet = (workbook, table, label, sheetNames, appNameLookup) => {
+  const aoa = collectTableAoA(table, appNameLookup);
   const worksheet = workbook.addWorksheet(sanitizeSheetName(label, sheetNames));
 
   if (!aoa || !aoa.length || !aoa[0]?.length) {
@@ -253,8 +267,17 @@ export const exportMetadataXlsx = async () => {
       sheetNames,
     );
 
-    const visitorSheet = appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames);
-    const accountSheet = appendTableSheet(workbook, accountTable, 'Account', sheetNames);
+    const appNameLookup = new Map();
+    [sevenDayRecords, thirtyDayRecords, oneEightyDayRecords]
+      .flat()
+      .forEach((record) => {
+        if (record?.appId && record?.appName) {
+          appNameLookup.set(record.appId, record.appName);
+        }
+      });
+
+    const visitorSheet = appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames, appNameLookup);
+    const accountSheet = appendTableSheet(workbook, accountTable, 'Account', sheetNames, appNameLookup);
 
     await downloadWorkbook(workbook, desiredName || buildDefaultFileName());
     setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
