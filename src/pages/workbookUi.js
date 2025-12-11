@@ -1,5 +1,5 @@
 import { buildAppListingPayload, buildExamplesPayload, buildMetadataFieldsPayload } from '../services/payloads/index.js';
-import { buildAggregationUrl, buildCookieHeaderValue, fetchAggregation } from '../services/requests/network.js';
+import { buildAggregationUrl, postAggregationWithIntegrationKey } from '../services/requests/network.js';
 import { extractAppIds } from '../services/appUtils.js';
 import { applyBannerTone, createBanner, ensureMessageRegion, setBannerText } from '../ui/statusBanner.js';
 import { createLogger } from '../utils/logger.js';
@@ -78,17 +78,15 @@ export const initWorkbookUi = () => {
   const envSelect = document.getElementById('env-choice');
   const subIdInput = document.getElementById('subid-input');
   const workbookNameInput = document.getElementById('workbook-name-input');
-  const cookieInput = document.getElementById('cookie-input');
   const daysSelect = document.getElementById('days-window');
   const examplesToggle = document.getElementById('examples-toggle');
   const runButton = document.getElementById('workbook-run');
   const workbookName = document.getElementById('workbook-name');
   const endpointPreview = document.getElementById('endpoint-preview');
-  const cookiePreview = document.getElementById('cookie-preview');
   const endpointBlock = document.getElementById('endpoint-block');
   const workbookBlock = document.getElementById('workbook-block');
 
-  if (!form || !envSelect || !subIdInput || !cookieInput || !runButton || !workbookNameInput) {
+  if (!form || !envSelect || !subIdInput || !runButton || !workbookNameInput) {
     return;
   }
 
@@ -227,7 +225,6 @@ export const initWorkbookUi = () => {
     workbookBlock.textContent = workbookLabel;
     endpointPreview.textContent = endpointText;
     endpointBlock.textContent = endpointText;
-    cookiePreview.textContent = cookieInput.value.trim() ? 'Cookie captured locally' : 'Waiting for cookie';
   };
 
   const updatePreviews = () => {
@@ -349,17 +346,13 @@ export const initWorkbookUi = () => {
     });
   };
 
-const summarizeError = (error) => {
+  const summarizeError = (error) => {
     const rawMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
     const message = rawMessage || 'Unknown workbook error.';
     const lowered = message.toLowerCase();
 
-    if (lowered.includes('jwt2')) {
-      return 'Missing or invalid pendo.sess.jwt2 cookie.';
-    }
-
     if (message.trim() === '401' || lowered === 'unauthorized') {
-      return 'Authentication failed (401). Check the environment and cookie.';
+      return 'Authentication failed (401). Check the environment and integration details.';
     }
 
     if (lowered.includes('failed to fetch') || lowered.includes('network')) {
@@ -407,14 +400,11 @@ const summarizeError = (error) => {
     try {
       const envValue = envSelect.value;
       const subIdValue = subIdInput.value.trim();
-      const cookieHeaderValue = buildCookieHeaderValue(cookieInput.value);
       const includeExamples = examplesToggle?.value !== 'off';
       const lookback = Number(daysSelect?.value || '180');
 
-      if (!envValue || !subIdValue || !cookieHeaderValue) {
-        const summary = !cookieHeaderValue
-          ? 'Missing pendo.sess.jwt2 cookie. Paste the cookie before running.'
-          : 'Please provide an environment and Sub ID.';
+      if (!envValue || !subIdValue) {
+        const summary = 'Please provide an environment and Sub ID.';
 
         setStatus('env', 'fail', summary);
         showMessage(summary, 'error');
@@ -439,10 +429,7 @@ const summarizeError = (error) => {
       let appsResponse;
 
       try {
-        appsResponse = await fetchAggregation(aggregationUrl, buildAppListingPayload(), cookieHeaderValue, {
-          region: envValue,
-          subId: subIdValue,
-        });
+        appsResponse = await postAggregationWithIntegrationKey({ subId: subIdValue }, buildAppListingPayload());
       } catch (error) {
         lastErrorSummary = markStepFailure('apps', error, 'App discovery failed.');
         throw error;
@@ -471,14 +458,9 @@ const summarizeError = (error) => {
 
       for (const windowDays of fieldWindows) {
         try {
-          const response = await fetchAggregation(
-            aggregationUrl,
+          const response = await postAggregationWithIntegrationKey(
+            { subId: subIdValue },
             buildMetadataFieldsPayload(windowDays),
-            cookieHeaderValue,
-            {
-              region: envValue,
-              subId: subIdValue,
-            },
           );
           fieldResponses.push({ windowDays, response });
         } catch (error) {
@@ -498,10 +480,10 @@ const summarizeError = (error) => {
       if (includeExamples) {
         setStatus('meta', 'running', 'Requesting metadata value examples.');
         try {
-          const examplesResponse = await fetchAggregation(aggregationUrl, buildExamplesPayload(), cookieHeaderValue, {
-            region: envValue,
-            subId: subIdValue,
-          });
+          const examplesResponse = await postAggregationWithIntegrationKey(
+            { subId: subIdValue },
+            buildExamplesPayload(),
+          );
           examplesRows = parseExamples(examplesResponse, subIdValue);
           setStatus('meta', 'success', `Parsed ${examplesRows.length} example rows.`);
         } catch (error) {
@@ -583,7 +565,7 @@ const summarizeError = (error) => {
     }
   };
 
-  [envSelect, subIdInput, workbookNameInput, cookieInput, daysSelect, examplesToggle].forEach((element) =>
+  [envSelect, subIdInput, workbookNameInput, daysSelect, examplesToggle].forEach((element) =>
     element?.addEventListener('input', updatePreviews),
   );
 

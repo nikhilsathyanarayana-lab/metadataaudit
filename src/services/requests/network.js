@@ -70,30 +70,6 @@ export const buildAggregationUrl = (envUrls, envValue, subId) => {
   return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
 };
 
-export const buildCookieHeaderValue = (rawCookie) => {
-  const trimmed = rawCookie.trim();
-
-  if (!trimmed) {
-    return '';
-  }
-
-  const withoutLabel = trimmed.toLowerCase().startsWith('cookie:')
-    ? trimmed.slice(trimmed.indexOf(':') + 1).trim()
-    : trimmed;
-
-  if (withoutLabel.includes('=')) {
-    return withoutLabel;
-  }
-
-  const regexMatch = withoutLabel.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
-
-  if (regexMatch?.[0]) {
-    return regexMatch[0].trim();
-  }
-
-  return `pendo.sess.jwt2=${withoutLabel}`;
-};
-
 export const runAggregationWithFallbackWindows = async ({
   entry,
   totalWindowDays,
@@ -388,15 +364,6 @@ export const fetchAppsForEntry = async (entry, windowDays = 7, fetchImpl = fetch
   return { errorType: 'timeout', requestCount };
 };
 
-const extractJwtToken = (cookieHeaderValue) => {
-  if (!cookieHeaderValue) {
-    return '';
-  }
-
-  const match = cookieHeaderValue.match(/pendo\.sess\.jwt2\s*=\s*([^;\s]+)/i);
-  return match?.[1] || '';
-};
-
 const hydrateAggregationEntry = (entry) => {
   const hydratedEntry = { ...(entry || {}) };
 
@@ -513,132 +480,3 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
   }
 };
 
-export const fetchAggregation = async (
-  url,
-  payload,
-  cookieHeaderValue,
-  options = {},
-  fetchImpl = fetch,
-) => {
-  const { region, subId, proxyEndpoint = 'proxy.php' } = options;
-  const token = extractJwtToken(cookieHeaderValue);
-
-  if (!region || !subId) {
-    requestLogger.error('Aggregation proxy request missing region or subId.', {
-      endpoint: url,
-      region: region || 'missing region',
-      subId: subId || 'missing subId',
-      proxyEndpoint,
-    });
-    throw new Error('Region and Sub ID are required for the proxy request.');
-  }
-
-  if (!token) {
-    requestLogger.error('Aggregation proxy request missing pendo.sess.jwt2 token.', {
-      endpoint: url,
-      region,
-      subId,
-      proxyEndpoint,
-    });
-    throw new Error('Missing pendo.sess.jwt2 token for the proxy request.');
-  }
-
-  let response;
-
-  try {
-    response = await fetchImpl(proxyEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        payload,
-        region,
-        subId,
-        token,
-        endpointPreview: normalizeDomain(url),
-      }),
-      credentials: 'same-origin',
-    });
-  } catch (networkError) {
-    requestLogger.error('Aggregation proxy request failed to send.', {
-      endpoint: url,
-      region,
-      subId,
-      proxyEndpoint,
-      message: networkError?.message,
-    });
-    throw createAggregationError(
-      networkError?.message || 'Aggregation proxy request could not be sent.',
-      null,
-      '',
-    );
-  }
-
-  const rawBody = await response?.text().catch(() => '');
-  let parsedBody;
-
-  try {
-    parsedBody = rawBody ? JSON.parse(rawBody) : null;
-  } catch (parseError) {
-    parsedBody = null;
-  }
-
-  if (!response?.ok) {
-    const extractDetails = () => {
-      if (parsedBody && typeof parsedBody === 'object') {
-        const { error, message, overall, fields } = parsedBody;
-        const fieldText = Array.isArray(fields)
-          ? fields.join('; ')
-          : fields && typeof fields === 'object'
-            ? Object.values(fields).join('; ')
-            : fields;
-
-        return [overall, fieldText, message, error].filter(Boolean).join(' ');
-      }
-
-      return rawBody?.trim() || '';
-    };
-
-    const detail = extractDetails();
-    const statusLabel = response?.status || 'unknown status';
-    const message = detail
-      ? `Aggregation request failed (${statusLabel}): ${detail}`
-      : `Aggregation request failed (status ${statusLabel}).`;
-
-    requestLogger.error('Aggregation proxy responded with a non-OK status.', {
-      endpoint: url,
-      region,
-      subId,
-      proxyEndpoint,
-      status: response?.status ?? 'unknown status',
-      detail: detail || rawBody || 'no details provided',
-    });
-
-    requestLogger.error('Aggregation response details:', {
-      status: response?.status ?? 'unknown status',
-      body: parsedBody ?? rawBody ?? '',
-    });
-
-    throw createAggregationError(message, response?.status, parsedBody || rawBody);
-  }
-
-  if (!rawBody) {
-    return {};
-  }
-
-  try {
-    return parsedBody ?? JSON.parse(rawBody);
-  } catch (parseError) {
-    requestLogger.error('Aggregation proxy returned invalid JSON.', {
-      endpoint: url,
-      region,
-      subId,
-      proxyEndpoint,
-      status: response?.status ?? 'unknown status',
-      rawBody,
-    });
-    throw createAggregationError('Aggregation response was not valid JSON.', response?.status, rawBody);
-  }
-};
