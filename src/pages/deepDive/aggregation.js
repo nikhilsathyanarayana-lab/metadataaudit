@@ -36,16 +36,6 @@ const getPendingQueueSnapshot = () =>
 const notifyRecordedCallObservers = () =>
   dispatchGlobalEvent('api-calls-updated', { calls: metadata_api_calls });
 
-const isDebugLoggingEnabled = () =>
-  typeof window !== 'undefined' && (window.DEBUG_LOGGING === true || window.DEBUG_DEEP_DIVE === true);
-
-const PENDING_HEARTBEAT_INTERVAL_MS = 60_000;
-let lastPendingSummarySignature = '';
-let lastPendingSummaryCount = 0;
-let lastPendingSummaryUpdatedAt = 0;
-let pendingQueueHeartbeatCount = 0;
-let lastPendingQueueHeartbeatAt = 0;
-
 if (typeof window !== 'undefined') {
   window.metadata_visitors = metadata_visitors;
   window.metadata_accounts = metadata_accounts;
@@ -547,14 +537,6 @@ export const getPendingWindowDispatches = () => {
 
 export const getOutstandingPendingCalls = () => {
   logDeepDiveFunctionCall('getOutstandingPendingCalls');
-  if (typeof window !== 'undefined' && typeof window.showPendingApiQueue === 'function') {
-    const outstanding = window.showPendingApiQueue();
-
-    if (Array.isArray(outstanding)) {
-      return outstanding;
-    }
-  }
-
   return getPendingQueueSnapshot();
 };
 
@@ -567,81 +549,6 @@ export const getNextQueuedPendingCall = () => {
   logDeepDiveFunctionCall('getNextQueuedPendingCall');
   return metadata_pending_api_calls.find((call) => call?.status === 'queued') || null;
 };
-
-export const registerApiQueueInspector = () => {
-  logDeepDiveFunctionCall('registerApiQueueInspector');
-  if (typeof window === 'undefined' || window.showPendingApiQueue) {
-    return;
-  }
-
-  const inspector = () => {
-    const debugEnabled = isDebugLoggingEnabled();
-    const outstanding = getPendingQueueSnapshot();
-
-    const summarized = outstanding.map((call) => {
-      const queuedAtMs = Date.parse(call.queuedAt);
-      const ageMs = Number.isFinite(queuedAtMs) ? Date.now() - queuedAtMs : 0;
-
-      return {
-        appId: call.appId,
-        subId: call.subId,
-        status: call.status,
-        lookbackDays: call.lookbackDays,
-        plannedWindows: call.plannedWindows,
-        queuedAt: call.queuedAt,
-        startedAt: call.startedAt,
-        ageMs: Math.round(ageMs),
-      };
-    });
-
-    const signature = JSON.stringify(summarized);
-    const hasChanges = signature !== lastPendingSummarySignature;
-    const isFirstRun = lastPendingSummarySignature === '';
-    const shouldLogUpdate = debugEnabled && (isFirstRun || hasChanges);
-    const now = Date.now();
-
-    if (hasChanges) {
-      lastPendingSummarySignature = signature;
-      lastPendingSummaryCount = summarized.length;
-      lastPendingSummaryUpdatedAt = now;
-    }
-
-    if (shouldLogUpdate) {
-      logDeepDive(
-        'debug',
-        'Pending API queue snapshot',
-        hasChanges ? '(updated)' : '(initial)',
-        `(${summarized.length} call${summarized.length === 1 ? '' : 's'})`,
-      );
-
-      logDeepDive('debug', 'Pending API queue details', summarized);
-    } else if (debugEnabled) {
-      const heartbeatDue =
-        lastPendingQueueHeartbeatAt === 0 || now - lastPendingQueueHeartbeatAt >= PENDING_HEARTBEAT_INTERVAL_MS;
-
-      if (heartbeatDue) {
-        pendingQueueHeartbeatCount += 1;
-        lastPendingQueueHeartbeatAt = now;
-        logDeepDive('debug', 'Pending API queue heartbeat', {
-          heartbeat: pendingQueueHeartbeatCount,
-          calls: summarized.length,
-          lastChangeAt: lastPendingSummaryUpdatedAt ? new Date(lastPendingSummaryUpdatedAt).toISOString() : null,
-        });
-      }
-    }
-
-    if (typeof window !== 'undefined') {
-      window.pendingApiQueueSummary = summarized;
-    }
-
-    return outstanding;
-  };
-
-  window.showPendingApiQueue = inspector;
-  window.showDeepDiveRequestTable = inspector;
-};
-
-registerApiQueueInspector();
 
 const resolvedStatuses = ['completed', 'failed'];
 
