@@ -350,6 +350,11 @@ h1 {
   gap: 0.75rem;
 }
 
+.subid-input {
+  flex: 1 1 330px;
+  min-width: min(100%, 330px);
+}
+
 .integration-btn {
   flex-shrink: 0;
   padding: 0.55rem 0.75rem;
@@ -406,66 +411,6 @@ h1 {
 }
 
 .format-select:focus {
-  outline: none;
-  border-color: var(--pendo-pink);
-  box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
-}
-
-.workbook-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.input-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 0.9rem;
-}
-
-.field {
-  display: grid;
-  gap: 0.35rem;
-}
-
-.field.full {
-  grid-column: 1 / -1;
-}
-
-.helper-text {
-  margin: 0;
-  color: #5d5d5d;
-  font-size: 0.93rem;
-}
-
-input[type="text"] {
-  width: 100%;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid rgba(61, 61, 61, 0.2);
-  border-radius: 10px;
-  font-size: 1rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-input[type="text"]:focus {
-  outline: none;
-  border-color: var(--pendo-pink);
-  box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
-}
-
-textarea {
-  width: 100%;
-  padding: 0.75rem 0.85rem;
-  border: 1px solid rgba(61, 61, 61, 0.2);
-  border-radius: 10px;
-  font-size: 1rem;
-  font-family: inherit;
-  min-height: 90px;
-  resize: vertical;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-textarea:focus {
   outline: none;
   border-color: var(--pendo-pink);
   box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.15);
