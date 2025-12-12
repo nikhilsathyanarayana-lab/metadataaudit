@@ -12,6 +12,20 @@ import {
 } from './excel_shared.js';
 import { createExportStatusHelper } from './export_status.js';
 
+const TITLE_STYLE = {
+  font: {
+    bold: true,
+    size: 18,
+    color: { argb: 'FFFFFFFF' },
+  },
+  fill: {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FFE83E8C' },
+  },
+  alignment: { horizontal: 'center', vertical: 'middle' },
+};
+
 // Generates a date-stamped default file name for metadata exports.
 const buildDefaultFileName = () => {
   const today = new Date();
@@ -175,11 +189,26 @@ const buildTimeframeChanges = (timeframeRecords = []) => {
   return changes;
 };
 
+const formatMergedTitleRow = (worksheet, row, columnCount = 1) => {
+  if (!worksheet || !row) {
+    logXlsx('warn', 'formatMergedTitleRow skipped because worksheet or row is missing');
+    return;
+  }
+
+  const lastColumn = Math.max(1, columnCount);
+  worksheet.mergeCells(row.number, 1, row.number, lastColumn);
+
+  const titleCell = row.getCell(1);
+  titleCell.font = { ...(titleCell.font || {}), ...TITLE_STYLE.font };
+  titleCell.fill = TITLE_STYLE.fill;
+  titleCell.alignment = TITLE_STYLE.alignment;
+};
+
 const addOverviewSheet = (workbook, { visitorAlignment, accountAlignment, timeframeChanges }, sheetNames) => {
   const worksheet = workbook.addWorksheet(sanitizeSheetName('Overview', sheetNames));
 
   const alignmentTitle = worksheet.addRow(['Apps with aligned metadata (7 days)']);
-  alignmentTitle.font = { bold: true, size: 14 };
+  formatMergedTitleRow(worksheet, alignmentTitle, 5);
 
   if (visitorAlignment?.totalApps || accountAlignment?.totalApps) {
     const header = worksheet.addRow(['Category', 'Aligned', 'Misaligned', 'Total Apps', 'Aligned %']);
@@ -201,7 +230,7 @@ const addOverviewSheet = (workbook, { visitorAlignment, accountAlignment, timefr
 
   worksheet.addRow([]);
   const changesTitle = worksheet.addRow(['Metadata changes by timeframe']);
-  changesTitle.font = { bold: true, size: 14 };
+  formatMergedTitleRow(worksheet, changesTitle, 4);
 
   if (timeframeChanges.length) {
     const changeHeader = worksheet.addRow(['Field', 'App Name', 'App ID', 'Note']);
