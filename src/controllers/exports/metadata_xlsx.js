@@ -26,6 +26,19 @@ const TITLE_STYLE = {
   alignment: { horizontal: 'center', vertical: 'middle' },
 };
 
+const columnNumberToLetter = (columnNumber) => {
+  let dividend = Math.max(1, columnNumber);
+  let columnName = '';
+
+  while (dividend > 0) {
+    const modulo = (dividend - 1) % 26;
+    columnName = String.fromCharCode(65 + modulo) + columnName;
+    dividend = Math.floor((dividend - modulo) / 26);
+  }
+
+  return columnName;
+};
+
 // Generates a date-stamped default file name for metadata exports.
 const buildDefaultFileName = () => {
   const today = new Date();
@@ -195,13 +208,18 @@ const formatMergedTitleRow = (worksheet, row, columnCount = 1) => {
     return;
   }
 
-  const lastColumn = Math.max(1, columnCount);
-  worksheet.mergeCells(row.number, 1, row.number, lastColumn);
+  const inferredLastColumn = Math.max(columnCount || 1, worksheet.columnCount || 1);
+  const lastColumnLetter = columnNumberToLetter(inferredLastColumn);
+  const mergeRange = `A${row.number}:${lastColumnLetter}${row.number}`;
+
+  worksheet.mergeCells(mergeRange);
 
   const titleCell = row.getCell(1);
   titleCell.font = { ...(titleCell.font || {}), ...TITLE_STYLE.font };
   titleCell.fill = TITLE_STYLE.fill;
   titleCell.alignment = TITLE_STYLE.alignment;
+  worksheet.getCell(mergeRange.split(':')[1]).alignment = TITLE_STYLE.alignment;
+  row.height = 24;
 };
 
 const addOverviewSheet = (workbook, { visitorAlignment, accountAlignment, timeframeChanges }, sheetNames) => {
