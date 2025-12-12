@@ -286,6 +286,7 @@ class SubIdFormController {
     input.type = 'text';
     input.id = `subid-${this.subIdCount}`;
     input.name = 'subid[]';
+    input.className = 'text-input subid-input';
     input.placeholder = 'Enter SubID';
     input.required = true;
     input.value = subId;

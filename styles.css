@@ -350,6 +350,11 @@ h1 {
   gap: 0.75rem;
 }
 
+.subid-input {
+  flex: 1 1 330px;
+  min-width: min(100%, 330px);
+}
+
 .integration-btn {
   flex-shrink: 0;
   padding: 0.55rem 0.75rem;
