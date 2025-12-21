@@ -23,38 +23,8 @@
   </header>
 
   <main class="content" id="main-content" aria-labelledby="main-title">
-    <section class="card page-section" id="subid-card" aria-label="SubID entry form" data-page-section="1">
-      <div class="card-header" id="subid-card-header">
-        <div class="form-intro" id="subid-form-intro">
-          <h2 class="section-title" id="subid-section-title">SubID Entries</h2>
-          <p class="section-hint" id="subid-section-hint">Add every SubID required for your audit. Use the plus button to add more fields.</p>
-        </div>
-        <button id="launch-button" class="launch-btn" type="button" disabled aria-disabled="true">Launch</button>
-      </div>
-      <form id="subid-form" class="subid-form" novalidate>
-        <div id="subid-fields" class="subid-fields"></div>
-      </form>
-    </section>
-
-    <section class="card page-section" data-page-section="2" hidden>
-      <h2 class="section-title">Page 2</h2>
-      <p class="section-hint">Content coming soon.</p>
-    </section>
-
-    <section class="card page-section" data-page-section="3" hidden>
-      <h2 class="section-title">Page 3</h2>
-      <p class="section-hint">Content coming soon.</p>
-    </section>
-
-    <section class="card page-section" data-page-section="4" hidden>
-      <h2 class="section-title">Page 4</h2>
-      <p class="section-hint">Content coming soon.</p>
-    </section>
-
-    <section class="card page-section" data-page-section="5" hidden>
-      <h2 class="section-title">Page 5</h2>
-      <p class="section-hint">Content coming soon.</p>
-    </section>
+    <div id="page-container" class="page-container" data-page-container></div>
+    <p class="section-hint" id="page-status" data-page-status hidden role="status"></p>
   </main>
 
   <div id="integration-backdrop" class="modal-backdrop" hidden></div>
