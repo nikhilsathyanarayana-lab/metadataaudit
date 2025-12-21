@@ -1,10 +1,16 @@
-import { renderNavigation } from '../../src/pages/navigation.js';
+import { renderSpaNavigation } from './nav.js';
 import { bootstrapShared } from '../../src/entries/shared.js';
 import { clearPendingCallQueue } from '../../src/pages/deepDive/aggregation.js';
 import { initApiCallConsoleLogger } from '../../src/ui/apiCallConsoleLogger.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  renderNavigation('#nav-root', { activePage: 'spa' });
+  try {
+    await renderSpaNavigation('#nav-root', { activePage: 'spa' });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Unable to render SPA navigation.', error);
+  }
+
   clearPendingCallQueue();
   initApiCallConsoleLogger();
   await bootstrapShared();
