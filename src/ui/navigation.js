@@ -1,6 +1,6 @@
 const NAV_LINKS = [
   { id: 'integration', href: 'index.html', label: 'Integration API' },
-  { id: 'spa', href: 'SPA.html', label: 'SPA' },
+  { id: 'spa', href: 'SPA/html/SPA.html', label: 'SPA' },
 ];
 
 const buildLink = ({ id, href, label }, activePage) => {
