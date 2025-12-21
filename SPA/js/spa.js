@@ -10,4 +10,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   initApiCallConsoleLogger();
   await bootstrapShared();
   initSubIdForm();
+  initPageSwitcher();
 });
+
+function initPageSwitcher() {
+  const pageButtons = document.querySelectorAll('[data-page-btn]');
+  const pageSections = document.querySelectorAll('[data-page-section]');
+  const defaultPageId = '1';
+
+  if (!pageButtons.length || !pageSections.length) {
+    return;
+  }
+
+  const setActivePage = (pageId) => {
+    pageButtons.forEach((button) => {
+      const isActive = button.dataset.pageBtn === pageId;
+      button.classList.toggle('page-switcher__btn--active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    pageSections.forEach((section) => {
+      const isActive = section.dataset.pageSection === pageId;
+      section.toggleAttribute('hidden', !isActive);
+    });
+  };
+
+  pageButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      setActivePage(button.dataset.pageBtn);
+    });
+  });
+
+  setActivePage(defaultPageId);
+}

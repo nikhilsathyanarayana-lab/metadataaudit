@@ -205,6 +205,47 @@ h1 {
   gap: 0.75rem;
 }
 
+.page-switcher {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-switcher__btn {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid rgba(61, 61, 61, 0.16);
+  background: #fff;
+  color: var(--pendo-charcoal);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+}
+
+.page-switcher__btn:hover {
+  border-color: var(--pendo-pink);
+  color: #c9005f;
+}
+
+.page-switcher__btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(224, 0, 108, 0.25);
+}
+
+.page-switcher__btn:active {
+  transform: translateY(1px);
+}
+
+.page-switcher__btn--active {
+  background: var(--pendo-pink);
+  border-color: var(--pendo-pink);
+  color: #fff;
+  box-shadow: 0 10px 25px rgba(224, 0, 108, 0.2);
+}
+
 .content {
   display: flex;
   flex-direction: column;
