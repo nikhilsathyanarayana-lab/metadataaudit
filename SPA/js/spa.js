@@ -53,7 +53,8 @@ function initPageSwitcher() {
   };
 
   const fetchSectionMarkup = async (pageId) => {
-    const response = await fetch(`../html/${pageId}.html`, { cache: 'no-cache' });
+    const pageUrl = new URL(`../html/${pageId}.html`, import.meta.url);
+    const response = await fetch(pageUrl, { cache: 'no-cache' });
 
     if (!response.ok) {
       throw new Error(`Unable to load view ${pageId}: ${response.status}`);
