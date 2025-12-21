@@ -13,6 +13,11 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
   2. Open `http://localhost:8000/index.html` for Integration API testing.
 - **Auth inputs**: Provide an integration key with read access. Use any modern browser that supports the Fetch API.
 
+## Single-page rebuild (SPA)
+- **Entry point**: `SPA/html/SPA.html` boots the new single-page experience through `SPA/js/spa.js`.
+- **Purpose**: Consolidates the multi-page workflow into one view so the rebuilt tool can manage state without leaning on `sessionStorage` or `localStorage` between screens.
+- **How to try it**: When serving locally, visit `http://localhost:8000/SPA/html/SPA.html` to load the SPA shell and exercise the emerging flow while the legacy pages remain available in parallel.
+
 ## Local storage and cached state
 - **SubID launch data (`subidLaunchData`)**: `initSubIdForm()` serializes each SubID + domain + integration key row before redirecting to app selection so users can refresh or navigate without losing entries. Empty rows are pruned on save to keep the cache small.
 - **App selection responses (`appSelectionResponses`)**: `initAppSelection()` hydrates previously cached SubIDs, populates app lists, and persists the full integration responses so downstream pages can render without refetching. Seven-day metadata previews are merged into this cache when available to keep Deep Dive defaults aligned.
