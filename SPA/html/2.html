@@ -1,4 +1,46 @@
-<section class="card page-section" data-page-section="2">
-  <h2 class="section-title">Page 2</h2>
-  <p class="section-hint">Content coming soon.</p>
+<section class="card page-section" data-page-section="2" aria-label="Available app list preview">
+  <div class="card-header">
+    <div class="form-intro">
+      <h2 class="section-title">Available Apps</h2>
+      <p class="section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
+    </div>
+    <div class="form-field">
+      <label for="app-selection-window-preview">Lookback window</label>
+      <select id="app-selection-window-preview" name="app-selection-window-preview" class="format-select" disabled>
+        <option value="7" selected>Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="180">Last 180 days</option>
+      </select>
+    </div>
+    <div class="app-selection-actions">
+      <button class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
+      <p class="selection-count" aria-live="polite">0 apps selected</p>
+    </div>
+  </div>
+
+  <div class="table-wrapper" role="region" aria-label="App selection table preview" tabindex="0">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th scope="col">Sub ID</th>
+          <th scope="col">App Name</th>
+          <th scope="col">App ID</th>
+          <th scope="col" class="checkbox-cell">
+            <label for="app-selection-toggle-all-preview">Select</label>
+            <input type="checkbox" id="app-selection-toggle-all-preview" aria-label="Select all apps" disabled />
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>6331700054917120</td>
+          <td>Loading...</td>
+          <td>Loading apps...</td>
+          <td class="checkbox-cell">
+            <input type="checkbox" aria-label="Select app 6331700054917120" disabled />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </section>
