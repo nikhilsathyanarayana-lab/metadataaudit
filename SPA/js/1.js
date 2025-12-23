@@ -132,6 +132,7 @@ class SubIdFormController {
     this.attachAddButton();
   }
 
+  // Collect credential entries from the rendered SubID rows.
   getCredentialEntries() {
     return Array.from(this.fieldsContainer.querySelectorAll('.subid-row')).map((row) => {
       const subIdInput = row.querySelector('input[name="subid[]"]');

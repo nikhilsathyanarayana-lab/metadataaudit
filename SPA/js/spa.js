@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initPageSwitcher();
 });
 
+// Wire up SPA section switching and lazy initialization.
 function initPageSwitcher() {
   const pageButtons = document.querySelectorAll('[data-page-btn]');
   const sectionContainer = document.querySelector('[data-page-container]');
@@ -25,6 +26,7 @@ function initPageSwitcher() {
 
   let activePageId = null;
 
+  // Toggle button styling and aria state for the active page.
   const setActiveButton = (pageId) => {
     pageButtons.forEach((button) => {
       const isActive = button.dataset.pageBtn === pageId;
@@ -33,6 +35,7 @@ function initPageSwitcher() {
     });
   };
 
+  // Show loading or error status messages in the UI.
   const showStatus = (message) => {
     if (!statusElement) {
       return;
@@ -47,6 +50,7 @@ function initPageSwitcher() {
     }
   };
 
+  // Retrieve HTML markup for the requested SPA section.
   const fetchSectionMarkup = async (pageId) => {
     const pageUrl = new URL(`../html/${pageId}.html`, import.meta.url);
     const response = await fetch(pageUrl, { cache: 'no-cache' });
@@ -58,6 +62,7 @@ function initPageSwitcher() {
     return response.text();
   };
 
+  // Resolve the initializer module for a given page ID.
   const getInitializer = (pageId) => {
     const loaders = {
       1: () => import('./1.js'),
@@ -70,6 +75,7 @@ function initPageSwitcher() {
     return loaders[pageId] || null;
   };
 
+  // Swap visible sections and invoke any page-specific initializer.
   const renderPage = async (pageId) => {
     if (pageId === activePageId) {
       return;
