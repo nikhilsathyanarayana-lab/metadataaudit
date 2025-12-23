@@ -1,15 +1,97 @@
 import { app_names } from '../API/app_names.js';
 
+const createStatusRow = (message, columnCount = 4, subId = '') => {
+  const row = document.createElement('tr');
+  const cell = document.createElement('td');
+  cell.colSpan = columnCount;
+  cell.textContent = subId ? `${message} (${subId})` : message;
+  row.appendChild(cell);
+  return row;
+};
+
+const createAppRow = ({ subId, appId, appName }) => {
+  const row = document.createElement('tr');
+
+  const subIdCell = document.createElement('td');
+  subIdCell.textContent = subId || 'Unknown SubID';
+
+  const nameCell = document.createElement('td');
+  nameCell.textContent = appName || appId || 'Unknown app';
+
+  const appIdCell = document.createElement('td');
+  appIdCell.textContent = appId || '';
+
+  const checkboxCell = document.createElement('td');
+  checkboxCell.className = 'checkbox-cell';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.disabled = true;
+  checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subId || 'unknown SubID'}`);
+  checkboxCell.appendChild(checkbox);
+
+  row.append(subIdCell, nameCell, appIdCell, checkboxCell);
+  return row;
+};
+
+const getColumnCount = (tableBody) => {
+  const headerCells = tableBody?.closest('table')?.querySelectorAll('thead th');
+  return headerCells?.length || 4;
+};
+
+const renderAppTable = async (tableBody) => {
+  const columnCount = getColumnCount(tableBody);
+  tableBody.innerHTML = '';
+
+  const credentialResults = await app_names();
+
+  if (!credentialResults.length) {
+    tableBody.appendChild(createStatusRow('No credentials available for app discovery.', columnCount));
+    return;
+  }
+
+  credentialResults.forEach((result) => {
+    const subId = result?.credential?.subId;
+
+    if (result?.errorType || !Array.isArray(result?.results)) {
+      const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
+      tableBody.appendChild(createStatusRow(
+        `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
+        columnCount,
+      ));
+      return;
+    }
+
+    if (!result.results.length) {
+      tableBody.appendChild(createStatusRow('No apps returned for SubID.', columnCount, subId));
+      return;
+    }
+
+    result.results.forEach((app) => {
+      tableBody.appendChild(createAppRow({
+        subId,
+        appId: app?.appId,
+        appName: app?.appName,
+      }));
+    });
+  });
+};
+
 // Initialize the app discovery section with available credentials.
 export async function initSection(sectionRoot) {
   // eslint-disable-next-line no-console
   console.log('Initializing app selection preview');
 
-  await app_names();
-
   if (!sectionRoot) {
     return;
   }
+
+  const tableBody = sectionRoot.querySelector('tbody');
+
+  if (!tableBody) {
+    return;
+  }
+
+  await renderAppTable(tableBody);
 
   const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
   const headerToggle = sectionRoot.querySelector('#app-selection-toggle-all-preview');
