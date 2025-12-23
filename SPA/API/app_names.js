@@ -54,11 +54,17 @@ const getCredentials = (override) => {
   return windowCredentials;
 };
 
+// Determine how many table columns exist to correctly span status rows.
+const getColumnCount = (tableBody) => {
+  const headerCells = tableBody?.closest('table')?.querySelectorAll('thead th');
+  return headerCells?.length || 4;
+};
+
 // Create a table row describing a loading or error state.
-const createStatusRow = (message, subId = '') => {
+const createStatusRow = (message, subId = '', columnCount = 4) => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
-  cell.colSpan = 4;
+  cell.colSpan = columnCount;
   cell.textContent = subId ? `${message} (${subId})` : message;
   row.appendChild(cell);
   return row;
@@ -90,23 +96,27 @@ const createAppRow = ({ subId, appId, appName }) => {
 };
 
 // Load app listings for each credential set and render them into the table.
-export async function app_names(entries) {
-  const tableBody = document.querySelector('[data-page-section="2"] tbody');
+export async function app_names(entries, options = {}) {
+  const { tableBody: overrideTableBody, rowBuilder } = options;
+  const tableBody = overrideTableBody || document.querySelector('[data-page-section="2"] tbody');
+  const renderRow = rowBuilder || createAppRow;
 
   if (!tableBody) {
     return;
   }
 
+  const columnCount = getColumnCount(tableBody);
+
   tableBody.innerHTML = '';
   const credentials = getCredentials(entries);
 
   if (!credentials.length) {
-    tableBody.appendChild(createStatusRow('No credentials available for app discovery.'));
+    tableBody.appendChild(createStatusRow('No credentials available for app discovery.', '', columnCount));
     return;
   }
 
   for (const credential of credentials) {
-    const loadingRow = createStatusRow('Loading apps...', credential.subId);
+    const loadingRow = createStatusRow('Loading apps...', credential.subId, columnCount);
     tableBody.appendChild(loadingRow);
 
     let response;
@@ -128,25 +138,25 @@ export async function app_names(entries) {
 
     if (!response || response.errorType || !Array.isArray(results)) {
       const hint = response?.errorHint ? `: ${response.errorHint}` : '';
-      tableBody.appendChild(
-        createStatusRow(`Unable to load apps for ${credential.subId || 'unknown SubID'}${hint}`),
-      );
+      tableBody.appendChild(createStatusRow(
+        `Unable to load apps for ${credential.subId || 'unknown SubID'}${hint}`,
+        '',
+        columnCount,
+      ));
       continue;
     }
 
     if (!results.length) {
-      tableBody.appendChild(createStatusRow('No apps returned for SubID.', credential.subId));
+      tableBody.appendChild(createStatusRow('No apps returned for SubID.', credential.subId, columnCount));
       continue;
     }
 
     results.forEach((app) => {
-      tableBody.appendChild(
-        createAppRow({
-          subId: credential.subId,
-          appId: app?.appId || '',
-          appName: app?.appName || app?.appId || '',
-        }),
-      );
+      tableBody.appendChild(renderRow({
+        subId: credential.subId,
+        appId: app?.appId || '',
+        appName: app?.appName || app?.appId || '',
+      }, columnCount));
     });
   }
 }

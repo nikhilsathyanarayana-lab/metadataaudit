@@ -1,5 +1,5 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
-import { setAppCredentials } from '../API/app.js';
+import { setAppCredentials } from '../API/app_names.js';
 
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
