@@ -13,19 +13,33 @@ export async function initSection(sectionRoot) {
 
   const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
   const headerToggle = sectionRoot.querySelector('#app-selection-toggle-all-preview');
+  const continueButton = sectionRoot.querySelector('#app-selection-continue-btn');
+  let selectedAppCount = 0;
 
   if (!headerToggle || !tableCheckboxes.length) {
     return;
   }
 
+  const updateContinueButtonState = () => {
+    if (!continueButton) {
+      return;
+    }
+
+    const hasSelection = selectedAppCount > 0;
+    continueButton.disabled = !hasSelection;
+    continueButton.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
+  };
+
   const updateSelectionCount = () => {
-    const selectedCount = Array.from(tableCheckboxes).filter((checkbox) => checkbox.checked).length;
+    selectedAppCount = Array.from(tableCheckboxes).filter((checkbox) => checkbox.checked).length;
     const selectionCount = sectionRoot.querySelector('.selection-count');
 
     if (selectionCount) {
-      const appLabel = selectedCount === 1 ? 'app' : 'apps';
-      selectionCount.textContent = `${selectedCount} ${appLabel} selected`;
+      const appLabel = selectedAppCount === 1 ? 'app' : 'apps';
+      selectionCount.textContent = `${selectedAppCount} ${appLabel} selected`;
     }
+
+    updateContinueButtonState();
   };
 
   const syncHeaderState = () => {
