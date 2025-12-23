@@ -1,4 +1,5 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
+import { setAppCredentials } from '../API/app.js';
 
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
@@ -130,10 +131,24 @@ class SubIdFormController {
     this.renumberRows();
     this.attachAddButton();
   }
+
+  getCredentialEntries() {
+    return Array.from(this.fieldsContainer.querySelectorAll('.subid-row')).map((row) => {
+      const subIdInput = row.querySelector('input[name="subid[]"]');
+      const domainSelect = row.querySelector('select');
+      const integrationInput = row.querySelector('input[name="integrationKey[]"]');
+
+      return {
+        subId: subIdInput?.value?.trim() || '',
+        domain: domainSelect?.value || '',
+        integrationKey: integrationInput?.value?.trim() || '',
+      };
+    });
+  }
 }
 
 // Wire SubID card actions to the SPA page switcher.
-const initShortcutButtons = (sectionRoot) => {
+const initShortcutButtons = (sectionRoot, subIdFormController) => {
   const shortcutButtons = sectionRoot.querySelectorAll('[data-target-page]');
 
   if (!shortcutButtons.length) {
@@ -148,6 +163,11 @@ const initShortcutButtons = (sectionRoot) => {
     }
 
     button.addEventListener('click', () => {
+      if (subIdFormController) {
+        const entries = subIdFormController.getCredentialEntries();
+        setAppCredentials(entries);
+      }
+
       const destinationButton = document.querySelector(`[data-page-btn="${targetPage}"]`);
 
       destinationButton?.click();
@@ -163,7 +183,7 @@ export const initSubIdForm = () => {
     return;
   }
 
-  new SubIdFormController(elements);
+  return new SubIdFormController(elements);
 };
 
 // Entry point for SPA section initialization on page load.
@@ -172,6 +192,6 @@ export async function initSection(sectionRoot) {
     return;
   }
 
-  initSubIdForm();
-  initShortcutButtons(sectionRoot);
+  const subIdFormController = initSubIdForm();
+  initShortcutButtons(sectionRoot, subIdFormController);
 }
