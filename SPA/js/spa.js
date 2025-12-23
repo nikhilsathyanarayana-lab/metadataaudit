@@ -1,5 +1,6 @@
 import { renderSpaNavigation } from './nav.js';
 
+// Wait for the DOM to be parsed before wiring up SPA navigation and page switching.
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await renderSpaNavigation('#nav-root', { activePage: 'spa' });
