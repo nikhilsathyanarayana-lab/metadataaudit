@@ -1,5 +1,4 @@
 import { renderSpaNavigation } from './nav.js';
-import { bootstrapShared } from '../../src/entries/shared.js';
 import { clearPendingCallQueue } from '../../src/pages/deepDive/aggregation.js';
 import { initApiCallConsoleLogger } from '../../src/ui/apiCallConsoleLogger.js';
 
@@ -13,7 +12,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   clearPendingCallQueue();
   initApiCallConsoleLogger();
-  await bootstrapShared();
   initPageSwitcher();
 });
 
