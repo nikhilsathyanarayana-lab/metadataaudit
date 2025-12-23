@@ -1,5 +1,6 @@
 import { app_names } from '../API/app.js';
 
 export async function initSection() {
-  app_names();
+  const credentialEntries = Array.isArray(window?.appCredentials) ? window.appCredentials : [];
+  app_names(credentialEntries);
 }
