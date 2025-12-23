@@ -1,6 +1,30 @@
-import { fetchAppsForEntry } from '../../src/services/requests/network.js';
+import { postAggregationWithIntegrationKey } from '../../src/services/requests/network.js';
 
-const defaultWindowDays = 7;
+const APP_LISTING_PAYLOAD = Object.freeze({
+  response: {
+    location: 'request',
+    mimeType: 'application/json',
+  },
+  request: {
+    pipeline: [
+      {
+        source: {
+          apps: {},
+        },
+      },
+      {
+        select: {
+          appId: 'id',
+          appName: 'name',
+        },
+      },
+      {
+        sort: ['appName'],
+      },
+    ],
+  },
+});
+
 let credentialEntries = Array.isArray(window?.appCredentials) ? window.appCredentials : [];
 
 const normalizeCredentials = (entries = []) =>
@@ -81,14 +105,22 @@ export async function app_names(entries) {
 
     let response;
     try {
-      response = await fetchAppsForEntry(credential, defaultWindowDays);
+      response = await postAggregationWithIntegrationKey(
+        credential,
+        JSON.parse(JSON.stringify(APP_LISTING_PAYLOAD)),
+      );
     } catch (error) {
       response = { errorType: 'failed', errorHint: error?.message };
     }
 
     loadingRow.remove();
 
-    if (!response || response.errorType || !Array.isArray(response.results)) {
+    const results = response?.results
+      || response?.response?.results
+      || response?.data?.results
+      || response?.response?.data?.results;
+
+    if (!response || response.errorType || !Array.isArray(results)) {
       const hint = response?.errorHint ? `: ${response.errorHint}` : '';
       tableBody.appendChild(
         createStatusRow(`Unable to load apps for ${credential.subId || 'unknown SubID'}${hint}`),
@@ -96,12 +128,12 @@ export async function app_names(entries) {
       continue;
     }
 
-    if (!response.results.length) {
+    if (!results.length) {
       tableBody.appendChild(createStatusRow('No apps returned for SubID.', credential.subId));
       continue;
     }
 
-    response.results.forEach((app) => {
+    results.forEach((app) => {
       tableBody.appendChild(
         createAppRow({
           subId: credential.subId,
