@@ -1,5 +1,4 @@
 import { renderSpaNavigation } from './nav.js';
-import { clearPendingCallQueue } from '../../src/pages/deepDive/aggregation.js';
 import { initApiCallConsoleLogger } from '../../src/ui/apiCallConsoleLogger.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -10,7 +9,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Unable to render SPA navigation.', error);
   }
 
-  clearPendingCallQueue();
   initApiCallConsoleLogger();
   initPageSwitcher();
 });
