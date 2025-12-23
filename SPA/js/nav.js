@@ -1,5 +1,3 @@
-import { initDebugToggle } from '../../src/ui/debugToggle.js';
-
 const NAV_TEMPLATE_PATH = 'SPA/html/nav.html';
 
 const fetchNavMarkup = async () => {
@@ -44,6 +42,4 @@ export const renderSpaNavigation = async (targetSelector = '#nav-root', options 
 
   setActiveLink(navElement, activePage);
   target.replaceChildren(navElement);
-
-  initDebugToggle();
 };
