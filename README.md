@@ -16,6 +16,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 ## Single-page rebuild (SPA)
 - **Entry point**: `SPA/html/SPA.html` boots the new single-page experience through `SPA/js/spa.js`.
 - **Purpose**: Consolidates the multi-page workflow into one view so the rebuilt tool can manage state without leaning on `sessionStorage` or `localStorage` between screens.
+- **Directory boundary**: The SPA is fully self-contained in `root/SPA/`—HTML, CSS, JS, and shared assets for the single-page build should stay under this folder so it can be hosted or packaged independently of the legacy pages.
 - **How to try it**: When serving locally, visit `http://localhost:8000/SPA/html/SPA.html` to load the SPA shell and exercise the emerging flow while the legacy pages remain available in parallel.
 
 ## Local storage and cached state
