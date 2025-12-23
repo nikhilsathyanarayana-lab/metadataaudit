@@ -14,12 +14,12 @@ const APP_LISTING_PAYLOAD = Object.freeze({
       },
       {
         select: {
-          appId: 'appId',
+          appId: 'id',
           appName: 'name',
         },
       },
       {
-        sort: ['appId'],
+        sort: ['appName'],
       },
     ],
   },
