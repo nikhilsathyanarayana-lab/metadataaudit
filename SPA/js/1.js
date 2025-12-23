@@ -132,6 +132,29 @@ class SubIdFormController {
   }
 }
 
+// Wire SubID card actions to the SPA page switcher.
+const initShortcutButtons = (sectionRoot) => {
+  const shortcutButtons = sectionRoot.querySelectorAll('[data-target-page]');
+
+  if (!shortcutButtons.length) {
+    return;
+  }
+
+  shortcutButtons.forEach((button) => {
+    const targetPage = button.dataset.targetPage;
+
+    if (!targetPage) {
+      return;
+    }
+
+    button.addEventListener('click', () => {
+      const destinationButton = document.querySelector(`[data-page-btn="${targetPage}"]`);
+
+      destinationButton?.click();
+    });
+  });
+};
+
 // Initialize the SubID form controller.
 export const initSubIdForm = () => {
   const elements = querySubIdFormElements();
@@ -150,4 +173,5 @@ export async function initSection(sectionRoot) {
   }
 
   initSubIdForm();
+  initShortcutButtons(sectionRoot);
 }
