@@ -1,5 +1,6 @@
 import { app_names } from '../API/app_names.js';
 
+// Build a single row summarizing status or errors across columns.
 const createStatusRow = (message, columnCount = 4, subId = '') => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
@@ -9,6 +10,7 @@ const createStatusRow = (message, columnCount = 4, subId = '') => {
   return row;
 };
 
+// Build a selectable app entry row for the preview table.
 const createAppRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
 
@@ -33,11 +35,13 @@ const createAppRow = ({ subId, appId, appName }) => {
   return row;
 };
 
+// Determine how many columns the app table has.
 const getColumnCount = (tableBody) => {
   const headerCells = tableBody?.closest('table')?.querySelectorAll('thead th');
   return headerCells?.length || 4;
 };
 
+// Populate the preview table with apps for each credential.
 const renderAppTable = async (tableBody) => {
   const columnCount = getColumnCount(tableBody);
   tableBody.innerHTML = '';
@@ -102,6 +106,7 @@ export async function initSection(sectionRoot) {
     return;
   }
 
+  // Enable or disable the continue button based on selection.
   const updateContinueButtonState = () => {
     if (!continueButton) {
       return;
@@ -112,6 +117,7 @@ export async function initSection(sectionRoot) {
     continueButton.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
   };
 
+  // Track selected app total and update UI messaging.
   const updateSelectionCount = () => {
     selectedAppCount = Array.from(tableCheckboxes).filter((checkbox) => checkbox.checked).length;
     const selectionCount = sectionRoot.querySelector('.selection-count');
@@ -124,12 +130,14 @@ export async function initSection(sectionRoot) {
     updateContinueButtonState();
   };
 
+  // Keep the header checkbox in sync with row selections.
   const syncHeaderState = () => {
     const areAllChecked = Array.from(tableCheckboxes).every((checkbox) => checkbox.checked);
     headerToggle.checked = areAllChecked;
     headerToggle.setAttribute('aria-checked', areAllChecked ? 'true' : 'false');
   };
 
+  // Apply the same selection state to every row.
   const setRowSelection = (isChecked) => {
     tableCheckboxes.forEach((checkbox) => {
       checkbox.checked = isChecked;
