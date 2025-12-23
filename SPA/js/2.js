@@ -18,6 +18,16 @@ export async function initSection(sectionRoot) {
     return;
   }
 
+  const updateSelectionCount = () => {
+    const selectedCount = Array.from(tableCheckboxes).filter((checkbox) => checkbox.checked).length;
+    const selectionCount = sectionRoot.querySelector('.selection-count');
+
+    if (selectionCount) {
+      const appLabel = selectedCount === 1 ? 'app' : 'apps';
+      selectionCount.textContent = `${selectedCount} ${appLabel} selected`;
+    }
+  };
+
   const syncHeaderState = () => {
     const areAllChecked = Array.from(tableCheckboxes).every((checkbox) => checkbox.checked);
     headerToggle.checked = areAllChecked;
@@ -36,16 +46,21 @@ export async function initSection(sectionRoot) {
   headerToggle.setAttribute('aria-disabled', 'false');
   headerToggle.setAttribute('aria-checked', 'false');
   setRowSelection(false);
+  updateSelectionCount();
 
   tableCheckboxes.forEach((checkbox) => {
     checkbox.disabled = false;
     checkbox.removeAttribute('aria-disabled');
-    checkbox.addEventListener('change', syncHeaderState);
+    checkbox.addEventListener('change', () => {
+      syncHeaderState();
+      updateSelectionCount();
+    });
   });
 
   headerToggle.addEventListener('change', () => {
     const isChecked = headerToggle.checked;
     headerToggle.setAttribute('aria-checked', isChecked ? 'true' : 'false');
     setRowSelection(isChecked);
+    updateSelectionCount();
   });
 }
