@@ -1,5 +1,4 @@
 import { renderSpaNavigation } from './nav.js';
-import { initApiCallConsoleLogger } from '../../src/ui/apiCallConsoleLogger.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -9,7 +8,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Unable to render SPA navigation.', error);
   }
 
-  initApiCallConsoleLogger();
   initPageSwitcher();
 });
 
