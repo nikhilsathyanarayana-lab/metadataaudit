@@ -27,6 +27,7 @@ const APP_LISTING_PAYLOAD = Object.freeze({
 
 let credentialEntries = Array.isArray(window?.appCredentials) ? window.appCredentials : [];
 
+// Clean up credential inputs and drop empty entries.
 const normalizeCredentials = (entries = []) =>
   entries
     .filter((entry) => entry && (entry.subId || entry.domain || entry.integrationKey))
@@ -36,10 +37,12 @@ const normalizeCredentials = (entries = []) =>
       integrationKey: entry.integrationKey || '',
     }));
 
+// Persist normalized credentials for later API calls.
 export const setAppCredentials = (entries = []) => {
   credentialEntries = normalizeCredentials(entries);
 };
 
+// Return normalized credentials using overrides or window defaults.
 const getCredentials = (override) => {
   const normalized = normalizeCredentials(override ?? credentialEntries);
 
@@ -51,6 +54,7 @@ const getCredentials = (override) => {
   return windowCredentials;
 };
 
+// Create a table row describing a loading or error state.
 const createStatusRow = (message, subId = '') => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
@@ -60,6 +64,7 @@ const createStatusRow = (message, subId = '') => {
   return row;
 };
 
+// Build a table row for a single app listing.
 const createAppRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
 
@@ -84,6 +89,7 @@ const createAppRow = ({ subId, appId, appName }) => {
   return row;
 };
 
+// Load app listings for each credential set and render them into the table.
 export async function app_names(entries) {
   const tableBody = document.querySelector('[data-page-section="2"] tbody');
 

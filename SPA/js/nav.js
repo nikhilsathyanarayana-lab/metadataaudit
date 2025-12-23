@@ -1,5 +1,6 @@
 const NAV_TEMPLATE_PATH = 'SPA/html/nav.html';
 
+// Fetch the SPA navigation markup from the HTML partial.
 const fetchNavMarkup = async () => {
   const response = await fetch(NAV_TEMPLATE_PATH, { cache: 'no-cache' });
 
@@ -10,6 +11,7 @@ const fetchNavMarkup = async () => {
   return response.text();
 };
 
+// Mark the matching navigation link as the current page.
 const setActiveLink = (navElement, activePage) => {
   if (!activePage) {
     return;
@@ -22,6 +24,7 @@ const setActiveLink = (navElement, activePage) => {
   }
 };
 
+// Render the SPA navigation bar into the target element.
 export const renderSpaNavigation = async (targetSelector = '#nav-root', options = {}) => {
   const target = document.querySelector(targetSelector);
 
