@@ -1,15 +1,101 @@
 import { app_names } from '../API/app_names.js';
 
+// Build a single row summarizing status or errors across columns.
+const createStatusRow = (message, columnCount = 4, subId = '') => {
+  const row = document.createElement('tr');
+  const cell = document.createElement('td');
+  cell.colSpan = columnCount;
+  cell.textContent = subId ? `${message} (${subId})` : message;
+  row.appendChild(cell);
+  return row;
+};
+
+// Build a selectable app entry row for the preview table.
+const createAppRow = ({ subId, appId, appName }) => {
+  const row = document.createElement('tr');
+
+  const subIdCell = document.createElement('td');
+  subIdCell.textContent = subId || 'Unknown SubID';
+
+  const nameCell = document.createElement('td');
+  nameCell.textContent = appName || appId || 'Unknown app';
+
+  const appIdCell = document.createElement('td');
+  appIdCell.textContent = appId || '';
+
+  const checkboxCell = document.createElement('td');
+  checkboxCell.className = 'checkbox-cell';
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.disabled = true;
+  checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subId || 'unknown SubID'}`);
+  checkboxCell.appendChild(checkbox);
+
+  row.append(subIdCell, nameCell, appIdCell, checkboxCell);
+  return row;
+};
+
+// Determine how many columns the app table has.
+const getColumnCount = (tableBody) => {
+  const headerCells = tableBody?.closest('table')?.querySelectorAll('thead th');
+  return headerCells?.length || 4;
+};
+
+// Populate the preview table with apps for each credential.
+const renderAppTable = async (tableBody) => {
+  const columnCount = getColumnCount(tableBody);
+  tableBody.innerHTML = '';
+
+  const credentialResults = await app_names();
+
+  if (!credentialResults.length) {
+    tableBody.appendChild(createStatusRow('No credentials available for app discovery.', columnCount));
+    return;
+  }
+
+  credentialResults.forEach((result) => {
+    const subId = result?.credential?.subId;
+
+    if (result?.errorType || !Array.isArray(result?.results)) {
+      const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
+      tableBody.appendChild(createStatusRow(
+        `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
+        columnCount,
+      ));
+      return;
+    }
+
+    if (!result.results.length) {
+      tableBody.appendChild(createStatusRow('No apps returned for SubID.', columnCount, subId));
+      return;
+    }
+
+    result.results.forEach((app) => {
+      tableBody.appendChild(createAppRow({
+        subId,
+        appId: app?.appId,
+        appName: app?.appName,
+      }));
+    });
+  });
+};
+
 // Initialize the app discovery section with available credentials.
 export async function initSection(sectionRoot) {
   // eslint-disable-next-line no-console
   console.log('Initializing app selection preview');
 
-  await app_names();
-
   if (!sectionRoot) {
     return;
   }
+
+  const tableBody = sectionRoot.querySelector('tbody');
+
+  if (!tableBody) {
+    return;
+  }
+
+  await renderAppTable(tableBody);
 
   const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
   const headerToggle = sectionRoot.querySelector('#app-selection-toggle-all-preview');
@@ -20,6 +106,7 @@ export async function initSection(sectionRoot) {
     return;
   }
 
+  // Enable or disable the continue button based on selection.
   const updateContinueButtonState = () => {
     if (!continueButton) {
       return;
@@ -30,6 +117,7 @@ export async function initSection(sectionRoot) {
     continueButton.setAttribute('aria-disabled', hasSelection ? 'false' : 'true');
   };
 
+  // Track selected app total and update UI messaging.
   const updateSelectionCount = () => {
     selectedAppCount = Array.from(tableCheckboxes).filter((checkbox) => checkbox.checked).length;
     const selectionCount = sectionRoot.querySelector('.selection-count');
@@ -42,12 +130,14 @@ export async function initSection(sectionRoot) {
     updateContinueButtonState();
   };
 
+  // Keep the header checkbox in sync with row selections.
   const syncHeaderState = () => {
     const areAllChecked = Array.from(tableCheckboxes).every((checkbox) => checkbox.checked);
     headerToggle.checked = areAllChecked;
     headerToggle.setAttribute('aria-checked', areAllChecked ? 'true' : 'false');
   };
 
+  // Apply the same selection state to every row.
   const setRowSelection = (isChecked) => {
     tableCheckboxes.forEach((checkbox) => {
       checkbox.checked = isChecked;
