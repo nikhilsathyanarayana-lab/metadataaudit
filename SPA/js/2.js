@@ -1,3 +1,5 @@
+import { app_names } from '../API/app.js';
+
 export async function initSection() {
-  // Page 2 initialization placeholder
+  app_names();
 }
