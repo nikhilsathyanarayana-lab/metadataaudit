@@ -386,14 +386,16 @@ h1 {
 }
 
 .input-group {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 32%) minmax(0, 42%) auto auto;
   align-items: center;
   gap: 0.75rem;
+  width: 100%;
 }
 
 .subid-input {
-  flex: 0 1 240px;
-  min-width: min(100%, 240px);
+  width: 100%;
+  min-width: 0;
 }
 
 .integration-input {
@@ -430,13 +432,26 @@ h1 {
 }
 
 .domain-select {
-  min-width: 165px;
+  width: 100%;
+  min-width: 0;
   padding: 0.75rem 0.85rem;
   border: 1px solid rgba(61, 61, 61, 0.2);
   border-radius: 10px;
   font-size: 1rem;
   background: #fff;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+@media (max-width: 960px) {
+  .input-group {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+
+  .integration-btn,
+  .add-subid-btn,
+  .remove-subid-btn {
+    width: 100%;
+  }
 }
 
 .domain-select:focus {
