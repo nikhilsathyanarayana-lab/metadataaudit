@@ -26,6 +26,32 @@ function initPageSwitcher() {
 
   let activePageId = null;
 
+  const lockPageSwitcher = () => {
+    pageButtons.forEach((button) => {
+      button.classList.add('page-switcher__btn--locked');
+    });
+  };
+
+  const unlockPageSwitcher = () => {
+    pageButtons.forEach((button) => {
+      button.classList.remove('page-switcher__btn--locked');
+    });
+  };
+
+  const bindShortcutUnlockers = () => {
+    const unlock = () => unlockPageSwitcher();
+
+    document
+      .getElementById('subid-select-apps-btn')
+      ?.addEventListener('click', unlock, { once: true });
+
+    document
+      .getElementById('subid-audit-all-btn')
+      ?.addEventListener('click', unlock, { once: true });
+  };
+
+  lockPageSwitcher();
+
   // Toggle button styling and aria state for the active page.
   const setActiveButton = (pageId) => {
     pageButtons.forEach((button) => {
@@ -136,5 +162,5 @@ function initPageSwitcher() {
     });
   });
 
-  renderPage(defaultPageId);
+  renderPage(defaultPageId).then(bindShortcutUnlockers);
 }
