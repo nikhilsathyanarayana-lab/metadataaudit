@@ -225,6 +225,15 @@ h1 {
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
 }
 
+.page-switcher__btn--locked,
+.page-switcher__btn:disabled {
+  background: #f3f3f3;
+  border-color: rgba(61, 61, 61, 0.16);
+  color: #7a7a7a;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .page-switcher__btn:hover {
   border-color: var(--pendo-pink);
   color: #c9005f;
