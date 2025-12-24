@@ -1,5 +1,27 @@
 import { app_names } from '../API/app_names.js';
 
+let appSelections = [];
+
+// Persist the latest app selection snapshot for reuse across SPA views.
+export const setAppSelections = (entries = []) => {
+  appSelections = entries
+    .filter((entry) => entry && (entry.subId || entry.appId || entry.appName))
+    .map((entry) => ({
+      subId: entry.subId || '',
+      appId: entry.appId || '',
+      appName: entry.appName || '',
+      isSelected: Boolean(entry.isSelected),
+    }));
+};
+
+// Retrieve a copy of the stored app selections.
+export const getAppSelections = () => [...appSelections];
+
+// Clear any saved app selection data.
+export const clearAppSelections = () => {
+  appSelections = [];
+};
+
 // Build a single row summarizing status or errors across columns.
 const createStatusRow = (message, columnCount = 4, subId = '') => {
   const row = document.createElement('tr');
@@ -28,6 +50,9 @@ const createAppRow = ({ subId, appId, appName }) => {
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.disabled = true;
+  checkbox.dataset.subId = subId || '';
+  checkbox.dataset.appId = appId || '';
+  checkbox.dataset.appName = appName || appId || '';
   checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subId || 'unknown SubID'}`);
   checkboxCell.appendChild(checkbox);
 
@@ -138,6 +163,14 @@ export async function initSection(sectionRoot) {
     headerToggle.setAttribute('aria-checked', areAllChecked ? 'true' : 'false');
   };
 
+  const buildSelectionSnapshot = () =>
+    Array.from(tableCheckboxes).map((checkbox) => ({
+      subId: checkbox.dataset.subId || '',
+      appId: checkbox.dataset.appId || '',
+      appName: checkbox.dataset.appName || '',
+      isSelected: Boolean(checkbox.checked),
+    }));
+
   // Apply the same selection state to every row.
   const setRowSelection = (isChecked) => {
     tableCheckboxes.forEach((checkbox) => {
@@ -170,6 +203,7 @@ export async function initSection(sectionRoot) {
   });
 
   continueButton?.addEventListener('click', () => {
+    setAppSelections(buildSelectionSnapshot());
     pageThreeButton?.click();
   });
 }
