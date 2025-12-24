@@ -100,6 +100,7 @@ export async function initSection(sectionRoot) {
   const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
   const headerToggle = sectionRoot.querySelector('#app-selection-toggle-all-preview');
   const continueButton = sectionRoot.querySelector('#app-selection-continue-btn');
+  const pageThreeButton = document.querySelector('#page-switcher-btn-3');
   let selectedAppCount = 0;
 
   if (!headerToggle || !tableCheckboxes.length) {
@@ -166,5 +167,9 @@ export async function initSection(sectionRoot) {
     headerToggle.setAttribute('aria-checked', isChecked ? 'true' : 'false');
     setRowSelection(isChecked);
     updateSelectionCount();
+  });
+
+  continueButton?.addEventListener('click', () => {
+    pageThreeButton?.click();
   });
 }
