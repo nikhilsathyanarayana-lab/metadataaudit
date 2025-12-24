@@ -1,4 +1,5 @@
 import { app_names } from '../API/app_names.js';
+import { requestMetadataDeepDive } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
 // Build a visitor metadata row showing SubID and app details.
@@ -57,6 +58,7 @@ const renderMetadataTables = async (tableBodies) => {
 
   const cachedSelections = getAppSelections();
   const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
+  let appsForMetadata = [];
 
   if (selectedApps.length) {
     selectedApps.forEach((app) => {
@@ -66,6 +68,8 @@ const renderMetadataTables = async (tableBodies) => {
         appName: app?.appName,
       }));
     });
+    appsForMetadata = selectedApps;
+    await requestMetadataDeepDive(appsForMetadata);
     return;
   }
 
@@ -103,8 +107,17 @@ const renderMetadataTables = async (tableBodies) => {
         appId: app?.appId,
         appName: app?.appName,
       }));
+      appsForMetadata.push({
+        subId,
+        appId: app?.appId,
+        appName: app?.appName,
+      });
     });
   });
+
+  if (appsForMetadata.length) {
+    await requestMetadataDeepDive(appsForMetadata);
+  }
 };
 
 // Populate metadata tables with discovered apps.
