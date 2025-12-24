@@ -105,6 +105,31 @@ const renderAppTable = async (tableBody) => {
   });
 };
 
+// Reapply any saved selections to the freshly rendered checkboxes.
+const applySavedSelections = (tableCheckboxes, savedSelections = []) => {
+  let restoredCount = 0;
+
+  const findMatchingSelection = (checkbox) => savedSelections.find(
+    (entry) => entry.subId === checkbox.dataset.subId
+      && entry.appId === checkbox.dataset.appId
+      && entry.appName === checkbox.dataset.appName,
+  );
+
+  tableCheckboxes.forEach((checkbox) => {
+    const matchedSelection = findMatchingSelection(checkbox);
+    const isSelected = Boolean(matchedSelection?.isSelected);
+
+    checkbox.checked = isSelected;
+    checkbox.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+
+    if (isSelected) {
+      restoredCount += 1;
+    }
+  });
+
+  return restoredCount;
+};
+
 const buildSelectionSnapshot = (tableCheckboxes) => Array.from(tableCheckboxes).map((checkbox) => ({
   subId: checkbox.dataset.subId || '',
   appId: checkbox.dataset.appId || '',
@@ -133,7 +158,7 @@ const enableSelectionControls = (
   continueButton,
   pageThreeButton,
 ) => {
-  let selectedAppCount = 0;
+  let selectedAppCount = Array.from(tableCheckboxes).filter((checkbox) => checkbox.checked).length;
 
   // Enable or disable the continue button based on selection.
   const updateContinueButtonState = () => {
@@ -178,8 +203,6 @@ const enableSelectionControls = (
   headerToggle.removeAttribute('disabled');
   headerToggle.setAttribute('aria-disabled', 'false');
   headerToggle.setAttribute('aria-checked', 'false');
-  setRowSelection(false);
-  updateSelectionCount();
 
   tableCheckboxes.forEach((checkbox) => {
     checkbox.disabled = false;
@@ -203,6 +226,9 @@ const enableSelectionControls = (
       pageThreeButton?.click();
     };
   }
+
+  syncHeaderState();
+  updateSelectionCount();
 };
 
 const renderAppPreview = async (sectionRoot) => {
@@ -210,6 +236,7 @@ const renderAppPreview = async (sectionRoot) => {
   const headerToggle = sectionRoot?.querySelector('#app-selection-toggle-all-preview');
   const continueButton = sectionRoot?.querySelector('#app-selection-continue-btn');
   const pageThreeButton = document.querySelector('#page-switcher-btn-3');
+  const savedSelections = getAppSelections();
 
   if (!sectionRoot || !tableBody) {
     return;
@@ -218,6 +245,7 @@ const renderAppPreview = async (sectionRoot) => {
   await renderAppTable(tableBody);
 
   const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
+  applySavedSelections(tableCheckboxes, savedSelections);
 
   if (!headerToggle || !tableCheckboxes.length) {
     disableSelectionControls(headerToggle, continueButton);
