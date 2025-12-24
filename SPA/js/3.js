@@ -1,6 +1,10 @@
 import { app_names } from '../API/app_names.js';
-import { requestMetadataDeepDive } from '../API/metadata.js';
+import { buildMetadataCallPlan, executeMetadataCallPlan } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
+
+const DEFAULT_LOOKBACK_WINDOW = 7;
+let metadataCallQueue = [];
+let lastDiscoveredApps = [];
 
 const processAggregation = ({ app, lookbackWindow }) => {
   const appId = app?.appId || 'unknown';
@@ -68,6 +72,54 @@ const renderMetadataTables = async (tableBodies) => {
   const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
   let appsForMetadata = [];
 
+  const buildMetadataQueue = async (entries) => {
+    metadataCallQueue = await buildMetadataCallPlan(entries, DEFAULT_LOOKBACK_WINDOW);
+    lastDiscoveredApps = entries;
+
+    // eslint-disable-next-line no-console
+    console.log('[Metadata Queue] Ready', {
+      count: metadataCallQueue.length,
+      lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
+    });
+  };
+
+  const runMetadataQueue = async (limit = metadataCallQueue.length) => {
+    if (!metadataCallQueue.length) {
+      // eslint-disable-next-line no-console
+      console.warn('[Metadata Queue] No queued metadata calls to run.');
+      return [];
+    }
+
+    const plannedLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
+      ? Number(limit)
+      : metadataCallQueue.length;
+
+    return executeMetadataCallPlan(
+      metadataCallQueue,
+      DEFAULT_LOOKBACK_WINDOW,
+      processAggregation,
+      plannedLimit,
+    );
+  };
+
+  const registerConsoleHelpers = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.metadataQueue = {
+      inspect: () => metadataCallQueue.map((entry, index) => ({
+        index,
+        subId: entry?.credential?.subId || entry?.app?.subId,
+        appId: entry?.app?.appId,
+        appName: entry?.app?.appName,
+      })),
+      rebuild: () => buildMetadataQueue(lastDiscoveredApps),
+      run: (limit) => runMetadataQueue(limit),
+      size: () => metadataCallQueue.length,
+    };
+  };
+
   if (selectedApps.length) {
     selectedApps.forEach((app) => {
       appendToAllTables(() => createVisitorMetadataRow({
@@ -77,7 +129,9 @@ const renderMetadataTables = async (tableBodies) => {
       }));
     });
     appsForMetadata = selectedApps;
-    await requestMetadataDeepDive(appsForMetadata, undefined, processAggregation);
+    await buildMetadataQueue(appsForMetadata);
+    registerConsoleHelpers();
+    await runMetadataQueue(1);
     return;
   }
 
@@ -124,7 +178,9 @@ const renderMetadataTables = async (tableBodies) => {
   });
 
   if (appsForMetadata.length) {
-    await requestMetadataDeepDive(appsForMetadata, undefined, processAggregation);
+    await buildMetadataQueue(appsForMetadata);
+    registerConsoleHelpers();
+    await runMetadataQueue(1);
   }
 };
 

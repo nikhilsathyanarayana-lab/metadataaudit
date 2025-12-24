@@ -29,7 +29,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 
 ### SPA behavior and extensibility
 - The SPA defaults to the first view on load and short-circuits re-renders when the active tab is selected again, preventing duplicate initializer calls. Each initializer can export `initSection(element)` to hydrate only the content relevant to its partial.
-- View 3 (`SPA/js/3.js`) hydrates all four metadata tables (Visitor, Account, Custom, and Salesforce) with the SubID, app name, and app ID rows already selected on view 2, falling back to a fresh app name lookup only when no cached selections are available. After the tables render, `SPA/API/metadata.js` builds the next metadata call plan with the same credentials used for app discovery and immediately issues the first deep-dive metadata aggregation request.
+- View 3 (`SPA/js/3.js`) hydrates all four metadata tables (Visitor, Account, Custom, and Salesforce) with the SubID, app name, and app ID rows already selected on view 2, falling back to a fresh app name lookup only when no cached selections are available. After the tables render, `SPA/API/metadata.js` builds the next metadata call plan with the same credentials used for app discovery, queues the 7-day requests, and runs the first deep-dive metadata aggregation while exposing queue controls in the console.
 - `processAggregation()` in `SPA/js/3.js` receives aggregation responses from `requestMetadataDeepDive()` and logs the app ID, name, and lookback window for each call so the 7-day metadata column can later be populated.
 - Deep Dive aggregation payloads select only the metadata visitor, account, custom, and Salesforce blocks from each event, trimming identifiers from the `select` stage and relying on the provided credentials to scope the request.
 - Section fetch failures (for example, missing HTML partials or network issues) surface both console errors and user-facing status text without breaking the rest of the shell. This makes it safe to add or iterate on new sections while keeping the overall SPA resilient.
@@ -99,6 +99,11 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
   - Expected input: None; values flow from account metadata aggregation.
   - Sample invocation: `window.metadata_accounts.find((row) => row.field === 'industry')`.
   - Output: Array of flat rows `{ subId, appId, field, value, count }` ordered for XLSX/JSON exports.
+- `window.metadataQueue`
+  - Context: SPA view 3 after metadata tables load. Builds a queue of 7-day metadata aggregation calls for each SubID + App ID pair on the page.
+  - Expected input: Optional limit on `run()`. `rebuild()` re-queues the current SubID/App ID pairs, `inspect()` surfaces the queue entries, and `size()` reports how many calls are staged.
+  - Sample invocation: `window.metadataQueue.run(2)` to process the first two queued calls one at a time.
+  - Output: `run()` resolves with the executed call summaries while logging each aggregation through `processAggregation()`.
 - `window.metadata_api_calls`
   - Context: Deep Dive request lifecycle while metadata responses stream in.
   - Expected input: None; appended through `updateMetadataApiCalls()` during each request.
