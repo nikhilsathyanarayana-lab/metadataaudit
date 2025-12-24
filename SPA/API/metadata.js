@@ -95,6 +95,55 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
     .filter(Boolean);
 };
 
+export const executeMetadataCallPlan = async (
+  calls = [],
+  lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
+  onAggregation,
+  limit = calls.length,
+) => {
+  if (!Array.isArray(calls) || !calls.length) {
+    return [];
+  }
+
+  const maxCalls = Number.isFinite(Number(limit)) && Number(limit) > 0
+    ? Math.min(Number(limit), calls.length)
+    : calls.length;
+
+  const responses = [];
+
+  /* eslint-disable no-await-in-loop */
+  for (let index = 0; index < maxCalls; index += 1) {
+    const nextCall = calls[index];
+
+    try {
+      const response = await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
+
+      if (typeof onAggregation === 'function') {
+        onAggregation({
+          app: nextCall.app,
+          lookbackWindow,
+          response,
+          queueIndex: index,
+          totalQueued: maxCalls,
+        });
+      }
+
+      responses.push({
+        app: nextCall.app,
+        lookbackWindow,
+        response,
+        queueIndex: index,
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Unable to request metadata audit payload.', error);
+    }
+  }
+  /* eslint-enable no-await-in-loop */
+
+  return responses;
+};
+
 export const requestMetadataDeepDive = async (
   appEntries = [],
   lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
@@ -106,20 +155,5 @@ export const requestMetadataDeepDive = async (
     return;
   }
 
-  const [nextCall] = calls;
-
-  try {
-    const response = await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
-
-    if (typeof onAggregation === 'function') {
-      onAggregation({
-        app: nextCall.app,
-        lookbackWindow,
-        response,
-      });
-    }
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('Unable to request metadata audit payload.', error);
-  }
+  await executeMetadataCallPlan(calls, lookbackWindow, onAggregation, 1);
 };
