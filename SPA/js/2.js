@@ -105,32 +105,35 @@ const renderAppTable = async (tableBody) => {
   });
 };
 
-// Initialize the app discovery section with available credentials.
-export async function initSection(sectionRoot) {
-  // eslint-disable-next-line no-console
-  console.log('Initializing app selection preview');
+const buildSelectionSnapshot = (tableCheckboxes) => Array.from(tableCheckboxes).map((checkbox) => ({
+  subId: checkbox.dataset.subId || '',
+  appId: checkbox.dataset.appId || '',
+  appName: checkbox.dataset.appName || '',
+  isSelected: Boolean(checkbox.checked),
+}));
 
-  if (!sectionRoot) {
-    return;
+const disableSelectionControls = (headerToggle, continueButton) => {
+  if (headerToggle) {
+    headerToggle.checked = false;
+    headerToggle.disabled = true;
+    headerToggle.setAttribute('aria-disabled', 'true');
+    headerToggle.setAttribute('aria-checked', 'false');
   }
 
-  const tableBody = sectionRoot.querySelector('tbody');
-
-  if (!tableBody) {
-    return;
+  if (continueButton) {
+    continueButton.disabled = true;
+    continueButton.setAttribute('aria-disabled', 'true');
   }
+};
 
-  await renderAppTable(tableBody);
-
-  const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
-  const headerToggle = sectionRoot.querySelector('#app-selection-toggle-all-preview');
-  const continueButton = sectionRoot.querySelector('#app-selection-continue-btn');
-  const pageThreeButton = document.querySelector('#page-switcher-btn-3');
+const enableSelectionControls = (
+  sectionRoot,
+  tableCheckboxes,
+  headerToggle,
+  continueButton,
+  pageThreeButton,
+) => {
   let selectedAppCount = 0;
-
-  if (!headerToggle || !tableCheckboxes.length) {
-    return;
-  }
 
   // Enable or disable the continue button based on selection.
   const updateContinueButtonState = () => {
@@ -163,14 +166,6 @@ export async function initSection(sectionRoot) {
     headerToggle.setAttribute('aria-checked', areAllChecked ? 'true' : 'false');
   };
 
-  const buildSelectionSnapshot = () =>
-    Array.from(tableCheckboxes).map((checkbox) => ({
-      subId: checkbox.dataset.subId || '',
-      appId: checkbox.dataset.appId || '',
-      appName: checkbox.dataset.appName || '',
-      isSelected: Boolean(checkbox.checked),
-    }));
-
   // Apply the same selection state to every row.
   const setRowSelection = (isChecked) => {
     tableCheckboxes.forEach((checkbox) => {
@@ -189,21 +184,58 @@ export async function initSection(sectionRoot) {
   tableCheckboxes.forEach((checkbox) => {
     checkbox.disabled = false;
     checkbox.removeAttribute('aria-disabled');
-    checkbox.addEventListener('change', () => {
+    checkbox.onchange = () => {
       syncHeaderState();
       updateSelectionCount();
-    });
+    };
   });
 
-  headerToggle.addEventListener('change', () => {
+  headerToggle.onchange = () => {
     const isChecked = headerToggle.checked;
     headerToggle.setAttribute('aria-checked', isChecked ? 'true' : 'false');
     setRowSelection(isChecked);
     updateSelectionCount();
-  });
+  };
 
-  continueButton?.addEventListener('click', () => {
-    setAppSelections(buildSelectionSnapshot());
-    pageThreeButton?.click();
-  });
+  if (continueButton) {
+    continueButton.onclick = () => {
+      setAppSelections(buildSelectionSnapshot(tableCheckboxes));
+      pageThreeButton?.click();
+    };
+  }
+};
+
+const renderAppPreview = async (sectionRoot) => {
+  const tableBody = sectionRoot?.querySelector('tbody');
+  const headerToggle = sectionRoot?.querySelector('#app-selection-toggle-all-preview');
+  const continueButton = sectionRoot?.querySelector('#app-selection-continue-btn');
+  const pageThreeButton = document.querySelector('#page-switcher-btn-3');
+
+  if (!sectionRoot || !tableBody) {
+    return;
+  }
+
+  await renderAppTable(tableBody);
+
+  const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
+
+  if (!headerToggle || !tableCheckboxes.length) {
+    disableSelectionControls(headerToggle, continueButton);
+    return;
+  }
+
+  enableSelectionControls(sectionRoot, tableCheckboxes, headerToggle, continueButton, pageThreeButton);
+};
+
+// Initialize the app discovery section with available credentials.
+export async function initSection(sectionRoot) {
+  // eslint-disable-next-line no-console
+  console.log('Initializing app selection preview');
+
+  await renderAppPreview(sectionRoot);
+}
+
+// Refresh the app preview when the tab is reopened so updated credentials are respected.
+export async function onShow(sectionRoot) {
+  await renderAppPreview(sectionRoot);
 }
