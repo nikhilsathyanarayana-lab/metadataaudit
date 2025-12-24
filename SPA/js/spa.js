@@ -98,7 +98,12 @@ function initPageSwitcher() {
         }
 
         const initializerLoader = getInitializer(pageId);
-        sectionEntry = { element, initialized: false, initializerLoader };
+        sectionEntry = {
+          element,
+          initialized: false,
+          initializerLoader,
+          module: null,
+        };
         sectionCache.set(pageId, sectionEntry);
       }
 
@@ -107,10 +112,15 @@ function initPageSwitcher() {
 
       if (!sectionEntry.initialized && sectionEntry.initializerLoader) {
         const module = await sectionEntry.initializerLoader();
+        sectionEntry.module = module;
         if (module?.initSection) {
           await module.initSection(sectionEntry.element);
         }
         sectionEntry.initialized = true;
+      }
+
+      if (sectionEntry.initialized && sectionEntry.module?.onShow) {
+        await sectionEntry.module.onShow(sectionEntry.element);
       }
       showStatus('');
     } catch (error) {

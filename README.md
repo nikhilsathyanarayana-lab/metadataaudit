@@ -22,7 +22,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 ### SPA shell and navigation
 - `SPA/js/spa.js` initializes navigation by rendering the shared nav bar from `SPA/html/nav.html` and wiring up the page switcher buttons. Navigation state is reflected through `aria-pressed` toggles so screen readers understand which view is active.
 - Each numbered tab (1–5) represents a view backed by its own HTML partial (`SPA/html/1.html`–`SPA/html/5.html`). When a tab is selected, the SPA fetches that partial with `cache: 'no-cache'`, injects it into the main container, and invokes a matching initializer module (`SPA/js/1.js`–`SPA/js/5.js`) if one exists.
-- Loaded sections are memoized in a `Map` so revisiting a tab reuses existing DOM and skips redundant network fetches or initializers. Status text in the header (`[data-page-status]`) reports loading or error messages when a section is swapped.
+- Loaded sections are memoized in a `Map` so revisiting a tab reuses existing DOM and skips redundant network fetches or initializers. Status text in the header (`[data-page-status]`) reports loading or error messages when a section is swapped. Views can optionally export an `onShow` handler to refresh data each time they are opened; the app selection preview uses this to respect credential changes without forcing a full reload.
 - `SPA/js/nav.js` handles fetching and rendering the top-level navigation chrome and marks the active SPA entry via `aria-current`. This keeps the SPA host page aligned with the rest of the site navigation while keeping markup separate from logic.
 
 ### SPA behavior and extensibility
