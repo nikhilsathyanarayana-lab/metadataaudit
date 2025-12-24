@@ -33,14 +33,31 @@ const createStatusRow = (message, columnCount = 6, subId = '') => {
   return row;
 };
 
-// Render the visitor metadata table for each credential.
-const renderVisitorTable = async (tableBody) => {
-  tableBody.innerHTML = '';
+// Render the metadata tables for each credential.
+const renderMetadataTables = async (tableBodies) => {
+  if (!Array.isArray(tableBodies) || !tableBodies.length) {
+    return;
+  }
+
+  tableBodies.forEach((tableBody) => {
+    if (tableBody) {
+      tableBody.innerHTML = '';
+    }
+  });
+
+  const appendToAllTables = (buildRow) => {
+    tableBodies.forEach((tableBody) => {
+      if (tableBody) {
+        const row = buildRow();
+        tableBody.appendChild(row);
+      }
+    });
+  };
 
   const credentialResults = await app_names();
 
   if (!credentialResults.length) {
-    tableBody.appendChild(createStatusRow('No credentials available for app discovery.'));
+    appendToAllTables(() => createStatusRow('No credentials available for app discovery.'));
     return;
   }
 
@@ -49,19 +66,19 @@ const renderVisitorTable = async (tableBody) => {
 
     if (result?.errorType || !Array.isArray(result?.results)) {
       const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
-      tableBody.appendChild(createStatusRow(
+      appendToAllTables(() => createStatusRow(
         `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
       ));
       return;
     }
 
     if (!result.results.length) {
-      tableBody.appendChild(createStatusRow('No apps returned for SubID.', 6, subId));
+      appendToAllTables(() => createStatusRow('No apps returned for SubID.', 6, subId));
       return;
     }
 
     result.results.forEach((app) => {
-      tableBody.appendChild(createVisitorMetadataRow({
+      appendToAllTables(() => createVisitorMetadataRow({
         subId,
         appId: app?.appId,
         appName: app?.appName,
@@ -70,17 +87,24 @@ const renderVisitorTable = async (tableBody) => {
   });
 };
 
-// Populate visitor metadata table with discovered apps.
+// Populate metadata tables with discovered apps.
 export async function initSection(sectionRoot) {
   if (!sectionRoot) {
     return;
   }
 
-  const tableBody = sectionRoot?.querySelector('#visitor-metadata-table-body');
+  const tableBodies = [
+    '#visitor-metadata-table-body',
+    '#account-metadata-table-body',
+    '#custom-metadata-table-body',
+    '#salesforce-metadata-table-body',
+  ]
+    .map((selector) => sectionRoot?.querySelector(selector))
+    .filter(Boolean);
 
-  if (!tableBody) {
+  if (!tableBodies.length) {
     return;
   }
 
-  await renderVisitorTable(tableBody);
+  await renderMetadataTables(tableBodies);
 }
