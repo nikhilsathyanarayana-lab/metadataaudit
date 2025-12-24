@@ -29,6 +29,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - The SPA defaults to the first view on load and short-circuits re-renders when the active tab is selected again, preventing duplicate initializer calls. Each initializer can export `initSection(element)` to hydrate only the content relevant to its partial.
 - Section fetch failures (for example, missing HTML partials or network issues) surface both console errors and user-facing status text without breaking the rest of the shell. This makes it safe to add or iterate on new sections while keeping the overall SPA resilient.
 - To add a new SPA view, create `SPA/html/<id>.html` and `SPA/js/<id>.js`, then register the `<id>` button in `SPA/html/SPA.html` and extend the loader map in `SPA/js/spa.js`. Keep assets under `SPA/` so the rebuild can stay deployable alongside (or independent of) the legacy flow.
+- The app selection preview's Continue control (`#app-selection-continue-btn`) now triggers the page switcher button for view 3 (`#page-switcher-btn-3`), letting users jump straight to the metadata tables after confirming at least one app selection.
 
 ## Local storage and cached state
 - **SubID launch data (`subidLaunchData`)**: `initSubIdForm()` serializes each SubID + domain + integration key row before redirecting to app selection so users can refresh or navigate without losing entries. Empty rows are pruned on save to keep the cache small.
