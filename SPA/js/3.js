@@ -1,4 +1,5 @@
 import { app_names } from '../API/app_names.js';
+import { getAppSelections } from './2.js';
 
 // Build a visitor metadata row showing SubID and app details.
 const createVisitorMetadataRow = ({ subId, appId, appName }) => {
@@ -53,6 +54,25 @@ const renderMetadataTables = async (tableBodies) => {
       }
     });
   };
+
+  const cachedSelections = getAppSelections();
+  const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
+
+  if (selectedApps.length) {
+    selectedApps.forEach((app) => {
+      appendToAllTables(() => createVisitorMetadataRow({
+        subId: app?.subId,
+        appId: app?.appId,
+        appName: app?.appName,
+      }));
+    });
+    return;
+  }
+
+  if (cachedSelections.length) {
+    appendToAllTables(() => createStatusRow('No apps selected for metadata tables.'));
+    return;
+  }
 
   const credentialResults = await app_names();
 
