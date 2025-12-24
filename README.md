@@ -19,6 +19,17 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Directory boundary**: The SPA is fully self-contained in `root/SPA/`—HTML, CSS, JS, and shared assets for the single-page build should stay under this folder so it can be hosted or packaged independently of the legacy pages.
 - **How to try it**: When serving locally, visit `http://localhost:8000/SPA/html/SPA.html` to load the SPA shell and exercise the emerging flow while the legacy pages remain available in parallel.
 
+### SPA shell and navigation
+- `SPA/js/spa.js` initializes navigation by rendering the shared nav bar from `SPA/html/nav.html` and wiring up the page switcher buttons. Navigation state is reflected through `aria-pressed` toggles so screen readers understand which view is active.
+- Each numbered tab (1–5) represents a view backed by its own HTML partial (`SPA/html/1.html`–`SPA/html/5.html`). When a tab is selected, the SPA fetches that partial with `cache: 'no-cache'`, injects it into the main container, and invokes a matching initializer module (`SPA/js/1.js`–`SPA/js/5.js`) if one exists.
+- Loaded sections are memoized in a `Map` so revisiting a tab reuses existing DOM and skips redundant network fetches or initializers. Status text in the header (`[data-page-status]`) reports loading or error messages when a section is swapped.
+- `SPA/js/nav.js` handles fetching and rendering the top-level navigation chrome and marks the active SPA entry via `aria-current`. This keeps the SPA host page aligned with the rest of the site navigation while keeping markup separate from logic.
+
+### SPA behavior and extensibility
+- The SPA defaults to the first view on load and short-circuits re-renders when the active tab is selected again, preventing duplicate initializer calls. Each initializer can export `initSection(element)` to hydrate only the content relevant to its partial.
+- Section fetch failures (for example, missing HTML partials or network issues) surface both console errors and user-facing status text without breaking the rest of the shell. This makes it safe to add or iterate on new sections while keeping the overall SPA resilient.
+- To add a new SPA view, create `SPA/html/<id>.html` and `SPA/js/<id>.js`, then register the `<id>` button in `SPA/html/SPA.html` and extend the loader map in `SPA/js/spa.js`. Keep assets under `SPA/` so the rebuild can stay deployable alongside (or independent of) the legacy flow.
+
 ## Local storage and cached state
 - **SubID launch data (`subidLaunchData`)**: `initSubIdForm()` serializes each SubID + domain + integration key row before redirecting to app selection so users can refresh or navigate without losing entries. Empty rows are pruned on save to keep the cache small.
 - **App selection responses (`appSelectionResponses`)**: `initAppSelection()` hydrates previously cached SubIDs, populates app lists, and persists the full integration responses so downstream pages can render without refetching. Seven-day metadata previews are merged into this cache when available to keep Deep Dive defaults aligned.
