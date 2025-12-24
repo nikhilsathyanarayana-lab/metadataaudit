@@ -89,12 +89,17 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
       return {
         credential: { ...credential, appId: appEntry.appId },
         payload,
+        app: appEntry,
       };
     })
     .filter(Boolean);
 };
 
-export const requestMetadataDeepDive = async (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => {
+export const requestMetadataDeepDive = async (
+  appEntries = [],
+  lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
+  onAggregation,
+) => {
   const calls = await buildMetadataCallPlan(appEntries, lookbackWindow);
 
   if (!calls.length) {
@@ -104,7 +109,15 @@ export const requestMetadataDeepDive = async (appEntries = [], lookbackWindow = 
   const [nextCall] = calls;
 
   try {
-    await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
+    const response = await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
+
+    if (typeof onAggregation === 'function') {
+      onAggregation({
+        app: nextCall.app,
+        lookbackWindow,
+        response,
+      });
+    }
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Unable to request metadata audit payload.', error);

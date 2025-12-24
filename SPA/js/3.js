@@ -2,6 +2,14 @@ import { app_names } from '../API/app_names.js';
 import { requestMetadataDeepDive } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
+const processAggregation = ({ app, lookbackWindow }) => {
+  const appId = app?.appId || 'unknown';
+  const appName = app?.appName || appId || 'unknown';
+
+  // eslint-disable-next-line no-console
+  console.log('[Metadata Aggregation]', { appId, appName, lookbackWindow });
+};
+
 // Build a visitor metadata row showing SubID and app details.
 const createVisitorMetadataRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
@@ -69,7 +77,7 @@ const renderMetadataTables = async (tableBodies) => {
       }));
     });
     appsForMetadata = selectedApps;
-    await requestMetadataDeepDive(appsForMetadata);
+    await requestMetadataDeepDive(appsForMetadata, undefined, processAggregation);
     return;
   }
 
@@ -116,7 +124,7 @@ const renderMetadataTables = async (tableBodies) => {
   });
 
   if (appsForMetadata.length) {
-    await requestMetadataDeepDive(appsForMetadata);
+    await requestMetadataDeepDive(appsForMetadata, undefined, processAggregation);
   }
 };
 
