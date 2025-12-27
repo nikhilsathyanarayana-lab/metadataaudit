@@ -1,18 +1,11 @@
 import { postAggregationWithIntegrationKey } from '../../src/services/requests/network.js';
 import { app_names } from './app_names.js';
 
-const DEFAULT_LOOKBACK_WINDOWS = [7, 30, 180];
-export const DEFAULT_LOOKBACK_WINDOW = DEFAULT_LOOKBACK_WINDOWS[0];
+export const DEFAULT_LOOKBACK_WINDOW = 7;
 export const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 const metadataAggregations = {};
-const lookbackDayBalances = {};
-const initialLookbackDayBalances = {};
-const lookbackMilestonesTriggered = {};
-const LOOKBACK_MILESTONES = [...DEFAULT_LOOKBACK_WINDOWS];
-
-const toLookbackVariableName = (subId, appId) => `${subId}_${appId}_lookbackDays`;
 
 // Ensure a namespace bucket exists for a SubID + App ID combination.
 const getAppAggregationBucket = (subId, appId, appName) => {
@@ -94,40 +87,6 @@ export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
   count: -Number(lookbackWindow),
   period: 'dayRange',
 });
-
-// Initialize lookback-day counters for SubID + App ID pairs.
-export const lookbackDays = (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
-  const normalizedApps = normalizeAppEntries(appEntries);
-
-  if (!normalizedApps.length) {
-    return {};
-  }
-
-  const remainingDayVariables = {};
-  const normalizedWindow = Math.max(0, Number(lookbackWindow) || 0);
-
-  normalizedApps.forEach(({ subId, appId }) => {
-    if (!subId || !appId) {
-      return;
-    }
-
-    const variableName = toLookbackVariableName(subId, appId);
-
-    if (!Number.isFinite(lookbackDayBalances[variableName])) {
-      lookbackDayBalances[variableName] = normalizedWindow;
-    }
-
-    if (!Number.isFinite(initialLookbackDayBalances[variableName])) {
-      initialLookbackDayBalances[variableName] = normalizedWindow;
-    }
-
-    remainingDayVariables[variableName] = lookbackDayBalances[variableName];
-    // eslint-disable-next-line no-console
-    console.log('[lookbackDays] Initialized', { variableName, days: remainingDayVariables[variableName] });
-  });
-
-  return remainingDayVariables;
-};
 
 // Build the aggregation payload to pull metadata events for an app within a lookback window.
 const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
@@ -229,7 +188,6 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
 export const buildMetadataQueue = async (entries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
   metadataCallQueue = await buildMetadataCallPlan(entries, lookbackWindow);
   lastDiscoveredApps = entries;
-  lookbackDays(entries, lookbackWindow);
 
   // eslint-disable-next-line no-console
   console.log('[buildMetadataQueue] Ready', {
@@ -297,76 +255,7 @@ export const executeMetadataCallPlan = async (
   return responses;
 };
 
-// Log lookback milestone completions to the console.
-const logLookbackMilestone = (app, milestone) => {
-  const subId = app?.subId || 'unknown-subid';
-  const appId = app?.appId || 'unknown-appid';
-  const appName = app?.appName || appId || 'unknown-app';
-
-  // eslint-disable-next-line no-console
-  console.log('[lookbackDays] Processed milestone', {
-    appId,
-    appName,
-    milestoneDays: milestone,
-    subId,
-  });
-};
-
-// Emit milestone logs as remaining lookback days decrease.
-const trackLookbackMilestones = (app, variableName, processedDays) => {
-  const milestones = LOOKBACK_MILESTONES.filter((threshold) => processedDays >= threshold);
-
-  if (!milestones.length) {
-    return;
-  }
-
-  if (!lookbackMilestonesTriggered[variableName]) {
-    lookbackMilestonesTriggered[variableName] = new Set();
-  }
-
-  milestones.forEach((milestone) => {
-    if (lookbackMilestonesTriggered[variableName].has(milestone)) {
-      return;
-    }
-
-    lookbackMilestonesTriggered[variableName].add(milestone);
-    logLookbackMilestone(app, milestone);
-  });
-};
-
-// Reduce remaining lookback days for an app when a time window finishes processing.
-export const decrementLookbackDays = (app, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
-  const subId = app?.subId;
-  const appId = app?.appId;
-
-  if (!subId || !appId) {
-    return null;
-  }
-
-  const variableName = toLookbackVariableName(subId, appId);
-  const normalizedWindow = Math.max(0, Number(lookbackWindow) || 0);
-  const startingValue = Number.isFinite(lookbackDayBalances[variableName])
-    ? lookbackDayBalances[variableName]
-    : normalizedWindow;
-
-  if (!Number.isFinite(initialLookbackDayBalances[variableName])) {
-    initialLookbackDayBalances[variableName] = startingValue;
-  }
-
-  const updatedValue = Math.max(0, startingValue - normalizedWindow);
-
-  lookbackDayBalances[variableName] = updatedValue;
-
-  const processedDays = initialLookbackDayBalances[variableName] - updatedValue;
-  trackLookbackMilestones(app, variableName, processedDays);
-
-  // eslint-disable-next-line no-console
-  console.log('[lookbackDays] Updated', { variableName, lookbackWindow: normalizedWindow, remaining: updatedValue });
-
-  return updatedValue;
-};
-
-// Log and summarize each aggregated metadata response while tracking lookback progress.
+// Log and summarize each aggregated metadata response.
 export const processAggregation = ({ app, lookbackWindow, response }) => {
   const subId = app?.subId || 'unknown-subid';
   const appId = app?.appId || 'unknown-appid';
@@ -381,8 +270,6 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   aggregationResults.forEach((result) => {
     tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
   });
-
-  decrementLookbackDays(app, lookbackWindow);
 
   if (typeof window !== 'undefined') {
     window.metadataAggregations = metadataAggregations;
