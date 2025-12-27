@@ -84,9 +84,6 @@ export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackW
 
 // Build a metadata row showing SubID and app details for each table.
 const createMetadataRow = ({ subId, appId, appName, namespace }) => {
-  // eslint-disable-next-line no-console
-  console.log('createMetadataRow');
-
   const row = document.createElement('tr');
   row.dataset.subId = subId || '';
   row.dataset.appId = appId || '';
@@ -94,9 +91,6 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
 
   // Build a single table cell with supplied text.
   const buildCell = (text = '') => {
-    // eslint-disable-next-line no-console
-    console.log('buildCell');
-
     const cell = document.createElement('td');
     cell.textContent = text;
     return cell;
@@ -109,9 +103,6 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
   );
 
   const buildValueCell = (lookbackWindow) => {
-    // eslint-disable-next-line no-console
-    console.log('buildValueCell');
-
     const valueCell = document.createElement('td');
     valueCell.dataset.window = lookbackWindow;
 
