@@ -130,6 +130,7 @@ const applySavedSelections = (tableCheckboxes, savedSelections = []) => {
   return restoredCount;
 };
 
+// Capture the current selection state for persistence between renders.
 const buildSelectionSnapshot = (tableCheckboxes) => Array.from(tableCheckboxes).map((checkbox) => ({
   subId: checkbox.dataset.subId || '',
   appId: checkbox.dataset.appId || '',
@@ -137,6 +138,7 @@ const buildSelectionSnapshot = (tableCheckboxes) => Array.from(tableCheckboxes).
   isSelected: Boolean(checkbox.checked),
 }));
 
+// Temporarily disable selection toggles when the preview cannot be interacted with.
 const disableSelectionControls = (headerToggle, continueButton) => {
   if (headerToggle) {
     headerToggle.checked = false;
@@ -151,6 +153,7 @@ const disableSelectionControls = (headerToggle, continueButton) => {
   }
 };
 
+// Restore selection controls and keep header toggle, counts, and actions in sync.
 const enableSelectionControls = (
   sectionRoot,
   tableCheckboxes,
@@ -231,6 +234,7 @@ const enableSelectionControls = (
   updateSelectionCount();
 };
 
+// Render the app selection preview, restoring saved choices and wiring UI controls.
 const renderAppPreview = async (sectionRoot) => {
   const tableBody = sectionRoot?.querySelector('tbody');
   const headerToggle = sectionRoot?.querySelector('#app-selection-toggle-all-preview');
