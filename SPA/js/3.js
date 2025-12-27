@@ -100,7 +100,7 @@ const processAggregation = ({ app, lookbackWindow, response }) => {
   }
 
   // eslint-disable-next-line no-console
-  console.log('[Metadata Aggregation]', {
+  console.log('[processAggregation]', {
     appId,
     appName,
     lookbackWindow,
@@ -174,7 +174,7 @@ const renderMetadataTables = async (tableBodies) => {
     lastDiscoveredApps = entries;
 
     // eslint-disable-next-line no-console
-    console.log('[Metadata Queue] Ready', {
+    console.log('[buildMetadataQueue] Ready', {
       count: metadataCallQueue.length,
       lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
     });
@@ -184,7 +184,7 @@ const renderMetadataTables = async (tableBodies) => {
   const runMetadataQueue = async (limit = metadataCallQueue.length) => {
     if (!metadataCallQueue.length) {
       // eslint-disable-next-line no-console
-      console.warn('[Metadata Queue] No queued metadata calls to run.');
+      console.warn('[runMetadataQueue] No queued metadata calls to run.');
       return [];
     }
 
