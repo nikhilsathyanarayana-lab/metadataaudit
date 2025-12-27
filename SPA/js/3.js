@@ -3,6 +3,7 @@ import { buildMetadataCallPlan, executeMetadataCallPlan } from '../API/metadata.
 import { getAppSelections } from './2.js';
 
 const DEFAULT_LOOKBACK_WINDOW = 7;
+const DEFAULT_METADATA_QUEUE_LIMIT = 3;
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 
@@ -131,7 +132,7 @@ const renderMetadataTables = async (tableBodies) => {
     appsForMetadata = selectedApps;
     await buildMetadataQueue(appsForMetadata);
     registerConsoleHelpers();
-    await runMetadataQueue(1);
+    await runMetadataQueue(DEFAULT_METADATA_QUEUE_LIMIT);
     return;
   }
 
@@ -180,7 +181,7 @@ const renderMetadataTables = async (tableBodies) => {
   if (appsForMetadata.length) {
     await buildMetadataQueue(appsForMetadata);
     registerConsoleHelpers();
-    await runMetadataQueue(1);
+    await runMetadataQueue(DEFAULT_METADATA_QUEUE_LIMIT);
   }
 };
 
