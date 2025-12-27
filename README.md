@@ -26,6 +26,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - Loaded sections are memoized in a `Map` so revisiting a tab reuses existing DOM and skips redundant network fetches or initializers. Status text in the header (`[data-page-status]`) reports loading or error messages when a section is swapped. Views can optionally export an `onShow` handler to refresh data each time they are opened; the app selection preview uses this to respect credential changes without forcing a full reload.
 - When the app selection preview re-renders, it reapplies any saved checkbox choices before enabling controls so returning to the tab preserves selections while still reflecting updated credential fetches.
 - `SPA/js/nav.js` handles fetching and rendering the top-level navigation chrome and marks the active SPA entry via `aria-current`. This keeps the SPA host page aligned with the rest of the site navigation while keeping markup separate from logic.
+- `lookbackDays()` in `SPA/API/metadata.js` normalizes SubID/App ID pairs and logs placeholder `<subId>_<appId>_remainingdays` variables so future lookback-day tracking has named slots per app.
 
 ### SPA behavior and extensibility
 - The SPA defaults to the first view on load and short-circuits re-renders when the active tab is selected again, preventing duplicate initializer calls. Each initializer can export `initSection(element)` to hydrate only the content relevant to its partial.
