@@ -18,6 +18,7 @@
 - Preserve browser responsiveness when handling large datasets: use async patterns to avoid blocking the UI.
 - Surface specific API errors via console logging for debugging and diagnostics.
 - Documentation style: keep inline comments clear and concise, focused on what a function can do. README content should be thorough—describe context, which page(s) the function runs on, inputs, and expected output structure.
+- Add a short, concise comment for every new function summarizing its purpose.
 
 ## Workflow expectations
 - Standard flow: request → questions → code suggestions → GitHub PR.
