@@ -3,6 +3,31 @@ import { app_names } from './app_names.js';
 
 const DEFAULT_LOOKBACK_WINDOWS = [7, 30, 180];
 
+// Log placeholder lookback variables per SubID + App ID pair for future remaining-day tracking.
+export const lookbackDays = (appEntries = []) => {
+  const normalizedApps = normalizeAppEntries(appEntries);
+
+  if (!normalizedApps.length) {
+    return {};
+  }
+
+  const remainingDayVariables = {};
+
+  normalizedApps.forEach(({ subId, appId }) => {
+    if (!subId || !appId) {
+      return;
+    }
+
+    const variableName = `${subId}_${appId}_remainingdays`;
+
+    remainingDayVariables[variableName] = null;
+    // eslint-disable-next-line no-console
+    console.log(variableName);
+  });
+
+  return remainingDayVariables;
+};
+
 // Build the aggregation payload to pull metadata events for an app within a lookback window.
 const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => ({
   response: {
