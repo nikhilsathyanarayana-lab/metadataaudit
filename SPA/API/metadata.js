@@ -3,6 +3,13 @@ import { app_names } from './app_names.js';
 
 const DEFAULT_LOOKBACK_WINDOWS = [7, 30, 180];
 
+// Return the time-series window payload for metadata lookups.
+export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => ({
+  first: 'now()',
+  count: -Number(lookbackWindow),
+  period: 'dayRange',
+});
+
 // Log placeholder lookback variables per SubID + App ID pair for future remaining-day tracking.
 export const lookbackDays = (appEntries = []) => {
   const normalizedApps = normalizeAppEntries(appEntries);
@@ -41,7 +48,7 @@ const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKB
       {
         source: {
           singleEvents: { appId },
-          timeSeries: { first: 'now()', count: -Number(lookbackWindow), period: 'dayRange' },
+          timeSeries: timeseriesWindow(lookbackWindow),
         },
       },
       {
