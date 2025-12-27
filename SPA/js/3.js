@@ -3,7 +3,6 @@ import { buildMetadataCallPlan, executeMetadataCallPlan } from '../API/metadata.
 import { getAppSelections } from './2.js';
 
 const DEFAULT_LOOKBACK_WINDOW = 7;
-const DEFAULT_METADATA_QUEUE_LIMIT = 3;
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 
@@ -112,6 +111,21 @@ const renderMetadataTables = async (tableBodies) => {
       return;
     }
 
+    // Print the queued metadata calls to the console for quick inspection.
+    const printQueue = () => {
+      const entries = metadataCallQueue.map((entry, index) => ({
+        index,
+        subId: entry?.credential?.subId || entry?.app?.subId,
+        appId: entry?.app?.appId,
+        appName: entry?.app?.appName,
+      }));
+
+      // eslint-disable-next-line no-console
+      console.table(entries);
+
+      return entries;
+    };
+
     window.metadataQueue = {
       inspect: () => metadataCallQueue.map((entry, index) => ({
         index,
@@ -119,6 +133,7 @@ const renderMetadataTables = async (tableBodies) => {
         appId: entry?.app?.appId,
         appName: entry?.app?.appName,
       })),
+      print: () => printQueue(),
       rebuild: () => buildMetadataQueue(lastDiscoveredApps),
       run: (limit) => runMetadataQueue(limit),
       size: () => metadataCallQueue.length,
@@ -136,7 +151,7 @@ const renderMetadataTables = async (tableBodies) => {
     appsForMetadata = selectedApps;
     await buildMetadataQueue(appsForMetadata);
     registerConsoleHelpers();
-    await runMetadataQueue(DEFAULT_METADATA_QUEUE_LIMIT);
+    await runMetadataQueue();
     return;
   }
 
@@ -185,7 +200,7 @@ const renderMetadataTables = async (tableBodies) => {
   if (appsForMetadata.length) {
     await buildMetadataQueue(appsForMetadata);
     registerConsoleHelpers();
-    await runMetadataQueue(DEFAULT_METADATA_QUEUE_LIMIT);
+    await runMetadataQueue();
   }
 };
 
