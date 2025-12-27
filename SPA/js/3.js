@@ -1,6 +1,7 @@
 import { app_names } from '../API/app_names.js';
 import {
   DEFAULT_LOOKBACK_WINDOW,
+  METADATA_NAMESPACES,
   buildMetadataQueue,
   getMetadataQueue,
   processAggregation,
@@ -9,9 +10,46 @@ import {
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
+const METADATA_TABLE_WINDOWS = [7, 30, 180];
+
+// Read metadata aggregations from the browser when available.
+const getMetadataAggregations = () => (typeof window !== 'undefined'
+  ? window.metadataAggregations || {}
+  : {});
+
+// Calculate the metadata value shown in the table for a given SubID, app, namespace, and window.
+export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackWindow }) => {
+  if (!subId || !appId || !namespace) {
+    return '—';
+  }
+
+  const aggregations = getMetadataAggregations();
+  const appBucket = aggregations?.[subId]?.apps?.[appId];
+
+  if (!appBucket || Number(appBucket.lookbackWindow) !== Number(lookbackWindow)) {
+    return '—';
+  }
+
+  const namespaceBucket = appBucket?.namespaces?.[namespace];
+
+  if (!namespaceBucket || typeof namespaceBucket !== 'object') {
+    return '—';
+  }
+
+  const totalValues = Object.values(namespaceBucket).reduce(
+    (total, fieldStats) => total + (fieldStats?.total || 0),
+    0,
+  );
+
+  return Number.isFinite(totalValues) ? `${totalValues}` : '—';
+};
+
 // Build a metadata row showing SubID and app details for each table.
-const createMetadataRow = ({ subId, appId, appName }) => {
+const createMetadataRow = ({ subId, appId, appName, namespace }) => {
   const row = document.createElement('tr');
+  row.dataset.subId = subId || '';
+  row.dataset.appId = appId || '';
+  row.dataset.namespace = namespace || '';
 
   // Build a single table cell with supplied text.
   const buildCell = (text = '') => {
@@ -24,10 +62,15 @@ const createMetadataRow = ({ subId, appId, appName }) => {
     buildCell(subId || 'Unknown SubID'),
     buildCell(appName || appId || 'Unknown app'),
     buildCell(appId || ''),
-    buildCell('—'),
-    buildCell('—'),
-    buildCell('—'),
   );
+
+  METADATA_TABLE_WINDOWS.forEach((lookbackWindow) => {
+    const valueCell = buildCell(
+      calculateMetadataTableValue({ subId, appId, namespace, lookbackWindow }),
+    );
+    valueCell.dataset.window = lookbackWindow;
+    row.appendChild(valueCell);
+  });
 
   return row;
 };
@@ -43,23 +86,43 @@ const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
 };
 
 // Render the metadata tables for each credential.
-const renderMetadataTables = async (tableBodies) => {
-  if (!Array.isArray(tableBodies) || !tableBodies.length) {
+const renderMetadataTables = async (tableConfigs) => {
+  if (!Array.isArray(tableConfigs) || !tableConfigs.length) {
     return;
   }
 
-  tableBodies.forEach((tableBody) => {
-    if (tableBody) {
-      tableBody.innerHTML = '';
+  tableConfigs.forEach(({ element }) => {
+    if (element) {
+      element.innerHTML = '';
     }
   });
 
   const appendToAllTables = (buildRow) => {
-    tableBodies.forEach((tableBody) => {
-      if (tableBody) {
-        const row = buildRow();
-        tableBody.appendChild(row);
+    tableConfigs.forEach(({ namespace, element }) => {
+      if (element) {
+        const row = buildRow(namespace);
+        element.appendChild(row);
       }
+    });
+  };
+
+  // Recalculate table cells using the latest aggregation summaries.
+  const refreshTableValues = () => {
+    tableConfigs.forEach(({ namespace, element }) => {
+      element?.querySelectorAll('tr').forEach((row) => {
+        const rowSubId = row.dataset.subId;
+        const rowAppId = row.dataset.appId;
+
+        row.querySelectorAll('[data-window]').forEach((cell) => {
+          const lookbackWindow = Number(cell.dataset.window);
+          cell.textContent = calculateMetadataTableValue({
+            subId: rowSubId,
+            appId: rowAppId,
+            namespace,
+            lookbackWindow,
+          });
+        });
+      });
     });
   };
 
@@ -94,23 +157,31 @@ const renderMetadataTables = async (tableBodies) => {
       inspect: () => inspectQueue(),
       print: () => printQueue(),
       rebuild: () => rebuildMetadataQueue(DEFAULT_LOOKBACK_WINDOW),
-      run: (limit) => runMetadataQueue(processAggregation, DEFAULT_LOOKBACK_WINDOW, limit),
+      run: (limit) => runMetadataQueue((payload) => {
+        processAggregation(payload);
+        refreshTableValues();
+      }, DEFAULT_LOOKBACK_WINDOW, limit),
       size: () => getMetadataQueue().length,
     };
   };
 
   if (selectedApps.length) {
     selectedApps.forEach((app) => {
-      appendToAllTables(() => createMetadataRow({
+      appendToAllTables((namespace) => createMetadataRow({
         subId: app?.subId,
         appId: app?.appId,
         appName: app?.appName,
+        namespace,
       }));
     });
     appsForMetadata = selectedApps;
     await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
     registerConsoleHelpers();
-    await runMetadataQueue(processAggregation, DEFAULT_LOOKBACK_WINDOW);
+    await runMetadataQueue((payload) => {
+      processAggregation(payload);
+      refreshTableValues();
+    }, DEFAULT_LOOKBACK_WINDOW);
+    refreshTableValues();
     return;
   }
 
@@ -143,10 +214,11 @@ const renderMetadataTables = async (tableBodies) => {
     }
 
     result.results.forEach((app) => {
-      appendToAllTables(() => createMetadataRow({
+      appendToAllTables((namespace) => createMetadataRow({
         subId,
         appId: app?.appId,
         appName: app?.appName,
+        namespace,
       }));
       appsForMetadata.push({
         subId,
@@ -159,7 +231,11 @@ const renderMetadataTables = async (tableBodies) => {
   if (appsForMetadata.length) {
     await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
     registerConsoleHelpers();
-    await runMetadataQueue(processAggregation, DEFAULT_LOOKBACK_WINDOW);
+    await runMetadataQueue((payload) => {
+      processAggregation(payload);
+      refreshTableValues();
+    }, DEFAULT_LOOKBACK_WINDOW);
+    refreshTableValues();
   }
 };
 
@@ -169,18 +245,16 @@ export async function initSection(sectionRoot) {
     return;
   }
 
-  const tableBodies = [
-    '#visitor-metadata-table-body',
-    '#account-metadata-table-body',
-    '#custom-metadata-table-body',
-    '#salesforce-metadata-table-body',
-  ]
-    .map((selector) => sectionRoot?.querySelector(selector))
-    .filter(Boolean);
+  const tableConfigs = METADATA_NAMESPACES
+    .map((namespace) => ({
+      namespace,
+      element: sectionRoot?.querySelector(`#${namespace}-metadata-table-body`),
+    }))
+    .filter(({ element }) => Boolean(element));
 
-  if (!tableBodies.length) {
+  if (!tableConfigs.length) {
     return;
   }
 
-  await renderMetadataTables(tableBodies);
+  await renderMetadataTables(tableConfigs);
 }
