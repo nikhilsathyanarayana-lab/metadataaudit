@@ -110,8 +110,8 @@ const processAggregation = ({ app, lookbackWindow, response }) => {
   });
 };
 
-// Build a visitor metadata row showing SubID and app details.
-const createVisitorMetadataRow = ({ subId, appId, appName }) => {
+// Build a metadata row showing SubID and app details for each table.
+const createMetadataRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
 
   // Build a single table cell with supplied text.
@@ -133,8 +133,8 @@ const createVisitorMetadataRow = ({ subId, appId, appName }) => {
   return row;
 };
 
-// Build a status row spanning the visitor metadata columns.
-const createStatusRow = (message, columnCount = 6, subId = '') => {
+// Build a status row spanning the metadata table columns.
+const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
   cell.colSpan = columnCount;
@@ -237,7 +237,7 @@ const renderMetadataTables = async (tableBodies) => {
 
   if (selectedApps.length) {
     selectedApps.forEach((app) => {
-      appendToAllTables(() => createVisitorMetadataRow({
+      appendToAllTables(() => createMetadataRow({
         subId: app?.subId,
         appId: app?.appId,
         appName: app?.appName,
@@ -251,14 +251,14 @@ const renderMetadataTables = async (tableBodies) => {
   }
 
   if (cachedSelections.length) {
-    appendToAllTables(() => createStatusRow('No apps selected for metadata tables.'));
+    appendToAllTables(() => createMetadataStatusRow('No apps selected for metadata tables.'));
     return;
   }
 
   const credentialResults = await app_names();
 
   if (!credentialResults.length) {
-    appendToAllTables(() => createStatusRow('No credentials available for app discovery.'));
+    appendToAllTables(() => createMetadataStatusRow('No credentials available for app discovery.'));
     return;
   }
 
@@ -267,19 +267,19 @@ const renderMetadataTables = async (tableBodies) => {
 
     if (result?.errorType || !Array.isArray(result?.results)) {
       const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
-      appendToAllTables(() => createStatusRow(
+      appendToAllTables(() => createMetadataStatusRow(
         `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
       ));
       return;
     }
 
     if (!result.results.length) {
-      appendToAllTables(() => createStatusRow('No apps returned for SubID.', 6, subId));
+      appendToAllTables(() => createMetadataStatusRow('No apps returned for SubID.', 6, subId));
       return;
     }
 
     result.results.forEach((app) => {
-      appendToAllTables(() => createVisitorMetadataRow({
+      appendToAllTables(() => createMetadataRow({
         subId,
         appId: app?.appId,
         appName: app?.appName,
