@@ -6,6 +6,11 @@ export const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 const metadataAggregations = {};
+const METADATA_WINDOW_PLAN = [
+  { lookbackWindow: 7, first: 'now()' },
+  { lookbackWindow: 23, first: 'dateAdd(now(), -7, "days")' },
+  { lookbackWindow: 150, first: 'dateAdd(now(), -30, "days")' },
+];
 
 // Return a sorted list of metadata field names for the given SubID/app namespace.
 export const getMetadataFields = (subId, appId, namespace) => {
@@ -97,14 +102,17 @@ export const tallyAggregationResult = (namespaces, result, namespaceKeys = ['vis
 };
 
 // Return the time-series window payload for metadata lookups.
-export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
-  first: 'now()',
+export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW, first = 'now()') => ({
+  first,
   count: -Number(lookbackWindow),
   period: 'dayRange',
 });
 
 // Build the aggregation payload to pull metadata events for an app within a lookback window.
-const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
+const buildMetadataPayload = (
+  { appId, appName },
+  { lookbackWindow = DEFAULT_LOOKBACK_WINDOW, first = 'now()' } = {},
+) => ({
   response: {
     location: 'request',
     mimeType: 'application/json',
@@ -116,7 +124,7 @@ const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKB
       {
         source: {
           singleEvents: { appId },
-          timeSeries: timeseriesWindow(lookbackWindow),
+          timeSeries: timeseriesWindow(lookbackWindow, first),
         },
       },
       {
@@ -164,8 +172,8 @@ const buildCredentialLookup = (credentialResults = []) => {
   return lookup;
 };
 
-// Construct credential-bound API requests for each app to fetch metadata.
-export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
+// Construct credential-bound API requests for each app to fetch metadata across planned windows.
+export const buildMetadataCallPlan = async (appEntries = []) => {
   const normalizedApps = normalizeAppEntries(appEntries);
 
   if (!normalizedApps.length) {
@@ -179,35 +187,42 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
   }
 
   const credentialLookup = buildCredentialLookup(credentialResults);
+  const plannedCalls = [];
 
-  return normalizedApps
-    .map((appEntry) => {
-      const credential = credentialLookup.get(appEntry.subId) || credentialResults[0]?.credential;
+  normalizedApps.forEach((appEntry) => {
+    const credential = credentialLookup.get(appEntry.subId) || credentialResults[0]?.credential;
 
-      if (!credential) {
-        return null;
-      }
+    if (!credential) {
+      return;
+    }
 
-      const payload = buildMetadataPayload(appEntry, lookbackWindow);
+    METADATA_WINDOW_PLAN.forEach((windowConfig) => {
+      const payload = buildMetadataPayload(appEntry, windowConfig);
 
-      return {
+      plannedCalls.push({
         credential: { ...credential, appId: appEntry.appId },
         payload,
         app: appEntry,
-      };
-    })
-    .filter(Boolean);
+        lookbackWindow: windowConfig.lookbackWindow,
+        timeseriesFirst: windowConfig.first,
+      });
+    });
+  });
+
+  return plannedCalls;
 };
 
 // Prepare a reusable queue of metadata calls for the supplied entries.
 export const buildMetadataQueue = async (entries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
-  metadataCallQueue = await buildMetadataCallPlan(entries, lookbackWindow);
+  metadataCallQueue = await buildMetadataCallPlan(entries);
   lastDiscoveredApps = entries;
 
   // eslint-disable-next-line no-console
   console.log('[buildMetadataQueue] Ready', {
     count: metadataCallQueue.length,
     lookbackWindow,
+    windowsPerApp: METADATA_WINDOW_PLAN.length,
+    plannedWindows: METADATA_WINDOW_PLAN,
   });
 
   return metadataCallQueue;
@@ -240,6 +255,9 @@ export const executeMetadataCallPlan = async (
   /* eslint-disable no-await-in-loop */
   for (let index = 0; index < maxCalls; index += 1) {
     const nextCall = calls[index];
+    const targetWindow = Number.isFinite(Number(nextCall?.lookbackWindow))
+      ? Number(nextCall.lookbackWindow)
+      : lookbackWindow;
 
     try {
       const response = await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
@@ -247,7 +265,8 @@ export const executeMetadataCallPlan = async (
       if (typeof onAggregation === 'function') {
         onAggregation({
           app: nextCall.app,
-          lookbackWindow,
+          lookbackWindow: targetWindow,
+          timeseriesFirst: nextCall.timeseriesFirst,
           response,
           queueIndex: index,
           totalQueued: maxCalls,
@@ -256,7 +275,8 @@ export const executeMetadataCallPlan = async (
 
       responses.push({
         app: nextCall.app,
-        lookbackWindow,
+        lookbackWindow: targetWindow,
+        timeseriesFirst: nextCall.timeseriesFirst,
         response,
         queueIndex: index,
       });
@@ -331,7 +351,7 @@ export const requestMetadataDeepDive = async (
   lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
   onAggregation,
 ) => {
-  const calls = await buildMetadataCallPlan(appEntries, lookbackWindow);
+  const calls = await buildMetadataCallPlan(appEntries);
 
   if (!calls.length) {
     return;
