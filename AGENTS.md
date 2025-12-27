@@ -4,6 +4,7 @@
 - Front-end stack: HTML, CSS, and vanilla JavaScript. CDN dependencies include `exceljs` and `file-saver`.
 - Hosting: Runs on GitHub Pages for the integration workflow. Cookie-based requests rely on `proxy.php` (PHP + cURL) when exercised locally.
 - Both the Integration API flow and the SPA rebuild deliver similar capabilities but should be treated as distinct apps when documenting or hosting updates, and anything associated with the SPA should stay under `root/SPA/`.
+- Current focus: we are working exclusively on the SPA, and all SPA-related changes live under `root/SPA/` for now.
 
 ## Repository conventions
 - Use only the `main` branch unless explicitly directed otherwise.
