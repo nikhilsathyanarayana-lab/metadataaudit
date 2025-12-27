@@ -17,11 +17,6 @@ export const setAppSelections = (entries = []) => {
 // Retrieve a copy of the stored app selections.
 export const getAppSelections = () => [...appSelections];
 
-// Clear any saved app selection data.
-export const clearAppSelections = () => {
-  appSelections = [];
-};
-
 // Build a single row summarizing status or errors across columns.
 const createStatusRow = (message, columnCount = 4, subId = '') => {
   const row = document.createElement('tr');
