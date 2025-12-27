@@ -14,12 +14,20 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 23, 150];
 
 // Read metadata aggregations from the browser when available.
-const getMetadataAggregations = () => (typeof window !== 'undefined'
-  ? window.metadataAggregations || {}
-  : {});
+const getMetadataAggregations = () => {
+  // eslint-disable-next-line no-console
+  console.log('getMetadataAggregations');
+
+  return typeof window !== 'undefined'
+    ? window.metadataAggregations || {}
+    : {};
+};
 
 // Calculate the metadata value shown in the table for a given SubID, app, namespace, and window.
 const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }) => {
+  // eslint-disable-next-line no-console
+  console.log('getMetadataAggregationValue');
+
   if (!subId || !appId || !namespace) {
     return '—';
   }
@@ -47,6 +55,9 @@ const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }
 
 // Stamp the 7-day lookback cell for a specific SubID/AppID/namespace row.
 export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackWindow = 7 }) => {
+  // eslint-disable-next-line no-console
+  console.log('calculateMetadataTableValue');
+
   if (typeof document === 'undefined' || !subId || !appId || !namespace) {
     return;
   }
@@ -73,6 +84,9 @@ export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackW
 
 // Build a metadata row showing SubID and app details for each table.
 const createMetadataRow = ({ subId, appId, appName, namespace }) => {
+  // eslint-disable-next-line no-console
+  console.log('createMetadataRow');
+
   const row = document.createElement('tr');
   row.dataset.subId = subId || '';
   row.dataset.appId = appId || '';
@@ -80,6 +94,9 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
 
   // Build a single table cell with supplied text.
   const buildCell = (text = '') => {
+    // eslint-disable-next-line no-console
+    console.log('buildCell');
+
     const cell = document.createElement('td');
     cell.textContent = text;
     return cell;
@@ -92,6 +109,9 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
   );
 
   const buildValueCell = (lookbackWindow) => {
+    // eslint-disable-next-line no-console
+    console.log('buildValueCell');
+
     const valueCell = document.createElement('td');
     valueCell.dataset.window = lookbackWindow;
 
@@ -121,6 +141,9 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
 
 // Build a status row spanning the metadata table columns.
 const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
+  // eslint-disable-next-line no-console
+  console.log('createMetadataStatusRow');
+
   const row = document.createElement('tr');
   const cell = document.createElement('td');
   cell.colSpan = columnCount;
@@ -131,6 +154,9 @@ const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
 
 // Render the metadata tables for each credential.
 const renderMetadataTables = async (tableConfigs) => {
+  // eslint-disable-next-line no-console
+  console.log('renderMetadataTables');
+
   if (!Array.isArray(tableConfigs) || !tableConfigs.length) {
     return;
   }
@@ -142,6 +168,9 @@ const renderMetadataTables = async (tableConfigs) => {
   });
 
   const appendToAllTables = (buildRow) => {
+    // eslint-disable-next-line no-console
+    console.log('appendToAllTables');
+
     tableConfigs.forEach(({ namespace, element }) => {
       if (element) {
         const row = buildRow(namespace);
@@ -152,6 +181,9 @@ const renderMetadataTables = async (tableConfigs) => {
 
   // Recalculate table cells using the latest aggregation summaries.
   const refreshTableValues = () => {
+    // eslint-disable-next-line no-console
+    console.log('refreshTableValues');
+
     tableConfigs.forEach(({ namespace, element }) => {
       element?.querySelectorAll('tr').forEach((row) => {
         const rowSubId = row.dataset.subId;
@@ -178,6 +210,9 @@ const renderMetadataTables = async (tableConfigs) => {
 
   // Update every 7-day cell to a fixed value across all metadata tables.
   const updateSevenDayColumns = () => {
+    // eslint-disable-next-line no-console
+    console.log('updateSevenDayColumns');
+
     tableConfigs.forEach(({ element }) => {
       element?.querySelectorAll('tr[data-sub-id][data-app-id]').forEach((row) => {
         calculateMetadataTableValue({
@@ -196,19 +231,30 @@ const renderMetadataTables = async (tableConfigs) => {
 
   // Expose helpers for inspecting and rerunning the metadata queue via the console.
   const registerConsoleHelpers = () => {
+    // eslint-disable-next-line no-console
+    console.log('registerConsoleHelpers');
+
     if (typeof window === 'undefined') {
       return;
     }
 
     // Print the queued metadata calls to the console for quick inspection.
-    const inspectQueue = () => getMetadataQueue().map((entry, index) => ({
+    const inspectQueue = () => {
+      // eslint-disable-next-line no-console
+      console.log('inspectQueue');
+
+      return getMetadataQueue().map((entry, index) => ({
         index,
         subId: entry?.credential?.subId || entry?.app?.subId,
         appId: entry?.app?.appId,
         appName: entry?.app?.appName,
       }));
+    };
 
     const printQueue = () => {
+      // eslint-disable-next-line no-console
+      console.log('printQueue');
+
       const entries = inspectQueue();
 
       // eslint-disable-next-line no-console
@@ -314,6 +360,9 @@ const renderMetadataTables = async (tableConfigs) => {
 
 // Populate metadata tables with discovered apps.
 export async function initSection(sectionRoot) {
+  // eslint-disable-next-line no-console
+  console.log('initSection');
+
   if (!sectionRoot) {
     return;
   }
