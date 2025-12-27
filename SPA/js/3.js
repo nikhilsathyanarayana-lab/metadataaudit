@@ -3,66 +3,11 @@ import {
   DEFAULT_LOOKBACK_WINDOW,
   buildMetadataQueue,
   getMetadataQueue,
+  processAggregation,
   rebuildMetadataQueue,
   runMetadataQueue,
-  tallyAggregationResult,
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
-
-const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
-const metadataAggregations = {};
-
-// Ensure a namespace bucket exists for a SubID + App ID combination.
-const getAppAggregationBucket = (subId, appId, appName) => {
-  if (!metadataAggregations[subId]) {
-    metadataAggregations[subId] = { apps: {} };
-  }
-
-  const appBuckets = metadataAggregations[subId].apps;
-
-  if (!appBuckets[appId]) {
-    appBuckets[appId] = {
-      appId,
-      appName,
-      timeseriesStart: null,
-      lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
-      namespaces: METADATA_NAMESPACES.reduce((accumulator, key) => ({ ...accumulator, [key]: {} }), {}),
-    };
-  }
-
-  return appBuckets[appId];
-};
-
-// Log and summarize each aggregated metadata response while the queue runs.
-const processAggregation = ({ app, lookbackWindow, response }) => {
-  const subId = app?.subId || 'unknown-subid';
-  const appId = app?.appId || 'unknown-appid';
-  const appName = app?.appName || appId || 'unknown-app';
-  const aggregationResults = Array.isArray(response?.results) ? response.results : [];
-  const appBucket = getAppAggregationBucket(subId, appId, appName);
-
-  appBucket.appName = appName;
-  appBucket.lookbackWindow = lookbackWindow;
-  appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
-
-  aggregationResults.forEach((result) => {
-    tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
-  });
-
-  if (typeof window !== 'undefined') {
-    window.metadataAggregations = metadataAggregations;
-  }
-
-  // eslint-disable-next-line no-console
-  console.log('[processAggregation]', {
-    appId,
-    appName,
-    lookbackWindow,
-    subId,
-    timeseriesStart: appBucket.timeseriesStart,
-    totalResults: aggregationResults.length,
-  });
-};
 
 // Build a metadata row showing SubID and app details for each table.
 const createMetadataRow = ({ subId, appId, appName }) => {

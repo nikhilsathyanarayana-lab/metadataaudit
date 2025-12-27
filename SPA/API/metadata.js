@@ -3,8 +3,37 @@ import { app_names } from './app_names.js';
 
 const DEFAULT_LOOKBACK_WINDOWS = [7, 30, 180];
 export const DEFAULT_LOOKBACK_WINDOW = DEFAULT_LOOKBACK_WINDOWS[0];
+export const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
+const metadataAggregations = {};
+const lookbackDayBalances = {};
+
+const toLookbackVariableName = (subId, appId) => `${subId}_${appId}_lookbackDays`;
+
+// Ensure a namespace bucket exists for a SubID + App ID combination.
+const getAppAggregationBucket = (subId, appId, appName) => {
+  if (!metadataAggregations[subId]) {
+    metadataAggregations[subId] = { apps: {} };
+  }
+
+  const appBuckets = metadataAggregations[subId].apps;
+
+  if (!appBuckets[appId]) {
+    appBuckets[appId] = {
+      appId,
+      appName,
+      timeseriesStart: null,
+      lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
+      namespaces: METADATA_NAMESPACES.reduce((accumulator, key) => ({
+        ...accumulator,
+        [key]: {},
+      }), {}),
+    };
+  }
+
+  return appBuckets[appId];
+};
 
 // Normalize a metadata value to an array of string tokens for counting.
 export const normalizeFieldValues = (value) => {
@@ -63,8 +92,8 @@ export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
   period: 'dayRange',
 });
 
-// Log placeholder lookback variables per SubID + App ID pair for future remaining-day tracking.
-export const lookbackDays = (appEntries = []) => {
+// Initialize lookback-day counters for SubID + App ID pairs.
+export const lookbackDays = (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
   const normalizedApps = normalizeAppEntries(appEntries);
 
   if (!normalizedApps.length) {
@@ -72,17 +101,22 @@ export const lookbackDays = (appEntries = []) => {
   }
 
   const remainingDayVariables = {};
+  const normalizedWindow = Math.max(0, Number(lookbackWindow) || 0);
 
   normalizedApps.forEach(({ subId, appId }) => {
     if (!subId || !appId) {
       return;
     }
 
-    const variableName = `${subId}_${appId}_remainingdays`;
+    const variableName = toLookbackVariableName(subId, appId);
 
-    remainingDayVariables[variableName] = null;
+    if (!Number.isFinite(lookbackDayBalances[variableName])) {
+      lookbackDayBalances[variableName] = normalizedWindow;
+    }
+
+    remainingDayVariables[variableName] = lookbackDayBalances[variableName];
     // eslint-disable-next-line no-console
-    console.log(variableName);
+    console.log('[lookbackDays] Initialized', { variableName, days: remainingDayVariables[variableName] });
   });
 
   return remainingDayVariables;
@@ -188,6 +222,7 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
 export const buildMetadataQueue = async (entries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
   metadataCallQueue = await buildMetadataCallPlan(entries, lookbackWindow);
   lastDiscoveredApps = entries;
+  lookbackDays(entries, lookbackWindow);
 
   // eslint-disable-next-line no-console
   console.log('[buildMetadataQueue] Ready', {
@@ -253,6 +288,63 @@ export const executeMetadataCallPlan = async (
   /* eslint-enable no-await-in-loop */
 
   return responses;
+};
+
+// Reduce remaining lookback days for an app when a time window finishes processing.
+export const decrementLookbackDays = (app, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
+  const subId = app?.subId;
+  const appId = app?.appId;
+
+  if (!subId || !appId) {
+    return null;
+  }
+
+  const variableName = toLookbackVariableName(subId, appId);
+  const normalizedWindow = Math.max(0, Number(lookbackWindow) || 0);
+  const startingValue = Number.isFinite(lookbackDayBalances[variableName])
+    ? lookbackDayBalances[variableName]
+    : normalizedWindow;
+  const updatedValue = Math.max(0, startingValue - normalizedWindow);
+
+  lookbackDayBalances[variableName] = updatedValue;
+
+  // eslint-disable-next-line no-console
+  console.log('[lookbackDays] Updated', { variableName, lookbackWindow: normalizedWindow, remaining: updatedValue });
+
+  return updatedValue;
+};
+
+// Log and summarize each aggregated metadata response while tracking lookback progress.
+export const processAggregation = ({ app, lookbackWindow, response }) => {
+  const subId = app?.subId || 'unknown-subid';
+  const appId = app?.appId || 'unknown-appid';
+  const appName = app?.appName || appId || 'unknown-app';
+  const aggregationResults = Array.isArray(response?.results) ? response.results : [];
+  const appBucket = getAppAggregationBucket(subId, appId, appName);
+
+  appBucket.appName = appName;
+  appBucket.lookbackWindow = lookbackWindow;
+  appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
+
+  aggregationResults.forEach((result) => {
+    tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
+  });
+
+  decrementLookbackDays(app, lookbackWindow);
+
+  if (typeof window !== 'undefined') {
+    window.metadataAggregations = metadataAggregations;
+  }
+
+  // eslint-disable-next-line no-console
+  console.log('[processAggregation]', {
+    appId,
+    appName,
+    lookbackWindow,
+    subId,
+    timeseriesStart: appBucket.timeseriesStart,
+    totalResults: aggregationResults.length,
+  });
 };
 
 // Execute queued metadata calls with an optional limit to throttle requests.
