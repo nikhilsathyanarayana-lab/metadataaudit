@@ -5,7 +5,7 @@ export const exposeDeepDiveDebugCommands = () => {
     return;
   }
 
-  const debugEnabled = Boolean(window.DEBUG_LOGGING || window.DEEP_DIVE_DEBUG);
+  const debugEnabled = Boolean(window.DEBUG_LOGGING || window.DEBUG_DEEP_DIVE);
   const status = debugEnabled
     ? 'Deep dive debug console commands removed; nothing to register.'
     : 'Deep dive debug console commands are disabled.';
