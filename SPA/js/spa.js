@@ -26,18 +26,21 @@ function initPageSwitcher() {
 
   let activePageId = null;
 
+  // Prevent navigation until the initial task prerequisites finish.
   const lockPageSwitcher = () => {
     pageButtons.forEach((button) => {
       button.classList.add('page-switcher__btn--locked');
     });
   };
 
+  // Re-enable navigation once the prerequisites are satisfied.
   const unlockPageSwitcher = () => {
     pageButtons.forEach((button) => {
       button.classList.remove('page-switcher__btn--locked');
     });
   };
 
+  // Attach the one-time unlock actions to the prerequisite buttons.
   const bindShortcutUnlockers = () => {
     const unlock = () => unlockPageSwitcher();
 
