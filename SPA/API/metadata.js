@@ -11,6 +11,48 @@ const METADATA_WINDOW_PLAN = [
   { lookbackWindow: 23, first: 'dateAdd(now(), -7, "days")' },
   { lookbackWindow: 150, first: 'dateAdd(now(), -30, "days")' },
 ];
+// Calculate the intended lookback coverage from the configured window plan.
+const normalizeWindowPlanCoverage = (windowPlan = METADATA_WINDOW_PLAN) => {
+  const normalizedPlan = Array.isArray(windowPlan) ? windowPlan : [];
+  const totalCoverage = normalizedPlan.reduce((total, windowConfig) => {
+    const normalizedWindow = Number(windowConfig?.lookbackWindow);
+
+    return Number.isFinite(normalizedWindow) && normalizedWindow > 0
+      ? total + normalizedWindow
+      : total;
+  }, 0);
+  const largestWindow = normalizedPlan.reduce((largest, windowConfig) => {
+    const normalizedWindow = Number(windowConfig?.lookbackWindow);
+
+    return Number.isFinite(normalizedWindow) && normalizedWindow > 0
+      ? Math.max(largest, normalizedWindow)
+      : largest;
+  }, 0);
+  const baseline = Number.isFinite(Number(DEFAULT_LOOKBACK_WINDOW)) ? Number(DEFAULT_LOOKBACK_WINDOW) : 0;
+
+  return Math.max(totalCoverage, largestWindow, baseline);
+};
+let lookbackDays = normalizeWindowPlanCoverage();
+// Report the current lookback day balance for planned metadata scans.
+export const getLookbackDays = () => lookbackDays;
+// Reset the remaining lookback day balance to cover every planned metadata window.
+export const resetLookbackDays = (windowPlan = METADATA_WINDOW_PLAN) => {
+  lookbackDays = normalizeWindowPlanCoverage(windowPlan);
+
+  return lookbackDays;
+};
+// Reduce the remaining lookback day balance by the size of a completed window.
+export const decrementLookbackDays = (processedDays = DEFAULT_LOOKBACK_WINDOW) => {
+  const normalizedWindow = Number(processedDays);
+
+  if (!Number.isFinite(normalizedWindow) || normalizedWindow <= 0) {
+    return lookbackDays;
+  }
+
+  lookbackDays = Math.max(lookbackDays - normalizedWindow, 0);
+
+  return lookbackDays;
+};
 
 // Return a sorted list of metadata field names for the given SubID/app namespace.
 export const getMetadataFields = (subId, appId, namespace) => {
@@ -216,6 +258,7 @@ export const buildMetadataCallPlan = async (appEntries = []) => {
 export const buildMetadataQueue = async (entries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
   metadataCallQueue = await buildMetadataCallPlan(entries);
   lastDiscoveredApps = entries;
+  resetLookbackDays(METADATA_WINDOW_PLAN);
 
   // eslint-disable-next-line no-console
   console.log('[buildMetadataQueue] Ready', {
@@ -285,6 +328,7 @@ export const executeMetadataCallPlan = async (
         response,
         queueIndex: index + queueOffset,
       });
+      decrementLookbackDays(targetWindow);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Unable to request metadata audit payload.', error);
@@ -390,5 +434,6 @@ export const requestMetadataDeepDive = async (
     return;
   }
 
+  resetLookbackDays(METADATA_WINDOW_PLAN);
   await executeMetadataCallPlan(calls, lookbackWindow, onAggregation, 1);
 };

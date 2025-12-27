@@ -105,7 +105,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
   - Context: SPA view 3 after metadata tables load. Builds a queue of 7/23/150-day metadata aggregation calls for each SubID + App ID pair on the page.
   - Expected input: Optional limit on `run()`. `print()` logs the current queue to the console, `rebuild()` re-queues the current SubID/App ID pairs, `inspect()` surfaces the queue entries, and `size()` reports how many calls are staged.
   - Sample invocation: `window.metadataQueue.print()` to see the queued SubIDs and apps, or `window.metadataQueue.run(2)` to process the first two queued calls one at a time.
-  - Output: `run()` resolves with the executed call summaries while logging each aggregation through `processAggregation()`.
+  - Output: `run()` resolves with the executed call summaries while logging each aggregation through `processAggregation()`. Lookback day counters now start at the cumulative 180-day coverage (the full 7/23/150-day plan) and decrement per window so 30-day and 180-day milestones can trigger correctly instead of stalling at the initial 7-day pass.
 - `window.metadata_api_calls`
   - Context: Deep Dive request lifecycle while metadata responses stream in.
   - Expected input: None; appended through `updateMetadataApiCalls()` during each request.
