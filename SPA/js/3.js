@@ -7,6 +7,7 @@ const DEFAULT_METADATA_QUEUE_LIMIT = 3;
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 
+// Log each aggregated metadata response for visibility while the queue runs.
 const processAggregation = ({ app, lookbackWindow }) => {
   const appId = app?.appId || 'unknown';
   const appName = app?.appName || appId || 'unknown';
@@ -73,6 +74,7 @@ const renderMetadataTables = async (tableBodies) => {
   const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
   let appsForMetadata = [];
 
+  // Build the metadata call queue with the latest discoveries and track them for reuse.
   const buildMetadataQueue = async (entries) => {
     metadataCallQueue = await buildMetadataCallPlan(entries, DEFAULT_LOOKBACK_WINDOW);
     lastDiscoveredApps = entries;
@@ -84,6 +86,7 @@ const renderMetadataTables = async (tableBodies) => {
     });
   };
 
+  // Execute queued metadata calls with an optional limit to throttle requests.
   const runMetadataQueue = async (limit = metadataCallQueue.length) => {
     if (!metadataCallQueue.length) {
       // eslint-disable-next-line no-console
@@ -103,6 +106,7 @@ const renderMetadataTables = async (tableBodies) => {
     );
   };
 
+  // Expose helpers for inspecting and rerunning the metadata queue via the console.
   const registerConsoleHelpers = () => {
     if (typeof window === 'undefined') {
       return;
