@@ -2,9 +2,62 @@ import { postAggregationWithIntegrationKey } from '../../src/services/requests/n
 import { app_names } from './app_names.js';
 
 const DEFAULT_LOOKBACK_WINDOWS = [7, 30, 180];
+export const DEFAULT_LOOKBACK_WINDOW = DEFAULT_LOOKBACK_WINDOWS[0];
+let metadataCallQueue = [];
+let lastDiscoveredApps = [];
+
+// Normalize a metadata value to an array of string tokens for counting.
+export const normalizeFieldValues = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeFieldValues(entry)).flat();
+  }
+
+  if (value && typeof value === 'object') {
+    return [JSON.stringify(value)];
+  }
+
+  if (value === null) {
+    return ['null'];
+  }
+
+  if (typeof value === 'undefined') {
+    return ['undefined'];
+  }
+
+  return [`${value}`];
+};
+
+// Increment counts for each value within a field bucket.
+export const trackFieldValues = (namespaceBucket, fieldName, rawValue) => {
+  const values = normalizeFieldValues(rawValue);
+
+  if (!namespaceBucket[fieldName]) {
+    namespaceBucket[fieldName] = { values: {}, total: 0 };
+  }
+
+  values.forEach((value) => {
+    namespaceBucket[fieldName].values[value] = (namespaceBucket[fieldName].values[value] || 0) + 1;
+    namespaceBucket[fieldName].total += 1;
+  });
+};
+
+// Tally visitor/account/custom/Salesforce fields for a single aggregation result.
+export const tallyAggregationResult = (namespaces, result, namespaceKeys = ['visitor', 'account', 'custom', 'salesforce']) => {
+  namespaceKeys.forEach((namespaceKey) => {
+    const namespaceData = result?.[namespaceKey];
+
+    if (!namespaceData || typeof namespaceData !== 'object') {
+      return;
+    }
+
+    Object.entries(namespaceData).forEach(([fieldName, value]) => {
+      trackFieldValues(namespaces[namespaceKey], fieldName, value);
+    });
+  });
+};
 
 // Return the time-series window payload for metadata lookups.
-export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => ({
+export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
   first: 'now()',
   count: -Number(lookbackWindow),
   period: 'dayRange',
@@ -36,7 +89,7 @@ export const lookbackDays = (appEntries = []) => {
 };
 
 // Build the aggregation payload to pull metadata events for an app within a lookback window.
-const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => ({
+const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => ({
   response: {
     location: 'request',
     mimeType: 'application/json',
@@ -97,7 +150,7 @@ const buildCredentialLookup = (credentialResults = []) => {
 };
 
 // Construct credential-bound API requests for each app to fetch metadata.
-export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => {
+export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
   const normalizedApps = normalizeAppEntries(appEntries);
 
   if (!normalizedApps.length) {
@@ -131,10 +184,31 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
     .filter(Boolean);
 };
 
+// Prepare a reusable queue of metadata calls for the supplied entries.
+export const buildMetadataQueue = async (entries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
+  metadataCallQueue = await buildMetadataCallPlan(entries, lookbackWindow);
+  lastDiscoveredApps = entries;
+
+  // eslint-disable-next-line no-console
+  console.log('[buildMetadataQueue] Ready', {
+    count: metadataCallQueue.length,
+    lookbackWindow,
+  });
+
+  return metadataCallQueue;
+};
+
+// Return the current metadata queue entries.
+export const getMetadataQueue = () => metadataCallQueue;
+
+// Rebuild the metadata queue using the most recently supplied entries.
+export const rebuildMetadataQueue = async (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) =>
+  buildMetadataQueue(lastDiscoveredApps, lookbackWindow);
+
 // Execute prepared metadata requests sequentially and relay each aggregation result.
 export const executeMetadataCallPlan = async (
   calls = [],
-  lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
+  lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
   onAggregation,
   limit = calls.length,
 ) => {
@@ -181,10 +255,34 @@ export const executeMetadataCallPlan = async (
   return responses;
 };
 
+// Execute queued metadata calls with an optional limit to throttle requests.
+export const runMetadataQueue = async (
+  onAggregation,
+  lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
+  limit = metadataCallQueue.length,
+) => {
+  if (!metadataCallQueue.length) {
+    // eslint-disable-next-line no-console
+    console.warn('[runMetadataQueue] No queued metadata calls to run.');
+    return [];
+  }
+
+  const plannedLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
+    ? Number(limit)
+    : metadataCallQueue.length;
+
+  return executeMetadataCallPlan(
+    metadataCallQueue,
+    lookbackWindow,
+    onAggregation,
+    plannedLimit,
+  );
+};
+
 // Orchestrate a single metadata audit request per app with optional aggregation callbacks.
 export const requestMetadataDeepDive = async (
   appEntries = [],
-  lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
+  lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
   onAggregation,
 ) => {
   const calls = await buildMetadataCallPlan(appEntries, lookbackWindow);
