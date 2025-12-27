@@ -156,6 +156,12 @@ const renderMetadataTables = async (tableConfigs) => {
 
         row.querySelectorAll('[data-value-window]').forEach((target) => {
           const lookbackWindow = Number(target.dataset.valueWindow);
+
+          // Preserve the 7-day column for stamping and skip overwriting it with aggregation data.
+          if (lookbackWindow === 7) {
+            return;
+          }
+
           target.textContent = getMetadataAggregationValue({
             subId: rowSubId,
             appId: rowAppId,
@@ -236,6 +242,7 @@ const renderMetadataTables = async (tableConfigs) => {
     await runMetadataQueue((payload) => {
       processAggregation(payload);
       refreshTableValues();
+      updateSevenDayColumns();
     }, DEFAULT_LOOKBACK_WINDOW);
     refreshTableValues();
     updateSevenDayColumns();
@@ -291,6 +298,7 @@ const renderMetadataTables = async (tableConfigs) => {
     await runMetadataQueue((payload) => {
       processAggregation(payload);
       refreshTableValues();
+      updateSevenDayColumns();
     }, DEFAULT_LOOKBACK_WINDOW);
     refreshTableValues();
     updateSevenDayColumns();
