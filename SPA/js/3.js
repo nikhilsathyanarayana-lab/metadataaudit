@@ -11,7 +11,7 @@ import {
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
-const METADATA_TABLE_WINDOWS = [7, 30, 180];
+const METADATA_TABLE_WINDOWS = [7, 23, 150];
 
 // Read metadata aggregations from the browser when available.
 const getMetadataAggregations = () => (typeof window !== 'undefined'
