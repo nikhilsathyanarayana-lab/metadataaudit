@@ -3,6 +3,7 @@ import { app_names } from './app_names.js';
 
 const DEFAULT_LOOKBACK_WINDOWS = [7, 30, 180];
 
+// Build the aggregation payload to pull metadata events for an app within a lookback window.
 const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => ({
   response: {
     location: 'request',
@@ -38,6 +39,7 @@ const buildMetadataPayload = ({ appId, appName }, lookbackWindow = DEFAULT_LOOKB
   },
 });
 
+// Normalize app entries to the fields required for downstream requests.
 const normalizeAppEntries = (entries = []) =>
   entries
     .filter((entry) => entry && (entry.subId || entry.appId))
@@ -47,6 +49,7 @@ const normalizeAppEntries = (entries = []) =>
       appName: entry.appName || entry.appId || '',
     }));
 
+// Map credentials by subId for quick lookup during call planning.
 const buildCredentialLookup = (credentialResults = []) => {
   const lookup = new Map();
 
@@ -61,6 +64,7 @@ const buildCredentialLookup = (credentialResults = []) => {
   return lookup;
 };
 
+// Construct credential-bound API requests for each app to fetch metadata.
 export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0]) => {
   const normalizedApps = normalizeAppEntries(appEntries);
 
@@ -95,6 +99,7 @@ export const buildMetadataCallPlan = async (appEntries = [], lookbackWindow = DE
     .filter(Boolean);
 };
 
+// Execute prepared metadata requests sequentially and relay each aggregation result.
 export const executeMetadataCallPlan = async (
   calls = [],
   lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
@@ -144,6 +149,7 @@ export const executeMetadataCallPlan = async (
   return responses;
 };
 
+// Orchestrate a single metadata audit request per app with optional aggregation callbacks.
 export const requestMetadataDeepDive = async (
   appEntries = [],
   lookbackWindow = DEFAULT_LOOKBACK_WINDOWS[0],
