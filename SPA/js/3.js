@@ -5,14 +5,109 @@ import { getAppSelections } from './2.js';
 const DEFAULT_LOOKBACK_WINDOW = 7;
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
+const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
+const metadataAggregations = {};
 
-// Log each aggregated metadata response for visibility while the queue runs.
-const processAggregation = ({ app, lookbackWindow }) => {
-  const appId = app?.appId || 'unknown';
-  const appName = app?.appName || appId || 'unknown';
+// Ensure a namespace bucket exists for a SubID + App ID combination.
+const getAppAggregationBucket = (subId, appId, appName) => {
+  if (!metadataAggregations[subId]) {
+    metadataAggregations[subId] = { apps: {} };
+  }
+
+  const appBuckets = metadataAggregations[subId].apps;
+
+  if (!appBuckets[appId]) {
+    appBuckets[appId] = {
+      appId,
+      appName,
+      timeseriesStart: null,
+      lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
+      namespaces: METADATA_NAMESPACES.reduce((accumulator, key) => ({ ...accumulator, [key]: {} }), {}),
+    };
+  }
+
+  return appBuckets[appId];
+};
+
+// Normalize a metadata value to an array of string tokens for counting.
+const normalizeFieldValues = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeFieldValues(entry)).flat();
+  }
+
+  if (value && typeof value === 'object') {
+    return [JSON.stringify(value)];
+  }
+
+  if (value === null) {
+    return ['null'];
+  }
+
+  if (typeof value === 'undefined') {
+    return ['undefined'];
+  }
+
+  return [`${value}`];
+};
+
+// Increment counts for each value within a field bucket.
+const trackFieldValues = (namespaceBucket, fieldName, rawValue) => {
+  const values = normalizeFieldValues(rawValue);
+
+  if (!namespaceBucket[fieldName]) {
+    namespaceBucket[fieldName] = { values: {}, total: 0 };
+  }
+
+  values.forEach((value) => {
+    namespaceBucket[fieldName].values[value] = (namespaceBucket[fieldName].values[value] || 0) + 1;
+    namespaceBucket[fieldName].total += 1;
+  });
+};
+
+// Tally visitor/account/custom/Salesforce fields for a single aggregation result.
+const tallyAggregationResult = (result, appBucket) => {
+  METADATA_NAMESPACES.forEach((namespaceKey) => {
+    const namespaceData = result?.[namespaceKey];
+
+    if (!namespaceData || typeof namespaceData !== 'object') {
+      return;
+    }
+
+    Object.entries(namespaceData).forEach(([fieldName, value]) => {
+      trackFieldValues(appBucket.namespaces[namespaceKey], fieldName, value);
+    });
+  });
+};
+
+// Log and summarize each aggregated metadata response while the queue runs.
+const processAggregation = ({ app, lookbackWindow, response }) => {
+  const subId = app?.subId || 'unknown-subid';
+  const appId = app?.appId || 'unknown-appid';
+  const appName = app?.appName || appId || 'unknown-app';
+  const aggregationResults = Array.isArray(response?.results) ? response.results : [];
+  const appBucket = getAppAggregationBucket(subId, appId, appName);
+
+  appBucket.appName = appName;
+  appBucket.lookbackWindow = lookbackWindow;
+  appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
+
+  aggregationResults.forEach((result) => {
+    tallyAggregationResult(result, appBucket);
+  });
+
+  if (typeof window !== 'undefined') {
+    window.metadataAggregations = metadataAggregations;
+  }
 
   // eslint-disable-next-line no-console
-  console.log('[Metadata Aggregation]', { appId, appName, lookbackWindow });
+  console.log('[Metadata Aggregation]', {
+    appId,
+    appName,
+    lookbackWindow,
+    subId,
+    timeseriesStart: appBucket.timeseriesStart,
+    totalResults: aggregationResults.length,
+  });
 };
 
 // Build a visitor metadata row showing SubID and app details.
