@@ -33,8 +33,6 @@ const normalizeWindowPlanCoverage = (windowPlan = METADATA_WINDOW_PLAN) => {
   return Math.max(totalCoverage, largestWindow, baseline);
 };
 let lookbackDays = normalizeWindowPlanCoverage();
-// Report the current lookback day balance for planned metadata scans.
-export const getLookbackDays = () => lookbackDays;
 // Reset the remaining lookback day balance to cover every planned metadata window.
 export const resetLookbackDays = (windowPlan = METADATA_WINDOW_PLAN) => {
   lookbackDays = normalizeWindowPlanCoverage(windowPlan);
