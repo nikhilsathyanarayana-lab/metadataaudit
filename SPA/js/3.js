@@ -1,10 +1,14 @@
 import { app_names } from '../API/app_names.js';
-import { buildMetadataCallPlan, executeMetadataCallPlan } from '../API/metadata.js';
+import {
+  DEFAULT_LOOKBACK_WINDOW,
+  buildMetadataQueue,
+  getMetadataQueue,
+  rebuildMetadataQueue,
+  runMetadataQueue,
+  tallyAggregationResult,
+} from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
-const DEFAULT_LOOKBACK_WINDOW = 7;
-let metadataCallQueue = [];
-let lastDiscoveredApps = [];
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 const metadataAggregations = {};
 
@@ -29,56 +33,6 @@ const getAppAggregationBucket = (subId, appId, appName) => {
   return appBuckets[appId];
 };
 
-// Normalize a metadata value to an array of string tokens for counting.
-const normalizeFieldValues = (value) => {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeFieldValues(entry)).flat();
-  }
-
-  if (value && typeof value === 'object') {
-    return [JSON.stringify(value)];
-  }
-
-  if (value === null) {
-    return ['null'];
-  }
-
-  if (typeof value === 'undefined') {
-    return ['undefined'];
-  }
-
-  return [`${value}`];
-};
-
-// Increment counts for each value within a field bucket.
-const trackFieldValues = (namespaceBucket, fieldName, rawValue) => {
-  const values = normalizeFieldValues(rawValue);
-
-  if (!namespaceBucket[fieldName]) {
-    namespaceBucket[fieldName] = { values: {}, total: 0 };
-  }
-
-  values.forEach((value) => {
-    namespaceBucket[fieldName].values[value] = (namespaceBucket[fieldName].values[value] || 0) + 1;
-    namespaceBucket[fieldName].total += 1;
-  });
-};
-
-// Tally visitor/account/custom/Salesforce fields for a single aggregation result.
-const tallyAggregationResult = (result, appBucket) => {
-  METADATA_NAMESPACES.forEach((namespaceKey) => {
-    const namespaceData = result?.[namespaceKey];
-
-    if (!namespaceData || typeof namespaceData !== 'object') {
-      return;
-    }
-
-    Object.entries(namespaceData).forEach(([fieldName, value]) => {
-      trackFieldValues(appBucket.namespaces[namespaceKey], fieldName, value);
-    });
-  });
-};
-
 // Log and summarize each aggregated metadata response while the queue runs.
 const processAggregation = ({ app, lookbackWindow, response }) => {
   const subId = app?.subId || 'unknown-subid';
@@ -92,7 +46,7 @@ const processAggregation = ({ app, lookbackWindow, response }) => {
   appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
 
   aggregationResults.forEach((result) => {
-    tallyAggregationResult(result, appBucket);
+    tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
   });
 
   if (typeof window !== 'undefined') {
@@ -168,38 +122,6 @@ const renderMetadataTables = async (tableBodies) => {
   const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
   let appsForMetadata = [];
 
-  // Build the metadata call queue with the latest discoveries and track them for reuse.
-  const buildMetadataQueue = async (entries) => {
-    metadataCallQueue = await buildMetadataCallPlan(entries, DEFAULT_LOOKBACK_WINDOW);
-    lastDiscoveredApps = entries;
-
-    // eslint-disable-next-line no-console
-    console.log('[buildMetadataQueue] Ready', {
-      count: metadataCallQueue.length,
-      lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
-    });
-  };
-
-  // Execute queued metadata calls with an optional limit to throttle requests.
-  const runMetadataQueue = async (limit = metadataCallQueue.length) => {
-    if (!metadataCallQueue.length) {
-      // eslint-disable-next-line no-console
-      console.warn('[runMetadataQueue] No queued metadata calls to run.');
-      return [];
-    }
-
-    const plannedLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
-      ? Number(limit)
-      : metadataCallQueue.length;
-
-    return executeMetadataCallPlan(
-      metadataCallQueue,
-      DEFAULT_LOOKBACK_WINDOW,
-      processAggregation,
-      plannedLimit,
-    );
-  };
-
   // Expose helpers for inspecting and rerunning the metadata queue via the console.
   const registerConsoleHelpers = () => {
     if (typeof window === 'undefined') {
@@ -207,13 +129,15 @@ const renderMetadataTables = async (tableBodies) => {
     }
 
     // Print the queued metadata calls to the console for quick inspection.
-    const printQueue = () => {
-      const entries = metadataCallQueue.map((entry, index) => ({
+    const inspectQueue = () => getMetadataQueue().map((entry, index) => ({
         index,
         subId: entry?.credential?.subId || entry?.app?.subId,
         appId: entry?.app?.appId,
         appName: entry?.app?.appName,
       }));
+
+    const printQueue = () => {
+      const entries = inspectQueue();
 
       // eslint-disable-next-line no-console
       console.table(entries);
@@ -222,16 +146,11 @@ const renderMetadataTables = async (tableBodies) => {
     };
 
     window.metadataQueue = {
-      inspect: () => metadataCallQueue.map((entry, index) => ({
-        index,
-        subId: entry?.credential?.subId || entry?.app?.subId,
-        appId: entry?.app?.appId,
-        appName: entry?.app?.appName,
-      })),
+      inspect: () => inspectQueue(),
       print: () => printQueue(),
-      rebuild: () => buildMetadataQueue(lastDiscoveredApps),
-      run: (limit) => runMetadataQueue(limit),
-      size: () => metadataCallQueue.length,
+      rebuild: () => rebuildMetadataQueue(DEFAULT_LOOKBACK_WINDOW),
+      run: (limit) => runMetadataQueue(processAggregation, DEFAULT_LOOKBACK_WINDOW, limit),
+      size: () => getMetadataQueue().length,
     };
   };
 
@@ -244,9 +163,9 @@ const renderMetadataTables = async (tableBodies) => {
       }));
     });
     appsForMetadata = selectedApps;
-    await buildMetadataQueue(appsForMetadata);
+    await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
     registerConsoleHelpers();
-    await runMetadataQueue();
+    await runMetadataQueue(processAggregation, DEFAULT_LOOKBACK_WINDOW);
     return;
   }
 
@@ -293,9 +212,9 @@ const renderMetadataTables = async (tableBodies) => {
   });
 
   if (appsForMetadata.length) {
-    await buildMetadataQueue(appsForMetadata);
+    await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
     registerConsoleHelpers();
-    await runMetadataQueue();
+    await runMetadataQueue(processAggregation, DEFAULT_LOOKBACK_WINDOW);
   }
 };
 
