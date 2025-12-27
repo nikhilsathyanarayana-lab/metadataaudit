@@ -189,14 +189,14 @@ export const buildMetadataCallPlan = async (appEntries = []) => {
   const credentialLookup = buildCredentialLookup(credentialResults);
   const plannedCalls = [];
 
-  normalizedApps.forEach((appEntry) => {
-    const credential = credentialLookup.get(appEntry.subId) || credentialResults[0]?.credential;
+  METADATA_WINDOW_PLAN.forEach((windowConfig) => {
+    normalizedApps.forEach((appEntry) => {
+      const credential = credentialLookup.get(appEntry.subId) || credentialResults[0]?.credential;
 
-    if (!credential) {
-      return;
-    }
+      if (!credential) {
+        return;
+      }
 
-    METADATA_WINDOW_PLAN.forEach((windowConfig) => {
       const payload = buildMetadataPayload(appEntry, windowConfig);
 
       plannedCalls.push({
@@ -241,6 +241,8 @@ export const executeMetadataCallPlan = async (
   lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
   onAggregation,
   limit = calls.length,
+  queueOffset = 0,
+  totalQueued = calls.length,
 ) => {
   if (!Array.isArray(calls) || !calls.length) {
     return [];
@@ -251,6 +253,9 @@ export const executeMetadataCallPlan = async (
     : calls.length;
 
   const responses = [];
+  const totalQueueSize = Number.isFinite(Number(totalQueued)) && Number(totalQueued) > 0
+    ? Number(totalQueued)
+    : maxCalls + queueOffset;
 
   /* eslint-disable no-await-in-loop */
   for (let index = 0; index < maxCalls; index += 1) {
@@ -268,8 +273,8 @@ export const executeMetadataCallPlan = async (
           lookbackWindow: targetWindow,
           timeseriesFirst: nextCall.timeseriesFirst,
           response,
-          queueIndex: index,
-          totalQueued: maxCalls,
+          queueIndex: index + queueOffset,
+          totalQueued: totalQueueSize,
         });
       }
 
@@ -278,7 +283,7 @@ export const executeMetadataCallPlan = async (
         lookbackWindow: targetWindow,
         timeseriesFirst: nextCall.timeseriesFirst,
         response,
-        queueIndex: index,
+        queueIndex: index + queueOffset,
       });
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -321,7 +326,7 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   });
 };
 
-// Execute queued metadata calls with an optional limit to throttle requests.
+// Execute queued metadata calls in window order with an optional limit to throttle requests.
 export const runMetadataQueue = async (
   onAggregation,
   lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
@@ -336,13 +341,41 @@ export const runMetadataQueue = async (
   const plannedLimit = Number.isFinite(Number(limit)) && Number(limit) > 0
     ? Number(limit)
     : metadataCallQueue.length;
+  const totalQueued = metadataCallQueue.length;
+  const responses = [];
+  let remaining = plannedLimit;
+  let windowOffset = 0;
 
-  return executeMetadataCallPlan(
-    metadataCallQueue,
-    lookbackWindow,
-    onAggregation,
-    plannedLimit,
-  );
+  for (let index = 0; index < METADATA_WINDOW_PLAN.length; index += 1) {
+    const targetWindow = METADATA_WINDOW_PLAN[index].lookbackWindow;
+    const windowCalls = metadataCallQueue.filter(
+      (call) => Number(call.lookbackWindow) === Number(targetWindow),
+    );
+
+    if (!windowCalls.length) {
+      continue;
+    }
+
+    if (remaining <= 0) {
+      break;
+    }
+
+    const callsToRun = windowCalls.slice(0, remaining);
+    const windowResponses = await executeMetadataCallPlan(
+      callsToRun,
+      lookbackWindow,
+      onAggregation,
+      callsToRun.length,
+      windowOffset,
+      totalQueued,
+    );
+
+    responses.push(...windowResponses);
+    remaining -= callsToRun.length;
+    windowOffset += windowCalls.length;
+  }
+
+  return responses;
 };
 
 // Orchestrate a single metadata audit request per app with optional aggregation callbacks.
