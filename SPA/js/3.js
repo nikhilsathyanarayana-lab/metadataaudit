@@ -4,6 +4,7 @@ import {
   METADATA_NAMESPACES,
   buildMetadataQueue,
   getMetadataQueue,
+  getMetadataFields,
   processAggregation,
   rebuildMetadataQueue,
   runMetadataQueue,
@@ -62,8 +63,10 @@ export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackW
       && target.dataset.subId === targetSubId
       && target.dataset.appId === targetAppId
     ) {
-      // Set literal text so the cell is easy to detect downstream.
-      target.textContent = 'hello world';
+      const fieldNames = getMetadataFields(targetSubId, targetAppId, targetNamespace);
+      const placeholder = 'No metadata fields found';
+
+      target.textContent = fieldNames.length ? fieldNames.join(', ') : placeholder;
     }
   });
 };
@@ -222,7 +225,11 @@ const renderMetadataTables = async (tableConfigs) => {
         processAggregation(payload);
         refreshTableValues();
         updateSevenDayColumns();
-      }, DEFAULT_LOOKBACK_WINDOW, limit),
+      }, DEFAULT_LOOKBACK_WINDOW, limit).then((responses) => {
+        refreshTableValues();
+        updateSevenDayColumns();
+        return responses;
+      }),
       size: () => getMetadataQueue().length,
     };
   };

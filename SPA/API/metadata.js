@@ -7,6 +7,21 @@ let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 const metadataAggregations = {};
 
+// Return a sorted list of metadata field names for the given SubID/app namespace.
+export const getMetadataFields = (subId, appId, namespace) => {
+  if (!subId || !appId || !namespace) {
+    return [];
+  }
+
+  const namespaceBucket = metadataAggregations?.[subId]?.apps?.[appId]?.namespaces?.[namespace];
+
+  if (!namespaceBucket || typeof namespaceBucket !== 'object') {
+    return [];
+  }
+
+  return Object.keys(namespaceBucket).sort((first, second) => first.localeCompare(second));
+};
+
 // Ensure a namespace bucket exists for a SubID + App ID combination.
 const getAppAggregationBucket = (subId, appId, appName) => {
   if (!metadataAggregations[subId]) {
