@@ -177,8 +177,13 @@ const renderMetadataTables = async (tableConfigs) => {
         row.querySelectorAll('[data-value-window]').forEach((target) => {
           const lookbackWindow = Number(target.dataset.valueWindow);
 
-          // Preserve the 7-day column for stamping and skip overwriting it with aggregation data.
           if (lookbackWindow === 7) {
+            calculateMetadataTableValue({
+              subId: rowSubId,
+              appId: rowAppId,
+              namespace,
+              lookbackWindow,
+            });
             return;
           }
 
@@ -193,27 +198,9 @@ const renderMetadataTables = async (tableConfigs) => {
     });
   };
 
-  // Update every 7-day cell to a fixed value across all metadata tables.
-  const updateSevenDayColumns = () => {
-    // eslint-disable-next-line no-console
-    console.log('updateSevenDayColumns');
-
-    tableConfigs.forEach(({ element }) => {
-      element?.querySelectorAll('tr[data-sub-id][data-app-id]').forEach((row) => {
-        calculateMetadataTableValue({
-          subId: row.dataset.subId,
-          appId: row.dataset.appId,
-          namespace: row.dataset.namespace,
-          lookbackWindow: 7,
-        });
-      });
-    });
-  };
-
   // Refresh aggregation and seven-day columns across all metadata tables.
   const refreshAllTables = () => {
     refreshTableValues();
-    updateSevenDayColumns();
   };
 
   const cachedSelections = getAppSelections();
