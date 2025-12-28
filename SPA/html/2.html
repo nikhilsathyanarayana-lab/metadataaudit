@@ -1,38 +1,40 @@
-<section class="card page-section" data-page-section="2" aria-label="Available app list preview">
-  <div class="card-header">
-    <div class="form-intro">
-      <h2 class="section-title">Available Apps</h2>
-      <p class="section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
+<div class="page-view" id="app-selection-view" data-page-section="2">
+  <section class="card page-section" id="app-selection-card" aria-label="Available app list preview">
+    <div class="card-header" id="app-selection-card-header">
+      <div class="form-intro" id="app-selection-form-intro">
+        <h2 class="section-title" id="app-selection-section-title">Available Apps</h2>
+        <p class="section-hint" id="app-selection-section-hint">Use the checkboxes to choose which apps belong with each SubID.</p>
+      </div>
+      <div class="app-selection-actions" id="app-selection-actions">
+        <button id="app-selection-continue-btn" class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
+        <p class="selection-count" id="app-selection-selection-count" aria-live="polite">0 apps selected</p>
+      </div>
     </div>
-    <div class="app-selection-actions">
-      <button id="app-selection-continue-btn" class="launch-btn" type="button" disabled aria-disabled="true">Continue</button>
-      <p class="selection-count" aria-live="polite">0 apps selected</p>
-    </div>
-  </div>
 
-  <div class="table-wrapper" role="region" aria-label="App selection table preview" tabindex="0">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th scope="col">Sub ID</th>
-          <th scope="col">App Name</th>
-          <th scope="col">App ID</th>
-          <th scope="col" class="checkbox-cell">
-            <label for="app-selection-toggle-all-preview">Select</label>
-            <input type="checkbox" id="app-selection-toggle-all-preview" aria-label="Select all apps" disabled />
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>6331700054917120</td>
-          <td>Loading...</td>
-          <td>Loading apps...</td>
-          <td class="checkbox-cell">
-            <input type="checkbox" aria-label="Select app 6331700054917120" disabled />
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</section>
+    <div class="table-wrapper" id="app-selection-table-wrapper" role="region" aria-label="App selection table preview" tabindex="0">
+      <table class="data-table" id="app-selection-table">
+        <thead>
+          <tr>
+            <th scope="col">Sub ID</th>
+            <th scope="col">App Name</th>
+            <th scope="col">App ID</th>
+            <th scope="col" class="checkbox-cell">
+              <label for="app-selection-toggle-all-preview">Select</label>
+              <input type="checkbox" id="app-selection-toggle-all-preview" aria-label="Select all apps" disabled />
+            </th>
+          </tr>
+        </thead>
+        <tbody id="app-selection-table-body">
+          <tr>
+            <td>6331700054917120</td>
+            <td>Loading...</td>
+            <td>Loading apps...</td>
+            <td class="checkbox-cell">
+              <input type="checkbox" aria-label="Select app 6331700054917120" disabled />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
