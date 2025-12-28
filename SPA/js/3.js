@@ -210,6 +210,12 @@ const renderMetadataTables = async (tableConfigs) => {
     });
   };
 
+  // Refresh aggregation and seven-day columns across all metadata tables.
+  const refreshAllTables = () => {
+    refreshTableValues();
+    updateSevenDayColumns();
+  };
+
   const cachedSelections = getAppSelections();
   const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
   let appsForMetadata = [];
@@ -254,13 +260,8 @@ const renderMetadataTables = async (tableConfigs) => {
       rebuild: () => rebuildMetadataQueue(DEFAULT_LOOKBACK_WINDOW),
       run: (limit) => runMetadataQueue((payload) => {
         processAggregation(payload);
-        refreshTableValues();
-        updateSevenDayColumns();
-      }, DEFAULT_LOOKBACK_WINDOW, limit).then((responses) => {
-        refreshTableValues();
-        updateSevenDayColumns();
-        return responses;
-      }),
+        refreshAllTables();
+      }, DEFAULT_LOOKBACK_WINDOW, limit),
       size: () => getMetadataQueue().length,
     };
   };
@@ -279,11 +280,8 @@ const renderMetadataTables = async (tableConfigs) => {
     registerConsoleHelpers();
     await runMetadataQueue((payload) => {
       processAggregation(payload);
-      refreshTableValues();
-      updateSevenDayColumns();
+      refreshAllTables();
     }, DEFAULT_LOOKBACK_WINDOW);
-    refreshTableValues();
-    updateSevenDayColumns();
     return;
   }
 
@@ -335,11 +333,8 @@ const renderMetadataTables = async (tableConfigs) => {
     registerConsoleHelpers();
     await runMetadataQueue((payload) => {
       processAggregation(payload);
-      refreshTableValues();
-      updateSevenDayColumns();
+      refreshAllTables();
     }, DEFAULT_LOOKBACK_WINDOW);
-    refreshTableValues();
-    updateSevenDayColumns();
   }
 };
 
