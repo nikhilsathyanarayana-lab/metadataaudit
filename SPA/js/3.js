@@ -15,9 +15,6 @@ const METADATA_TABLE_WINDOWS = [7, 23, 150];
 
 // Read metadata aggregations from the browser when available.
 const getMetadataAggregations = () => {
-  // eslint-disable-next-line no-console
-  console.log('getMetadataAggregations');
-
   return typeof window !== 'undefined'
     ? window.metadataAggregations || {}
     : {};
@@ -25,9 +22,6 @@ const getMetadataAggregations = () => {
 
 // Calculate the metadata value shown in the table for a given SubID, app, namespace, and window.
 const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }) => {
-  // eslint-disable-next-line no-console
-  console.log('getMetadataAggregationValue');
-
   if (!subId || !appId || !namespace) {
     return '—';
   }
