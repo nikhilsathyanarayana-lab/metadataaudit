@@ -85,10 +85,30 @@ const getAppAggregationBucket = (subId, appId, appName) => {
         ...accumulator,
         [key]: {},
       }), {}),
+      windows: {},
     };
   }
 
   return appBuckets[appId];
+};
+
+// Guarantee a namespace bucket for a specific lookback window.
+const getWindowNamespaceBucket = (appBucket, lookbackWindow) => {
+  const normalizedWindow = Number(lookbackWindow);
+  const windowKey = Number.isFinite(normalizedWindow) ? normalizedWindow : DEFAULT_LOOKBACK_WINDOW;
+
+  if (!appBucket.windows[windowKey]) {
+    appBucket.windows[windowKey] = {
+      lookbackWindow: windowKey,
+      namespaces: METADATA_NAMESPACES.reduce((accumulator, key) => ({
+        ...accumulator,
+        [key]: {},
+      }), {}),
+      timeseriesStart: null,
+    };
+  }
+
+  return appBucket.windows[windowKey];
 };
 
 // Normalize a metadata value to an array of string tokens for counting.
@@ -344,13 +364,16 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   const appName = app?.appName || appId || 'unknown-app';
   const aggregationResults = Array.isArray(response?.results) ? response.results : [];
   const appBucket = getAppAggregationBucket(subId, appId, appName);
+  const windowBucket = getWindowNamespaceBucket(appBucket, lookbackWindow);
 
   appBucket.appName = appName;
   appBucket.lookbackWindow = lookbackWindow;
   appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
+  windowBucket.timeseriesStart = response?.startTime || windowBucket.timeseriesStart;
 
   aggregationResults.forEach((result) => {
     tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
+    tallyAggregationResult(windowBucket.namespaces, result, METADATA_NAMESPACES);
   });
 
   if (typeof window !== 'undefined') {
