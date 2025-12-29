@@ -3,10 +3,8 @@ import {
   DEFAULT_LOOKBACK_WINDOW,
   METADATA_NAMESPACES,
   buildMetadataQueue,
-  getMetadataQueue,
   resolvePreferredWindowBucket,
   processAggregation,
-  rebuildMetadataQueue,
   runMetadataQueue,
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
@@ -232,62 +230,16 @@ const renderMetadataTables = async (tableConfigs) => {
       });
     };
 
-  // Refresh aggregation and seven-day columns across all metadata tables.
-  const refreshAllTables = (targetAppContext = {}) => {
-    const { appId: targetAppId = '', subId: targetSubId = '' } = targetAppContext;
+    // Refresh aggregation and seven-day columns across all metadata tables.
+    const refreshAllTables = (targetAppContext = {}) => {
+      const { appId: targetAppId = '', subId: targetSubId = '' } = targetAppContext;
 
-    refreshTableValues({ targetAppId, targetSubId });
-  };
-
-  const cachedSelections = getAppSelections();
-  const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
-  let appsForMetadata = [];
-
-  // Expose helpers for inspecting and rerunning the metadata queue via the console.
-  const registerConsoleHelpers = () => {
-    // eslint-disable-next-line no-console
-    console.log('registerConsoleHelpers');
-
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    // Print the queued metadata calls to the console for quick inspection.
-    const inspectQueue = () => {
-      // eslint-disable-next-line no-console
-      console.log('inspectQueue');
-
-      return getMetadataQueue().map((entry, index) => ({
-        index,
-        subId: entry?.credential?.subId || entry?.app?.subId,
-        appId: entry?.app?.appId,
-        appName: entry?.app?.appName,
-      }));
+      refreshTableValues({ targetAppId, targetSubId });
     };
 
-    const printQueue = () => {
-      // eslint-disable-next-line no-console
-      console.log('printQueue');
-
-      const entries = inspectQueue();
-
-      // eslint-disable-next-line no-console
-      console.table(entries);
-
-      return entries;
-    };
-
-    window.metadataQueue = {
-      inspect: () => inspectQueue(),
-      print: () => printQueue(),
-      rebuild: () => rebuildMetadataQueue(DEFAULT_LOOKBACK_WINDOW),
-      run: (limit) => runMetadataQueue((payload) => {
-        processAggregation(payload);
-        refreshAllTables(payload?.app);
-      }, DEFAULT_LOOKBACK_WINDOW, limit),
-      size: () => getMetadataQueue().length,
-    };
-  };
+    const cachedSelections = getAppSelections();
+    const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
+    let appsForMetadata = [];
 
     if (selectedApps.length) {
       selectedApps.forEach((app) => {
@@ -300,7 +252,6 @@ const renderMetadataTables = async (tableConfigs) => {
       });
       appsForMetadata = selectedApps;
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-      registerConsoleHelpers();
       await runMetadataQueue((payload) => {
         processAggregation(payload);
         refreshAllTables(payload?.app);
@@ -353,7 +304,6 @@ const renderMetadataTables = async (tableConfigs) => {
 
     if (appsForMetadata.length) {
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-      registerConsoleHelpers();
       await runMetadataQueue((payload) => {
         processAggregation(payload);
         refreshAllTables(payload?.app);
