@@ -4,7 +4,6 @@ import {
   METADATA_NAMESPACES,
   buildMetadataQueue,
   getMetadataQueue,
-  getMetadataFields,
   processAggregation,
   rebuildMetadataQueue,
   runMetadataQueue,
@@ -36,39 +35,34 @@ const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
     .find((bucket) => bucket?.isProcessed);
 };
 
-// Read metadata aggregations from the browser when available.
-const getMetadataAggregations = () => {
-  return typeof window !== 'undefined'
-    ? window.metadataAggregations || {}
-    : {};
-};
-
-// Calculate the metadata value shown in the table for a given SubID, app, namespace, and window.
-const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }) => {
+// Return a list of field names for a processed window bucket.
+const getWindowMetadataFields = ({ subId, appId, namespace, lookbackWindow }) => {
   if (!subId || !appId || !namespace) {
-    return '—';
+    return [];
   }
 
   const aggregations = getMetadataAggregations();
   const appBucket = aggregations?.[subId]?.apps?.[appId];
 
   if (!appBucket) {
-    return '—';
+    return [];
   }
 
   const preferredWindowBucket = resolvePreferredWindowBucket(appBucket, lookbackWindow);
   const namespaceBucket = preferredWindowBucket?.namespaces?.[namespace];
 
   if (!namespaceBucket || typeof namespaceBucket !== 'object') {
-    return '—';
+    return [];
   }
 
-  const totalValues = Object.values(namespaceBucket).reduce(
-    (total, fieldStats) => total + (fieldStats?.total || 0),
-    0,
-  );
+  return Object.keys(namespaceBucket).sort((first, second) => first.localeCompare(second));
+};
 
-  return Number.isFinite(totalValues) ? `${totalValues}` : '—';
+// Read metadata aggregations from the browser when available.
+const getMetadataAggregations = () => {
+  return typeof window !== 'undefined'
+    ? window.metadataAggregations || {}
+    : {};
 };
 
 // Stamp the lookback cell for a specific SubID/AppID/namespace row.
@@ -96,8 +90,13 @@ export const calculateMetadataTableValue = ({
       && target.dataset.subId === targetSubId
       && target.dataset.appId === targetAppId
     ) {
-      const fieldNames = getMetadataFields(targetSubId, targetAppId, targetNamespace);
-      const placeholder = 'No metadata fields found';
+      const fieldNames = getWindowMetadataFields({
+        subId: targetSubId,
+        appId: targetAppId,
+        namespace: targetNamespace,
+        lookbackWindow,
+      });
+      const placeholder = 'Waiting for lookback data';
 
       target.textContent = fieldNames.length ? fieldNames.join(', ') : placeholder;
     }
@@ -144,12 +143,15 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
     valueTarget.dataset.subId = subId || '';
     valueTarget.dataset.appId = appId || '';
     valueTarget.dataset.namespace = namespace || '';
-    valueTarget.textContent = getMetadataAggregationValue({
+    const initialFields = getWindowMetadataFields({
       subId,
       appId,
       namespace,
       lookbackWindow,
     });
+    const placeholder = 'Waiting for lookback data';
+
+    valueTarget.textContent = initialFields.length ? initialFields.join(', ') : placeholder;
 
     valueCell.appendChild(valueTarget);
 
