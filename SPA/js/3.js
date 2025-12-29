@@ -4,6 +4,7 @@ import {
   METADATA_NAMESPACES,
   buildMetadataQueue,
   getMetadataQueue,
+  resolvePreferredWindowBucket,
   processAggregation,
   rebuildMetadataQueue,
   runMetadataQueue,
@@ -20,29 +21,6 @@ const formatFieldNames = ({ fieldNames = [], isProcessed = false } = {}) => {
   return Array.isArray(fieldNames) && fieldNames.length
     ? fieldNames.join(', ')
     : (isProcessed ? noDataText : placeholder);
-};
-
-// Return the preferred window bucket, favoring derived windows when present and only when processed.
-const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
-  const normalizedWindow = Number(lookbackWindow);
-  const preferenceOrder = (() => {
-    switch (normalizedWindow) {
-      case 23:
-        return [30, 23];
-      case 150:
-        return [180, 150];
-      case 30:
-        return [30, 23];
-      case 180:
-        return [180, 150];
-      default:
-        return [normalizedWindow];
-    }
-  })();
-
-  return preferenceOrder
-    .map((windowKey) => appBucket?.windows?.[windowKey])
-    .find((bucket) => bucket?.isProcessed);
 };
 
 // Return sorted field names and processing status for a specific lookback bucket.

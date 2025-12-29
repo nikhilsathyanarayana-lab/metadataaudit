@@ -52,13 +52,44 @@ export const decrementLookbackDays = (processedDays = DEFAULT_LOOKBACK_WINDOW) =
   return lookbackDays;
 };
 
+// Choose the best available window bucket for the requested lookback.
+export const resolvePreferredWindowBucket = (appBucket, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
+  const normalizedWindow = Number(lookbackWindow);
+  const preferenceOrder = (() => {
+    switch (normalizedWindow) {
+      case 23:
+        return [30, 23, 7];
+      case 150:
+        return [180, 150, 30];
+      case 30:
+        return [30, 23, 7];
+      case 180:
+        return [180, 150, 30];
+      default:
+        return [normalizedWindow];
+    }
+  })();
+
+  const preferredBucket = preferenceOrder
+    .map((windowKey) => appBucket?.windows?.[windowKey])
+    .find((bucket) => bucket?.isProcessed);
+
+  if (preferredBucket) {
+    return preferredBucket;
+  }
+
+  return Object.values(appBucket?.windows || {}).find((bucket) => bucket?.isProcessed);
+};
+
 // Return a sorted list of metadata field names for the given SubID/app namespace.
-export const getMetadataFields = (subId, appId, namespace) => {
+export const getMetadataFields = (subId, appId, namespace, lookbackWindow = 180) => {
   if (!subId || !appId || !namespace) {
     return [];
   }
 
-  const namespaceBucket = metadataAggregations?.[subId]?.apps?.[appId]?.namespaces?.[namespace];
+  const appBucket = metadataAggregations?.[subId]?.apps?.[appId];
+  const preferredWindow = resolvePreferredWindowBucket(appBucket, lookbackWindow);
+  const namespaceBucket = preferredWindow?.namespaces?.[namespace];
 
   if (!namespaceBucket || typeof namespaceBucket !== 'object') {
     return [];
@@ -81,10 +112,6 @@ const getAppAggregationBucket = (subId, appId, appName) => {
       appName,
       timeseriesStart: null,
       lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
-      namespaces: METADATA_NAMESPACES.reduce((accumulator, key) => ({
-        ...accumulator,
-        [key]: {},
-      }), {}),
       windows: {},
     };
   }
@@ -460,7 +487,6 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   windowBucket.isProcessed = true;
 
   aggregationResults.forEach((result) => {
-    tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
     tallyAggregationResult(windowBucket.namespaces, result, METADATA_NAMESPACES);
   });
 
