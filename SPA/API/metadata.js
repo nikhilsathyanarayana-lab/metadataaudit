@@ -530,18 +530,3 @@ export const runMetadataQueue = async (
   return responses;
 };
 
-// Orchestrate a single metadata audit request per app with optional aggregation callbacks.
-export const requestMetadataDeepDive = async (
-  appEntries = [],
-  lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
-  onAggregation,
-) => {
-  const calls = await buildMetadataCallPlan(appEntries);
-
-  if (!calls.length) {
-    return;
-  }
-
-  resetLookbackDays(METADATA_WINDOW_PLAN);
-  await executeMetadataCallPlan(calls, lookbackWindow, onAggregation, 1);
-};
