@@ -217,16 +217,19 @@ const renderMetadataTables = async (tableConfigs) => {
       // eslint-disable-next-line no-console
       console.log('refreshTableValues');
 
+      const normalizedTargetSubId = String(targetSubId || '');
+      const normalizedTargetAppId = String(targetAppId || '');
+
       tableConfigs.forEach(({ namespace, element }) => {
         element?.querySelectorAll('tr').forEach((row) => {
-          const rowSubId = row.dataset.subId;
-          const rowAppId = row.dataset.appId;
+          const rowSubId = String(row.dataset.subId || '');
+          const rowAppId = String(row.dataset.appId || '');
 
-          if (targetSubId && rowSubId !== targetSubId) {
+          if (normalizedTargetSubId && rowSubId !== normalizedTargetSubId) {
             return;
           }
 
-          if (targetAppId && rowAppId !== targetAppId) {
+          if (normalizedTargetAppId && rowAppId !== normalizedTargetAppId) {
             return;
           }
 
