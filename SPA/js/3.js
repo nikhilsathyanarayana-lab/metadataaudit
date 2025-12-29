@@ -72,7 +72,7 @@ const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }
   return Number.isFinite(totalValues) ? `${totalValues}` : '—';
 };
 
-// Stamp the 7-day lookback cell for a specific SubID/AppID/namespace row.
+// Stamp the lookback cell for a specific SubID/AppID/namespace row.
 export const calculateMetadataTableValue = ({
   subId,
   appId,
@@ -225,22 +225,12 @@ const renderMetadataTables = async (tableConfigs) => {
         row.querySelectorAll('[data-value-window]').forEach((target) => {
           const lookbackWindow = Number(target.dataset.valueWindow);
 
-          if (lookbackWindow === 7) {
-            calculateMetadataTableValue({
-              subId: rowSubId,
-              appId: rowAppId,
-              namespace,
-              lookbackWindow,
-              valueTarget: target,
-            });
-            return;
-          }
-
-          target.textContent = getMetadataAggregationValue({
+          calculateMetadataTableValue({
             subId: rowSubId,
             appId: rowAppId,
             namespace,
             lookbackWindow,
+            valueTarget: target,
           });
         });
       });
