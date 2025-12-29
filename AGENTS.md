@@ -16,7 +16,6 @@
 - Never expose API keys or secrets in exports or code.
 - Favor open-source client libraries; avoid proprietary SDKs without explicit human approval.
 - Agents should **not create or update tests** unless explicitly directed by a human user.
-- New libraries or imports require human approval. When proposing one, offer alternatives with pros/cons before coding.
 - Preserve browser responsiveness when handling large datasets: use async patterns to avoid blocking the UI.
 - Surface specific API errors via console logging for debugging and diagnostics.
 - Documentation style: keep inline comments clear and concise, focused on what a function can do. README content should be thorough—describe context, which page(s) the function runs on, inputs, and expected output structure.
