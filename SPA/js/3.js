@@ -29,11 +29,12 @@ const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }
   const aggregations = getMetadataAggregations();
   const appBucket = aggregations?.[subId]?.apps?.[appId];
 
-  if (!appBucket || Number(appBucket.lookbackWindow) !== Number(lookbackWindow)) {
+  if (!appBucket) {
     return '—';
   }
 
-  const namespaceBucket = appBucket?.namespaces?.[namespace];
+  const namespaceBucket = appBucket?.windows?.[lookbackWindow]?.namespaces?.[namespace]
+    || appBucket?.namespaces?.[namespace];
 
   if (!namespaceBucket || typeof namespaceBucket !== 'object') {
     return '—';
