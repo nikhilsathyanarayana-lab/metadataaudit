@@ -13,7 +13,7 @@ import { getAppSelections } from './2.js';
 
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 
-// Return the preferred window bucket, favoring derived windows when present.
+// Return the preferred window bucket, favoring derived windows when present and only when processed.
 const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
   const normalizedWindow = Number(lookbackWindow);
   const preferenceOrder = (() => {
@@ -33,7 +33,7 @@ const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
 
   return preferenceOrder
     .map((windowKey) => appBucket?.windows?.[windowKey])
-    .find((bucket) => bucket);
+    .find((bucket) => bucket?.isProcessed);
 };
 
 // Read metadata aggregations from the browser when available.
@@ -57,8 +57,7 @@ const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }
   }
 
   const preferredWindowBucket = resolvePreferredWindowBucket(appBucket, lookbackWindow);
-  const namespaceBucket = preferredWindowBucket?.namespaces?.[namespace]
-    || appBucket?.namespaces?.[namespace];
+  const namespaceBucket = preferredWindowBucket?.namespaces?.[namespace];
 
   if (!namespaceBucket || typeof namespaceBucket !== 'object') {
     return '—';
