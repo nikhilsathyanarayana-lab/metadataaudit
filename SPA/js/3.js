@@ -12,6 +12,17 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
+// Expose metadata table cache for console debugging.
+const registerTableDataGlobal = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.tableData = tableData;
+};
+
+registerTableDataGlobal();
+
 // Format field names or fallback text for metadata table cells.
 const formatFieldNames = ({ fieldNames = [], isProcessed = false } = {}) => {
   const placeholder = 'Pending...';

@@ -105,6 +105,11 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
   - Expected input: None; values flow from account metadata aggregation.
   - Sample invocation: `window.metadata_accounts.find((row) => row.field === 'industry')`.
   - Output: Array of flat rows `{ subId, appId, field, value, count }` ordered for XLSX/JSON exports.
+- `window.tableData`
+  - Context: SPA view 3 after metadata tables render; mirrors the in-memory table rows with pending lookback placeholders.
+  - Expected input: None; populated automatically when `SPA/js/3.js` initializes.
+  - Sample invocation: `window.tableData.filter((row) => row.namespace === 'visitor')`.
+  - Output: Array of `{ subId, appName, appId, namespace, sevenDay, thirtyDay, oneEightyDay }` objects reflecting the current table.
 - `window.metadataQueue`
   - Context: SPA view 3 after metadata tables load. Builds a queue of 7/23/150-day metadata aggregation calls for each SubID + App ID pair on the page so the tables can present the raw window totals.
   - Expected input: Optional limit on `run()`. `print()` logs the current queue to the console, `rebuild()` re-queues the current SubID/App ID pairs, `inspect()` surfaces the queue entries, and `size()` reports how many calls are staged.
