@@ -10,6 +10,7 @@ import {
 import { getAppSelections } from './2.js';
 
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
+export const tableData = [];
 
 // Format field names or fallback text for metadata table cells.
 const formatFieldNames = ({ fieldNames = [], isProcessed = false } = {}) => {
@@ -173,6 +174,20 @@ const renderMetadataTables = async (tableConfigs) => {
     return;
   }
 
+  tableData.length = 0;
+
+  const recordTableDataRow = ({ subId, appId, appName, namespace }) => {
+    tableData.push({
+      subId: subId || 'Unknown SubID',
+      appName: appName || appId || 'Unknown app',
+      appId: appId || '',
+      namespace: namespace || '',
+      sevenDay: 'Pending...',
+      thirtyDay: 'Pending...',
+      oneEightyDay: 'Pending...',
+    });
+  };
+
   const appendToAllTables = (buildRow) => {
     // eslint-disable-next-line no-console
     console.log('appendToAllTables');
@@ -243,12 +258,21 @@ const renderMetadataTables = async (tableConfigs) => {
 
     if (selectedApps.length) {
       selectedApps.forEach((app) => {
-        appendToAllTables((namespace) => createMetadataRow({
-          subId: app?.subId,
-          appId: app?.appId,
-          appName: app?.appName,
-          namespace,
-        }));
+        appendToAllTables((namespace) => {
+          recordTableDataRow({
+            subId: app?.subId,
+            appId: app?.appId,
+            appName: app?.appName,
+            namespace,
+          });
+
+          return createMetadataRow({
+            subId: app?.subId,
+            appId: app?.appId,
+            appName: app?.appName,
+            namespace,
+          });
+        });
       });
       appsForMetadata = selectedApps;
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
@@ -288,12 +312,21 @@ const renderMetadataTables = async (tableConfigs) => {
       }
 
       result.results.forEach((app) => {
-        appendToAllTables((namespace) => createMetadataRow({
-          subId,
-          appId: app?.appId,
-          appName: app?.appName,
-          namespace,
-        }));
+        appendToAllTables((namespace) => {
+          recordTableDataRow({
+            subId,
+            appId: app?.appId,
+            appName: app?.appName,
+            namespace,
+          });
+
+          return createMetadataRow({
+            subId,
+            appId: app?.appId,
+            appName: app?.appName,
+            namespace,
+          });
+        });
         appsForMetadata.push({
           subId,
           appId: app?.appId,
