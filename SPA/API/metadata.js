@@ -105,6 +105,7 @@ const getWindowNamespaceBucket = (appBucket, lookbackWindow) => {
         [key]: {},
       }), {}),
       timeseriesStart: null,
+      isProcessed: false,
     };
   }
 
@@ -117,11 +118,11 @@ const deriveWindowBuckets = (appBucket, targetWindow, sourceWindows = []) => {
     return null;
   }
 
-  const validWindows = sourceWindows
-    .map((windowKey) => appBucket?.windows?.[windowKey])
-    .filter((windowBucket) => windowBucket && typeof windowBucket === 'object');
+  const sourceBuckets = sourceWindows.map((windowKey) => appBucket?.windows?.[windowKey]);
+  const hasAllSources = sourceBuckets.length
+    && sourceBuckets.every((windowBucket) => windowBucket?.isProcessed);
 
-  if (!validWindows.length) {
+  if (!hasAllSources) {
     return null;
   }
 
@@ -132,6 +133,8 @@ const deriveWindowBuckets = (appBucket, targetWindow, sourceWindows = []) => {
       [key]: {},
     }), {}),
     timeseriesStart: null,
+    isProcessed: true,
+    isDerived: true,
   };
 
   const pickEarliestStart = (currentStart, candidateStart) => {
@@ -158,7 +161,7 @@ const deriveWindowBuckets = (appBucket, targetWindow, sourceWindows = []) => {
     return candidateTime < currentTime ? candidateStart : currentStart;
   };
 
-  validWindows.forEach((windowBucket) => {
+  sourceBuckets.forEach((windowBucket) => {
     mergedBucket.timeseriesStart = pickEarliestStart(
       mergedBucket.timeseriesStart,
       windowBucket?.timeseriesStart,
@@ -454,6 +457,7 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   appBucket.lookbackWindow = lookbackWindow;
   appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
   windowBucket.timeseriesStart = response?.startTime || windowBucket.timeseriesStart;
+  windowBucket.isProcessed = true;
 
   aggregationResults.forEach((result) => {
     tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
