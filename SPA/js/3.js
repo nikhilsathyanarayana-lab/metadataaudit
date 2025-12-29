@@ -11,7 +11,30 @@ import {
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
-const METADATA_TABLE_WINDOWS = [7, 23, 150];
+const METADATA_TABLE_WINDOWS = [7, 30, 180];
+
+// Return the preferred window bucket, favoring derived windows when present.
+const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
+  const normalizedWindow = Number(lookbackWindow);
+  const preferenceOrder = (() => {
+    switch (normalizedWindow) {
+      case 23:
+        return [30, 23];
+      case 150:
+        return [180, 150];
+      case 30:
+        return [30, 23];
+      case 180:
+        return [180, 150];
+      default:
+        return [normalizedWindow];
+    }
+  })();
+
+  return preferenceOrder
+    .map((windowKey) => appBucket?.windows?.[windowKey])
+    .find((bucket) => bucket);
+};
 
 // Read metadata aggregations from the browser when available.
 const getMetadataAggregations = () => {
@@ -33,7 +56,8 @@ const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }
     return '—';
   }
 
-  const namespaceBucket = appBucket?.windows?.[lookbackWindow]?.namespaces?.[namespace]
+  const preferredWindowBucket = resolvePreferredWindowBucket(appBucket, lookbackWindow);
+  const namespaceBucket = preferredWindowBucket?.namespaces?.[namespace]
     || appBucket?.namespaces?.[namespace];
 
   if (!namespaceBucket || typeof namespaceBucket !== 'object') {

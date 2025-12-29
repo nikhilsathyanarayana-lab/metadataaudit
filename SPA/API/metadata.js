@@ -111,6 +111,90 @@ const getWindowNamespaceBucket = (appBucket, lookbackWindow) => {
   return appBucket.windows[windowKey];
 };
 
+// Merge multiple window buckets into a derived lookback window.
+const deriveWindowBuckets = (appBucket, targetWindow, sourceWindows = []) => {
+  if (!appBucket || !Number.isFinite(Number(targetWindow)) || !Array.isArray(sourceWindows)) {
+    return null;
+  }
+
+  const validWindows = sourceWindows
+    .map((windowKey) => appBucket?.windows?.[windowKey])
+    .filter((windowBucket) => windowBucket && typeof windowBucket === 'object');
+
+  if (!validWindows.length) {
+    return null;
+  }
+
+  const mergedBucket = {
+    lookbackWindow: Number(targetWindow),
+    namespaces: METADATA_NAMESPACES.reduce((accumulator, key) => ({
+      ...accumulator,
+      [key]: {},
+    }), {}),
+    timeseriesStart: null,
+  };
+
+  const pickEarliestStart = (currentStart, candidateStart) => {
+    if (!candidateStart) {
+      return currentStart;
+    }
+
+    const candidateTime = new Date(candidateStart).getTime();
+
+    if (!Number.isFinite(candidateTime)) {
+      return currentStart || candidateStart;
+    }
+
+    if (!currentStart) {
+      return candidateStart;
+    }
+
+    const currentTime = new Date(currentStart).getTime();
+
+    if (!Number.isFinite(currentTime)) {
+      return candidateStart;
+    }
+
+    return candidateTime < currentTime ? candidateStart : currentStart;
+  };
+
+  validWindows.forEach((windowBucket) => {
+    mergedBucket.timeseriesStart = pickEarliestStart(
+      mergedBucket.timeseriesStart,
+      windowBucket?.timeseriesStart,
+    );
+
+    METADATA_NAMESPACES.forEach((namespaceKey) => {
+      const sourceNamespace = windowBucket?.namespaces?.[namespaceKey];
+
+      if (!sourceNamespace || typeof sourceNamespace !== 'object') {
+        return;
+      }
+
+      Object.entries(sourceNamespace).forEach(([fieldName, fieldStats]) => {
+        if (!mergedBucket.namespaces[namespaceKey][fieldName]) {
+          mergedBucket.namespaces[namespaceKey][fieldName] = { values: {}, total: 0 };
+        }
+
+        Object.entries(fieldStats?.values || {}).forEach(([value, count]) => {
+          const normalizedCount = Number(count) || 0;
+
+          mergedBucket.namespaces[namespaceKey][fieldName].values[value] =
+            (mergedBucket.namespaces[namespaceKey][fieldName].values[value] || 0)
+            + normalizedCount;
+        });
+
+        mergedBucket.namespaces[namespaceKey][fieldName].total
+          += Number(fieldStats?.total) || 0;
+      });
+    });
+  });
+
+  appBucket.windows[mergedBucket.lookbackWindow] = mergedBucket;
+
+  return mergedBucket;
+};
+
 // Normalize a metadata value to an array of string tokens for counting.
 export const normalizeFieldValues = (value) => {
   if (Array.isArray(value)) {
@@ -375,6 +459,9 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
     tallyAggregationResult(appBucket.namespaces, result, METADATA_NAMESPACES);
     tallyAggregationResult(windowBucket.namespaces, result, METADATA_NAMESPACES);
   });
+
+  deriveWindowBuckets(appBucket, 30, [7, 23]);
+  deriveWindowBuckets(appBucket, 180, [30, 150]);
 
   if (typeof window !== 'undefined') {
     window.metadataAggregations = metadataAggregations;
