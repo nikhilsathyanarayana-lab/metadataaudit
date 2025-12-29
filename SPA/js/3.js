@@ -175,12 +175,6 @@ const renderMetadataTables = async (tableConfigs) => {
     return;
   }
 
-  tableConfigs.forEach(({ element }) => {
-    if (element) {
-      element.innerHTML = '';
-    }
-  });
-
   const appendToAllTables = (buildRow) => {
     // eslint-disable-next-line no-console
     console.log('appendToAllTables');
@@ -193,38 +187,50 @@ const renderMetadataTables = async (tableConfigs) => {
     });
   };
 
-  // Recalculate table cells using the latest aggregation summaries.
-  const refreshTableValues = ({ targetSubId = '', targetAppId = '' } = {}) => {
-    // eslint-disable-next-line no-console
-    console.log('refreshTableValues');
+  // Add a shared status row to every metadata table when an error occurs.
+  const appendErrorRow = (message) => {
+    appendToAllTables(() => createMetadataStatusRow(message));
+  };
 
-    tableConfigs.forEach(({ namespace, element }) => {
-      element?.querySelectorAll('tr').forEach((row) => {
-        const rowSubId = row.dataset.subId;
-        const rowAppId = row.dataset.appId;
+  try {
+    tableConfigs.forEach(({ element }) => {
+      if (element) {
+        element.innerHTML = '';
+      }
+    });
 
-        if (targetSubId && rowSubId !== targetSubId) {
-          return;
-        }
+    // Recalculate table cells using the latest aggregation summaries.
+    const refreshTableValues = ({ targetSubId = '', targetAppId = '' } = {}) => {
+      // eslint-disable-next-line no-console
+      console.log('refreshTableValues');
 
-        if (targetAppId && rowAppId !== targetAppId) {
-          return;
-        }
+      tableConfigs.forEach(({ namespace, element }) => {
+        element?.querySelectorAll('tr').forEach((row) => {
+          const rowSubId = row.dataset.subId;
+          const rowAppId = row.dataset.appId;
 
-        row.querySelectorAll('[data-value-window]').forEach((target) => {
-          const lookbackWindow = Number(target.dataset.valueWindow);
+          if (targetSubId && rowSubId !== targetSubId) {
+            return;
+          }
 
-          calculateMetadataTableValue({
-            subId: rowSubId,
-            appId: rowAppId,
-            namespace,
-            lookbackWindow,
-            valueTarget: target,
+          if (targetAppId && rowAppId !== targetAppId) {
+            return;
+          }
+
+          row.querySelectorAll('[data-value-window]').forEach((target) => {
+            const lookbackWindow = Number(target.dataset.valueWindow);
+
+            calculateMetadataTableValue({
+              subId: rowSubId,
+              appId: rowAppId,
+              namespace,
+              lookbackWindow,
+              valueTarget: target,
+            });
           });
         });
       });
-    });
-  };
+    };
 
   // Refresh aggregation and seven-day columns across all metadata tables.
   const refreshAllTables = (targetAppContext = {}) => {
@@ -283,75 +289,80 @@ const renderMetadataTables = async (tableConfigs) => {
     };
   };
 
-  if (selectedApps.length) {
-    selectedApps.forEach((app) => {
-      appendToAllTables((namespace) => createMetadataRow({
-        subId: app?.subId,
-        appId: app?.appId,
-        appName: app?.appName,
-        namespace,
-      }));
-    });
-    appsForMetadata = selectedApps;
-    await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-    registerConsoleHelpers();
-    await runMetadataQueue((payload) => {
-      processAggregation(payload);
-      refreshAllTables(payload?.app);
-    }, DEFAULT_LOOKBACK_WINDOW);
-    return;
-  }
-
-  if (cachedSelections.length) {
-    appendToAllTables(() => createMetadataStatusRow('No apps selected for metadata tables.'));
-    return;
-  }
-
-  const credentialResults = await app_names();
-
-  if (!credentialResults.length) {
-    appendToAllTables(() => createMetadataStatusRow('No credentials available for app discovery.'));
-    return;
-  }
-
-  credentialResults.forEach((result) => {
-    const subId = result?.credential?.subId;
-
-    if (result?.errorType || !Array.isArray(result?.results)) {
-      const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
-      appendToAllTables(() => createMetadataStatusRow(
-        `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
-      ));
+    if (selectedApps.length) {
+      selectedApps.forEach((app) => {
+        appendToAllTables((namespace) => createMetadataRow({
+          subId: app?.subId,
+          appId: app?.appId,
+          appName: app?.appName,
+          namespace,
+        }));
+      });
+      appsForMetadata = selectedApps;
+      await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
+      registerConsoleHelpers();
+      await runMetadataQueue((payload) => {
+        processAggregation(payload);
+        refreshAllTables(payload?.app);
+      }, DEFAULT_LOOKBACK_WINDOW);
       return;
     }
 
-    if (!result.results.length) {
-      appendToAllTables(() => createMetadataStatusRow('No apps returned for SubID.', 6, subId));
+    if (cachedSelections.length) {
+      appendToAllTables(() => createMetadataStatusRow('No apps selected for metadata tables.'));
       return;
     }
 
-    result.results.forEach((app) => {
-      appendToAllTables((namespace) => createMetadataRow({
-        subId,
-        appId: app?.appId,
-        appName: app?.appName,
-        namespace,
-      }));
-      appsForMetadata.push({
-        subId,
-        appId: app?.appId,
-        appName: app?.appName,
+    const credentialResults = await app_names();
+
+    if (!credentialResults.length) {
+      appendToAllTables(() => createMetadataStatusRow('No credentials available for app discovery.'));
+      return;
+    }
+
+    credentialResults.forEach((result) => {
+      const subId = result?.credential?.subId;
+
+      if (result?.errorType || !Array.isArray(result?.results)) {
+        const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
+        appendToAllTables(() => createMetadataStatusRow(
+          `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
+        ));
+        return;
+      }
+
+      if (!result.results.length) {
+        appendToAllTables(() => createMetadataStatusRow('No apps returned for SubID.', 6, subId));
+        return;
+      }
+
+      result.results.forEach((app) => {
+        appendToAllTables((namespace) => createMetadataRow({
+          subId,
+          appId: app?.appId,
+          appName: app?.appName,
+          namespace,
+        }));
+        appsForMetadata.push({
+          subId,
+          appId: app?.appId,
+          appName: app?.appName,
+        });
       });
     });
-  });
 
-  if (appsForMetadata.length) {
-    await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-    registerConsoleHelpers();
-    await runMetadataQueue((payload) => {
-      processAggregation(payload);
-      refreshAllTables(payload?.app);
-    }, DEFAULT_LOOKBACK_WINDOW);
+    if (appsForMetadata.length) {
+      await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
+      registerConsoleHelpers();
+      await runMetadataQueue((payload) => {
+        processAggregation(payload);
+        refreshAllTables(payload?.app);
+      }, DEFAULT_LOOKBACK_WINDOW);
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[renderMetadataTables] Unable to load metadata tables.', error);
+    appendErrorRow('Unable to load metadata tables. Please try again.');
   }
 };
 
