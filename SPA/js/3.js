@@ -35,27 +35,31 @@ const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
     .find((bucket) => bucket?.isProcessed);
 };
 
-// Return a list of field names for a processed window bucket.
-const getWindowMetadataFields = ({ subId, appId, namespace, lookbackWindow }) => {
+// Return sorted field names and processing status for a specific lookback bucket.
+const getWindowMetadataState = ({ subId, appId, namespace, lookbackWindow }) => {
+  const defaultState = { fieldNames: [], isProcessed: false };
+
   if (!subId || !appId || !namespace) {
-    return [];
+    return defaultState;
   }
 
   const aggregations = getMetadataAggregations();
   const appBucket = aggregations?.[subId]?.apps?.[appId];
 
   if (!appBucket) {
-    return [];
+    return defaultState;
   }
 
   const preferredWindowBucket = resolvePreferredWindowBucket(appBucket, lookbackWindow);
   const namespaceBucket = preferredWindowBucket?.namespaces?.[namespace];
+  const fieldNames = namespaceBucket && typeof namespaceBucket === 'object'
+    ? Object.keys(namespaceBucket).sort((first, second) => first.localeCompare(second))
+    : [];
 
-  if (!namespaceBucket || typeof namespaceBucket !== 'object') {
-    return [];
-  }
-
-  return Object.keys(namespaceBucket).sort((first, second) => first.localeCompare(second));
+  return {
+    fieldNames,
+    isProcessed: Boolean(preferredWindowBucket?.isProcessed),
+  };
 };
 
 // Read metadata aggregations from the browser when available.
@@ -90,15 +94,18 @@ export const calculateMetadataTableValue = ({
       && target.dataset.subId === targetSubId
       && target.dataset.appId === targetAppId
     ) {
-      const fieldNames = getWindowMetadataFields({
+      const { fieldNames, isProcessed } = getWindowMetadataState({
         subId: targetSubId,
         appId: targetAppId,
         namespace: targetNamespace,
         lookbackWindow,
       });
-      const placeholder = 'Waiting for lookback data';
+      const placeholder = 'Pending...';
+      const noDataText = 'No Data';
 
-      target.textContent = fieldNames.length ? fieldNames.join(', ') : placeholder;
+      target.textContent = fieldNames.length
+        ? fieldNames.join(', ')
+        : (isProcessed ? noDataText : placeholder);
     }
   };
 
@@ -143,15 +150,18 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
     valueTarget.dataset.subId = subId || '';
     valueTarget.dataset.appId = appId || '';
     valueTarget.dataset.namespace = namespace || '';
-    const initialFields = getWindowMetadataFields({
+    const { fieldNames, isProcessed } = getWindowMetadataState({
       subId,
       appId,
       namespace,
       lookbackWindow,
     });
-    const placeholder = 'Waiting for lookback data';
+    const placeholder = 'Pending...';
+    const noDataText = 'No Data';
 
-    valueTarget.textContent = initialFields.length ? initialFields.join(', ') : placeholder;
+    valueTarget.textContent = fieldNames.length
+      ? fieldNames.join(', ')
+      : (isProcessed ? noDataText : placeholder);
 
     valueCell.appendChild(valueTarget);
 
