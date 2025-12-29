@@ -12,6 +12,16 @@ import { getAppSelections } from './2.js';
 
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 
+// Format field names or fallback text for metadata table cells.
+const formatFieldNames = ({ fieldNames = [], isProcessed = false } = {}) => {
+  const placeholder = 'Pending...';
+  const noDataText = 'No Data';
+
+  return Array.isArray(fieldNames) && fieldNames.length
+    ? fieldNames.join(', ')
+    : (isProcessed ? noDataText : placeholder);
+};
+
 // Return the preferred window bucket, favoring derived windows when present and only when processed.
 const resolvePreferredWindowBucket = (appBucket, lookbackWindow) => {
   const normalizedWindow = Number(lookbackWindow);
@@ -100,12 +110,7 @@ export const calculateMetadataTableValue = ({
         namespace: targetNamespace,
         lookbackWindow,
       });
-      const placeholder = 'Pending...';
-      const noDataText = 'No Data';
-
-      target.textContent = fieldNames.length
-        ? fieldNames.join(', ')
-        : (isProcessed ? noDataText : placeholder);
+      target.textContent = formatFieldNames({ fieldNames, isProcessed });
     }
   };
 
@@ -156,12 +161,7 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
       namespace,
       lookbackWindow,
     });
-    const placeholder = 'Pending...';
-    const noDataText = 'No Data';
-
-    valueTarget.textContent = fieldNames.length
-      ? fieldNames.join(', ')
-      : (isProcessed ? noDataText : placeholder);
+    valueTarget.textContent = formatFieldNames({ fieldNames, isProcessed });
 
     valueCell.appendChild(valueTarget);
 
