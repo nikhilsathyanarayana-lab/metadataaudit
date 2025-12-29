@@ -48,7 +48,13 @@ const getMetadataAggregationValue = ({ subId, appId, namespace, lookbackWindow }
 };
 
 // Stamp the 7-day lookback cell for a specific SubID/AppID/namespace row.
-export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackWindow = 7 }) => {
+export const calculateMetadataTableValue = ({
+  subId,
+  appId,
+  namespace,
+  lookbackWindow = 7,
+  valueTarget,
+}) => {
   // eslint-disable-next-line no-console
   console.log('calculateMetadataTableValue');
 
@@ -60,9 +66,7 @@ export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackW
   const targetSubId = String(subId);
   const targetAppId = String(appId);
 
-  const targets = document.querySelectorAll(`[data-value-window="${lookbackWindow}"]`);
-
-  targets.forEach((target) => {
+  const applyFieldNames = (target) => {
     if (
       target.dataset.namespace === targetNamespace
       && target.dataset.subId === targetSubId
@@ -73,6 +77,17 @@ export const calculateMetadataTableValue = ({ subId, appId, namespace, lookbackW
 
       target.textContent = fieldNames.length ? fieldNames.join(', ') : placeholder;
     }
+  };
+
+  if (valueTarget) {
+    applyFieldNames(valueTarget);
+    return;
+  }
+
+  const targets = document.querySelectorAll(`[data-value-window="${lookbackWindow}"]`);
+
+  targets.forEach((target) => {
+    applyFieldNames(target);
   });
 };
 
@@ -165,7 +180,7 @@ const renderMetadataTables = async (tableConfigs) => {
   };
 
   // Recalculate table cells using the latest aggregation summaries.
-  const refreshTableValues = () => {
+  const refreshTableValues = ({ targetSubId = '', targetAppId = '' } = {}) => {
     // eslint-disable-next-line no-console
     console.log('refreshTableValues');
 
@@ -173,6 +188,14 @@ const renderMetadataTables = async (tableConfigs) => {
       element?.querySelectorAll('tr').forEach((row) => {
         const rowSubId = row.dataset.subId;
         const rowAppId = row.dataset.appId;
+
+        if (targetSubId && rowSubId !== targetSubId) {
+          return;
+        }
+
+        if (targetAppId && rowAppId !== targetAppId) {
+          return;
+        }
 
         row.querySelectorAll('[data-value-window]').forEach((target) => {
           const lookbackWindow = Number(target.dataset.valueWindow);
@@ -183,6 +206,7 @@ const renderMetadataTables = async (tableConfigs) => {
               appId: rowAppId,
               namespace,
               lookbackWindow,
+              valueTarget: target,
             });
             return;
           }
@@ -199,8 +223,10 @@ const renderMetadataTables = async (tableConfigs) => {
   };
 
   // Refresh aggregation and seven-day columns across all metadata tables.
-  const refreshAllTables = () => {
-    refreshTableValues();
+  const refreshAllTables = (targetAppContext = {}) => {
+    const { appId: targetAppId = '', subId: targetSubId = '' } = targetAppContext;
+
+    refreshTableValues({ targetAppId, targetSubId });
   };
 
   const cachedSelections = getAppSelections();
@@ -247,7 +273,7 @@ const renderMetadataTables = async (tableConfigs) => {
       rebuild: () => rebuildMetadataQueue(DEFAULT_LOOKBACK_WINDOW),
       run: (limit) => runMetadataQueue((payload) => {
         processAggregation(payload);
-        refreshAllTables();
+        refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW, limit),
       size: () => getMetadataQueue().length,
     };
@@ -267,7 +293,7 @@ const renderMetadataTables = async (tableConfigs) => {
     registerConsoleHelpers();
     await runMetadataQueue((payload) => {
       processAggregation(payload);
-      refreshAllTables();
+      refreshAllTables(payload?.app);
     }, DEFAULT_LOOKBACK_WINDOW);
     return;
   }
@@ -320,7 +346,7 @@ const renderMetadataTables = async (tableConfigs) => {
     registerConsoleHelpers();
     await runMetadataQueue((payload) => {
       processAggregation(payload);
-      refreshAllTables();
+      refreshAllTables(payload?.app);
     }, DEFAULT_LOOKBACK_WINDOW);
   }
 };
