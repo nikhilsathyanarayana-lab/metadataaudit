@@ -5,6 +5,7 @@
 - Hosting: Runs on GitHub Pages for the integration workflow. Cookie-based requests rely on `proxy.php` (PHP + cURL) when exercised locally.
 - Both the Integration API flow and the SPA rebuild deliver similar capabilities but should be treated as distinct apps when documenting or hosting updates, and anything associated with the SPA should stay under `root/SPA/`.
 - Current focus: we are working exclusively on the SPA, and all SPA-related changes live under `root/SPA/` for now.
+- One of our core principles is simplicity: write code as plainly as possible and aim for the smallest amount of code needed to meet the goals.
 
 ## Repository conventions
 - Use only the `main` branch unless explicitly directed otherwise.
