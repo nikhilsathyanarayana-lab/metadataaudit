@@ -12,7 +12,38 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
-// Hydrate cached table data with 7-day namespace field names as metadata calls finish.
+// Return the window bucket for a specific lookback.
+const getWindowBucket = (appBucket, lookbackWindow) => {
+  return appBucket?.windows?.[String(lookbackWindow)] || appBucket?.windows?.[lookbackWindow];
+};
+
+// Collect unique namespace field names from one or more window buckets.
+const buildNamespaceFieldSummary = (windowBuckets = []) => {
+  return METADATA_NAMESPACES.reduce((summary, namespace) => {
+    const combinedFields = windowBuckets.reduce((fieldNames, bucket) => {
+      const namespaceBucket = bucket?.namespaces?.[namespace];
+
+      if (namespaceBucket && typeof namespaceBucket === 'object') {
+        Object.keys(namespaceBucket).forEach((fieldName) => {
+          if (!fieldNames.includes(fieldName)) {
+            fieldNames.push(fieldName);
+          }
+        });
+      }
+
+      return fieldNames;
+    }, []);
+
+    const uniqueFields = combinedFields.length
+      ? [...new Set(combinedFields)].sort((first, second) => first.localeCompare(second))
+      : [];
+
+    summary[namespace] = uniqueFields.length ? uniqueFields : null;
+    return summary;
+  }, {});
+};
+
+// Hydrate cached table data with namespace field names as metadata calls finish.
 const processAPI = () => {
   const aggregations = getMetadataAggregations();
 
@@ -28,21 +59,24 @@ const processAPI = () => {
     }
 
     Object.entries(apps).forEach(([appId, appBucket]) => {
-      const window7Bucket = appBucket?.windows?.['7'] || appBucket?.windows?.[7];
-      const namespaces = window7Bucket?.namespaces;
+      const window7Bucket = getWindowBucket(appBucket, 7);
+      const window23Bucket = getWindowBucket(appBucket, 23);
+      const window150Bucket = getWindowBucket(appBucket, 150);
+      const hasWindow7Data = Boolean(window7Bucket?.isProcessed);
+      const hasWindow23Data = Boolean(window23Bucket?.isProcessed);
+      const hasWindow150Data = Boolean(window150Bucket?.isProcessed);
 
-      if (!namespaces || typeof namespaces !== 'object') {
+      if (!hasWindow7Data && !hasWindow23Data && !hasWindow150Data) {
         return;
       }
 
-      const namespaceFields = METADATA_NAMESPACES.reduce((summary, namespace) => {
-        const fields = namespaces?.[namespace];
-        const fieldNames = fields && typeof fields === 'object'
-          ? Object.keys(fields).sort((first, second) => first.localeCompare(second))
-          : [];
-        summary[namespace] = fieldNames.length ? fieldNames : null;
-        return summary;
-      }, {});
+      const window7Fields = hasWindow7Data ? buildNamespaceFieldSummary([window7Bucket]) : null;
+      const window30Fields = (hasWindow7Data && hasWindow23Data)
+        ? buildNamespaceFieldSummary([window7Bucket, window23Bucket])
+        : null;
+      const window180Fields = (hasWindow7Data && hasWindow23Data && hasWindow150Data)
+        ? buildNamespaceFieldSummary([window7Bucket, window23Bucket, window150Bucket])
+        : null;
 
       const normalizedSubId = String(subId || '');
       const normalizedAppId = String(appId || '');
@@ -56,8 +90,16 @@ const processAPI = () => {
           return;
         }
 
-        if (Object.prototype.hasOwnProperty.call(namespaceFields, namespaceKey)) {
-          entry.window7 = namespaceFields[namespaceKey];
+        if (window7Fields && Object.prototype.hasOwnProperty.call(window7Fields, namespaceKey)) {
+          entry.window7 = window7Fields[namespaceKey];
+        }
+
+        if (window30Fields && Object.prototype.hasOwnProperty.call(window30Fields, namespaceKey)) {
+          entry.window30 = window30Fields[namespaceKey];
+        }
+
+        if (window180Fields && Object.prototype.hasOwnProperty.call(window180Fields, namespaceKey)) {
+          entry.window180 = window180Fields[namespaceKey];
         }
       });
     });
