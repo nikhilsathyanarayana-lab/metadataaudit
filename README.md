@@ -69,7 +69,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - Detailed queue mechanics, call pacing, and progress banner behavior are described in `SPA/docs/deep-dive.md`.
 
 ## Console helpers
-- **SPA**: `window.tableData` mirrors SPA view 3 rows (lookback placeholders live under `window7`, `window30`, and `window180`), and `window.metadataQueue` inspects or replays SPA metadata queues.
+- **SPA**: `window.tableData` mirrors SPA view 3 rows (lookback placeholders live under `window7`, `window30`, and `window180`), and updates to this array immediately re-render the four metadata tables so the DOM stays aligned with cached state. `window.metadataQueue` inspects or replays SPA metadata queues.
 - **Deep Dive and legacy pages**: Helpers such as `window.deepDiveData`, `window.metadata_visitors`, and `window.showPendingApiQueue()` expose cached results and pending call states. See `SPA/docs/deep-dive.md` for the full list and sample invocations.
 
 ## Maintenance notes
