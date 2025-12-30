@@ -39,15 +39,17 @@ const FIELD_TYPE_OPTIONS = [
 
 // Normalize app selections so they can be compared between renders.
 const normalizeAppSelections = (selections = []) => selections
-  .filter((entry) => entry && (entry.subId || entry.appId || entry.appName))
+  .filter((entry) => entry && (entry.subId || entry.appId || entry.appName || entry.subName))
   .map((entry) => ({
     subId: String(entry.subId || ''),
+    subName: String(entry.subName || ''),
     appId: String(entry.appId || ''),
     appName: String(entry.appName || ''),
     isSelected: Boolean(entry.isSelected),
   }))
   .sort((first, second) => {
     return first.subId.localeCompare(second.subId)
+      || first.subName.localeCompare(second.subName)
       || first.appId.localeCompare(second.appId)
       || first.appName.localeCompare(second.appName);
   });
@@ -166,6 +168,7 @@ const populateTables = () => {
       METADATA_NAMESPACES.forEach((namespace) => {
         tableData.push({
           subId: app?.subId || 'Unknown SubID',
+          subName: app?.subName || 'Unknown Sub Name',
           appName: app?.appName || app?.appId || 'Unknown app',
           appId: app?.appId || '',
           namespace,
@@ -593,7 +596,7 @@ const getMetadataAggregations = () => {
 };
 
 // Build a metadata row string showing SubID, app details, and lookback values.
-const buildMetadataRowMarkup = ({ subId, appId, appName, window7, window30, window180 }) => {
+const buildMetadataRowMarkup = ({ subId, subName, appId, appName, window7, window30, window180 }) => {
   const valueLookup = {
     window7,
     window30,
@@ -606,7 +609,8 @@ const buildMetadataRowMarkup = ({ subId, appId, appName, window7, window30, wind
 
   return [
     '<tr>',
-    `<td>${subId || 'Unknown SubID'}</td>`,
+    `<td class="sr-only">${subId || 'Unknown SubID'}</td>`,
+    `<td>${subName || 'Unknown Sub Name'}</td>`,
     `<td>${appName || appId || 'Unknown app'}</td>`,
     `<td>${appId || ''}</td>`,
     lookbackCells,
@@ -615,7 +619,7 @@ const buildMetadataRowMarkup = ({ subId, appId, appName, window7, window30, wind
 };
 
 // Build a status row string spanning the metadata table columns.
-const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
+const createMetadataStatusRow = (message, columnCount = 7, subId = '') => {
   // eslint-disable-next-line no-console
   console.log('createMetadataStatusRow');
 
@@ -624,7 +628,7 @@ const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
 };
 
 // Append shared status rows across all metadata tables.
-const addStatusRowForAllTables = (message, columnCount = 6, subId = '') => {
+const addStatusRowForAllTables = (message, columnCount = 7, subId = '') => {
   tableStatusRows.push({ message, columnCount, subId });
 };
 
@@ -696,9 +700,10 @@ const renderMetadataTables = async (tableConfigs) => {
     processAPI();
   };
 
-  const recordTableDataRow = ({ subId, appId, appName, namespace }) => {
+  const recordTableDataRow = ({ subId, subName, appId, appName, namespace }) => {
     tableData.push({
       subId: subId || 'Unknown SubID',
+      subName: subName || 'Unknown Sub Name',
       appName: appName || appId || 'Unknown app',
       appId: appId || '',
       namespace: namespace || '',
@@ -718,6 +723,7 @@ const renderMetadataTables = async (tableConfigs) => {
         METADATA_NAMESPACES.forEach((namespace) => {
           recordTableDataRow({
             subId: app?.subId,
+            subName: app?.subName,
             appId: app?.appId,
             appName: app?.appName,
             namespace,
@@ -754,7 +760,7 @@ const renderMetadataTables = async (tableConfigs) => {
       }
 
       if (!result.results.length) {
-        addStatusRowForAllTables('No apps returned for SubID.', 6, subId);
+        addStatusRowForAllTables('No apps returned for SubID.', 7, subId);
         return;
       }
 
@@ -762,6 +768,7 @@ const renderMetadataTables = async (tableConfigs) => {
         METADATA_NAMESPACES.forEach((namespace) => {
           recordTableDataRow({
             subId,
+            subName: app?.subName,
             appId: app?.appId,
             appName: app?.appName,
             namespace,
@@ -769,6 +776,7 @@ const renderMetadataTables = async (tableConfigs) => {
         });
         appsForMetadata.push({
           subId,
+          subName: app?.subName,
           appId: app?.appId,
           appName: app?.appName,
         });

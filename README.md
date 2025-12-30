@@ -40,6 +40,8 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/SPA/html/SPA.html`.
 - **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views. SPA state should stay in memory (for example, module-level variables) instead of relying on browser storage.
 - **Outputs**: Unified exports to PDF or XLSX, along with in-browser tables aligned to SPA view definitions.
+- **App selection view**: Lists Sub ID alongside Sub Name, App Name, and App ID so users can keep track of the subscription context while choosing apps.
+- **Metadata tables**: Show Sub Name, App Name, App ID, and lookback windows while keeping Sub ID available for processing but hidden in the visual table.
 - **Navigation gating**: PDF (4) and Excel (5) SPA buttons stay disabled until the metadata scan on view 3 finishes.
 - **Metadata refresh**: Returning to view 3 after adjusting app selections on view 2 rebuilds the metadata tables so removed or newly selected apps stay in sync.
 - **PDF export view**: Presents a PDF export summary with per-SubID scan counts on the first preview page and an Overview heading above the list; the header text on this view stays out of the generated PDF while the summary content carries over.
