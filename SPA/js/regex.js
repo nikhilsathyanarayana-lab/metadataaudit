@@ -7,6 +7,7 @@ const getRegexModalElements = () => {
   return {
     modal: document.getElementById('regex-format-modal'),
     backdrop: document.getElementById('regex-format-backdrop'),
+    title: document.getElementById('regex-format-modal-title'),
     subId: document.getElementById('regex-format-sub-id'),
     appId: document.getElementById('regex-format-app-id'),
     field: document.getElementById('regex-format-field'),
