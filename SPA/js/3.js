@@ -12,7 +12,7 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
-// Log 7-day namespace summaries for each processed SubID/AppID pair.
+// Hydrate cached table data with 7-day namespace field names as metadata calls finish.
 const processAPI = () => {
   const aggregations = getMetadataAggregations();
 
@@ -44,11 +44,21 @@ const processAPI = () => {
         return summary;
       }, {});
 
-      // eslint-disable-next-line no-console
-      console.log('[processAPI] 7-day namespaces', {
-        subId,
-        appId,
-        namespaces: namespaceFields,
+      const normalizedSubId = String(subId || '');
+      const normalizedAppId = String(appId || '');
+
+      tableData.forEach((entry) => {
+        const matchesSubId = String(entry?.subId || '') === normalizedSubId;
+        const matchesAppId = String(entry?.appId || '') === normalizedAppId;
+        const namespaceKey = entry?.namespace;
+
+        if (!matchesSubId || !matchesAppId || !namespaceKey) {
+          return;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(namespaceFields, namespaceKey)) {
+          entry.window7 = namespaceFields[namespaceKey];
+        }
       });
     });
   });
