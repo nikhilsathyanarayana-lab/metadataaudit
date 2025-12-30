@@ -6,6 +6,7 @@ const getRegexModalElements = () => {
   return {
     modal: document.getElementById('regex-format-modal'),
     backdrop: document.getElementById('regex-format-backdrop'),
+    title: document.getElementById('regex-format-modal-title'),
     subId: document.getElementById('regex-format-sub-id'),
     appId: document.getElementById('regex-format-app-id'),
     field: document.getElementById('regex-format-field'),
@@ -99,7 +100,11 @@ const bindRegexModalHandlers = () => {
 
 // Fill modal labels with the current field context.
 const setRegexModalContext = (fieldName) => {
-  const { subId, appId, field, feedback, input } = getRegexModalElements();
+  const { title, subId, appId, field, feedback, input } = getRegexModalElements();
+
+  if (title) {
+    title.textContent = fieldName || 'Field name';
+  }
 
   if (subId) {
     subId.textContent = 'N/A';
