@@ -21,6 +21,9 @@
 - The app selection preview's Continue control (`#app-selection-continue-btn`) triggers the page switcher button for view 3 (`#page-switcher-btn-3`), letting users jump straight to the metadata tables after confirming at least one app selection.
 - App selection snapshots (Sub ID, app name, app ID, and whether each row was selected) are cached in `SPA/js/2.js` when Continue is clicked so later SPA steps can reuse the chosen state without re-querying the table DOM.
 
+## PDF exports
+- Static PDF-ready assets live under `SPA/pdf/`. Use `pdf1.html` with `pdf/pdf.css` for a simple export shell that centers a 72pt "Overview" title at the top of the page.
+
 ## Data caching and queues
 - SPA view 3 stores SubID → App ID lookups with per-window namespace buckets, timeseries starts, and value/count tallies for visitor/account/custom/Salesforce fields so recent metadata distributions can be reviewed from the console without separate app-level rollups. These `metadataAggregations` entries power the SPA metadata tables and exports.
 - Metadata queues run through `SPA/API/metadata.js`, which builds call plans, sequences 7/23/150-day runs, and exposes console controls for print/inspect/rebuild/run. Queue executions respect window order so all 7-day calls finish before 23- or 150-day calls start.
