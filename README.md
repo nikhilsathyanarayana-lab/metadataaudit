@@ -27,10 +27,28 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 
 ## Experiences
 ### Integration API flow (legacy multi-page)
-Uses the root-level HTML files (for example, `index.html`) with vanilla JS controllers and `sessionStorage` to carry SubID, domain, and integration key inputs across pages. Metadata field analysis runs before the Deep Dive, with XLSX as the export format. Deep Dive queue and diagnostic details live in `SPA/docs/deep-dive.md`.
+- **Purpose**: Provides the original multi-page metadata audit with vanilla JS controllers.
+- **Entry point**: Root-level HTML such as `index.html`, linked workflows, and `sessionStorage` to carry SubID, domain, and integration key inputs across pages.
+- **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/index.html`.
+- **Inputs**: Integration key with read access plus SubID and domain captured in the launch form.
+- **Outputs**: Metadata field analysis first, followed by Deep Dive exports in XLSX format.
+- **Troubleshooting**: Queue pacing, diagnostics, and Deep Dive behaviors are outlined in `SPA/docs/deep-dive.md` for reference when requests stall.
 
 ### SPA rebuild (single-page)
-Lives under `SPA/`, with `SPA/html/SPA.html` and `SPA/js/spa.js` delivering the consolidated workflow and navigation. The SPA combines field analysis and Deep Dive in one path and exports to PDF or XLSX while avoiding `sessionStorage`/`localStorage` between views. Navigation, call flows, and queue behavior are documented in `SPA/docs/spa.md`.
+- **Purpose**: Combines metadata field analysis and Deep Dive into one single-page workflow with simplified navigation.
+- **Entry point**: `SPA/html/SPA.html` rendered by `SPA/js/spa.js` with view toggles documented in `SPA/docs/spa.md`.
+- **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/SPA/html/SPA.html`.
+- **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views.
+- **Outputs**: Unified exports to PDF or XLSX, along with in-browser tables aligned to SPA view definitions.
+- **Troubleshooting**: See `SPA/docs/spa.md` for navigation, caching rules, and common queue or progress-banner edge cases.
+
+### Deep Dive (shared diagnostics)
+- **Purpose**: Runs targeted Engage aggregation calls for queue-driven Deep Dive exports used by both experiences.
+- **Entry point**: Triggered from the Integration API flow or SPA Deep Dive view; detailed call flows live in `SPA/docs/deep-dive.md`.
+- **How to run**: Start from either experience, then launch Deep Dive from its respective UI section to populate queues.
+- **Inputs**: SubID, domain, integration key, and selected apps/lookback windows configured in the originating experience.
+- **Outputs**: Aggregated metadata event summaries and XLSX downloads; SPA also surfaces PDF exports alongside queue status text.
+- **Troubleshooting**: Review `SPA/docs/deep-dive.md` for queue pacing, retries, and diagnostics, and use console helpers in the relevant experience to inspect pending calls.
 
 ## SPA documentation
 - **Architecture and navigation**: `SPA/docs/spa.md` covers the SPA shell, page switching, caching rules, and how to add a new view.
