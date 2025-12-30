@@ -12,6 +12,48 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
+// Log seven-day namespace summaries for each processed SubID/AppID pair.
+const processAPI = () => {
+  const aggregations = getMetadataAggregations();
+
+  if (!aggregations || typeof aggregations !== 'object') {
+    return;
+  }
+
+  Object.entries(aggregations).forEach(([subId, subBucket]) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return;
+    }
+
+    Object.entries(apps).forEach(([appId, appBucket]) => {
+      const sevenDayWindow = appBucket?.windows?.['7'] || appBucket?.windows?.[7];
+      const namespaces = sevenDayWindow?.namespaces;
+
+      if (!namespaces || typeof namespaces !== 'object') {
+        return;
+      }
+
+      const namespaceFields = METADATA_NAMESPACES.reduce((summary, namespace) => {
+        const fields = namespaces?.[namespace];
+        const fieldNames = fields && typeof fields === 'object'
+          ? Object.keys(fields).sort((first, second) => first.localeCompare(second))
+          : [];
+        summary[namespace] = fieldNames.length ? fieldNames : null;
+        return summary;
+      }, {});
+
+      // eslint-disable-next-line no-console
+      console.log('[processAPI] seven-day namespaces', {
+        subId,
+        appId,
+        namespaces: namespaceFields,
+      });
+    });
+  });
+};
+
 // Populate an early tableData snapshot and log selected apps for debugging.
 const populateTables = () => {
   tableData.length = 0;
@@ -321,6 +363,7 @@ const renderMetadataTables = async (tableConfigs) => {
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
       await runMetadataQueue((payload) => {
         processAggregation(payload);
+        processAPI();
         refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW);
       return;
@@ -382,6 +425,7 @@ const renderMetadataTables = async (tableConfigs) => {
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
       await runMetadataQueue((payload) => {
         processAggregation(payload);
+        processAPI();
         refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW);
     }
