@@ -114,6 +114,8 @@ const bindRegexModalHandlers = () => {
       if (typeof regexSaveHandler === 'function') {
         regexSaveHandler(pattern);
       }
+
+      closeRegexModal();
     });
   }
 
