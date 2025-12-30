@@ -7,12 +7,19 @@ import {
   runMetadataQueue,
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
+import { openRegexModal } from './regex.js';
 
 const METADATA_TABLE_WINDOWS = ['window7', 'window30', 'window180'];
 export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
 let fieldTypesModalBound = false;
+const FIELD_TYPE_OPTIONS = [
+  { key: 'text', label: 'Text' },
+  { key: 'num', label: 'Num' },
+  { key: 'boolean', label: 'Boolean' },
+  { key: 'email', label: 'Email' },
+];
 
 // Return the window bucket for a specific lookback.
 const getWindowBucket = (appBucket, lookbackWindow) => {
@@ -170,6 +177,99 @@ const getUniqueWindow180Fields = () => {
   return [...fieldNames].sort((first, second) => first.localeCompare(second));
 };
 
+// Build a checkbox control for a specific field type option.
+const createFieldTypeCheckbox = (fieldName, optionKey, optionLabel) => {
+  const checkboxLabel = document.createElement('label');
+  checkboxLabel.className = 'fieldtypes-checkbox';
+  checkboxLabel.dataset.fieldtypesOption = optionKey;
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.name = `fieldtype-${fieldName}-${optionKey}`;
+  checkbox.value = optionKey;
+  checkbox.setAttribute('aria-label', `${optionLabel} expected for ${fieldName}`);
+  checkboxLabel.appendChild(checkbox);
+
+  return checkboxLabel;
+};
+
+// Toggle availability of sibling checkboxes and row highlight state.
+const updateFieldTypeRowState = (rowElement, activeCheckbox) => {
+  if (!rowElement) {
+    return;
+  }
+
+  const checkboxes = rowElement.querySelectorAll('input[type="checkbox"]');
+  const shouldDisableOthers = Boolean(activeCheckbox?.checked);
+
+  checkboxes.forEach((checkbox) => {
+    const isActiveCheckbox = checkbox === activeCheckbox;
+
+    if (!isActiveCheckbox) {
+      checkbox.disabled = shouldDisableOthers;
+    } else {
+      checkbox.disabled = false;
+    }
+  });
+
+  const hasSelection = Array.from(checkboxes).some((checkbox) => checkbox.checked);
+  rowElement.classList.toggle('fieldtypes-row--selected', hasSelection);
+};
+
+// Attach change listeners to each checkbox in a field row.
+const bindFieldTypeCheckboxes = (rowElement) => {
+  const checkboxes = rowElement.querySelectorAll('input[type="checkbox"]');
+
+  checkboxes.forEach((checkbox) => {
+    checkbox.addEventListener('change', () => updateFieldTypeRowState(rowElement, checkbox));
+  });
+};
+
+// Build a row describing one metadata field and its type options.
+const createFieldTypesRow = (fieldName) => {
+  const listItem = document.createElement('li');
+  listItem.className = 'metadata-tree__value fieldtypes-row';
+  listItem.setAttribute('role', 'row');
+
+  const fieldLabel = document.createElement('span');
+  fieldLabel.className = 'fieldtypes-field-label';
+  fieldLabel.setAttribute('role', 'cell');
+  fieldLabel.textContent = fieldName;
+  fieldLabel.title = fieldName;
+  listItem.appendChild(fieldLabel);
+
+  FIELD_TYPE_OPTIONS.forEach((option) => {
+    const checkboxCell = document.createElement('div');
+    checkboxCell.className = 'fieldtypes-cell fieldtypes-cell--control';
+    checkboxCell.setAttribute('role', 'cell');
+    checkboxCell.appendChild(createFieldTypeCheckbox(fieldName, option.key, option.label));
+    listItem.appendChild(checkboxCell);
+  });
+
+  const regexStatus = document.createElement('span');
+  regexStatus.className = 'fieldtypes-cell fieldtypes-cell--status';
+  regexStatus.setAttribute('role', 'cell');
+  regexStatus.textContent = '—';
+  listItem.appendChild(regexStatus);
+
+  const regexButtonCell = document.createElement('div');
+  regexButtonCell.className = 'fieldtypes-cell fieldtypes-cell--action';
+  regexButtonCell.setAttribute('role', 'cell');
+
+  const regexButton = document.createElement('button');
+  regexButton.type = 'button';
+  regexButton.className = 'secondary-btn fieldtypes-regex-btn';
+  regexButton.textContent = 'Regex';
+  regexButton.addEventListener('click', () => openRegexModal(fieldName));
+  regexButtonCell.appendChild(regexButton);
+
+  listItem.appendChild(regexButtonCell);
+
+  bindFieldTypeCheckboxes(listItem);
+
+  return listItem;
+};
+
 // Grab modal, backdrop, and list nodes for the expected values modal.
 const getFieldTypesModalElements = () => {
   return {
@@ -214,19 +314,15 @@ const renderFieldTypesList = () => {
 
   if (!uniqueFields.length) {
     const emptyItem = document.createElement('li');
-    emptyItem.className = 'metadata-tree__value';
+    emptyItem.className = 'metadata-tree__value fieldtypes-row fieldtypes-row--empty';
+    emptyItem.setAttribute('role', 'row');
     emptyItem.textContent = 'No fields available yet. Run metadata to populate this list.';
     list.appendChild(emptyItem);
     return;
   }
 
   const listFragment = document.createDocumentFragment();
-  uniqueFields.forEach((fieldName) => {
-    const listItem = document.createElement('li');
-    listItem.className = 'metadata-tree__value';
-    listItem.textContent = fieldName;
-    listFragment.appendChild(listItem);
-  });
+  uniqueFields.forEach((fieldName) => listFragment.appendChild(createFieldTypesRow(fieldName)));
 
   list.appendChild(listFragment);
 };

@@ -21,6 +21,18 @@ body {
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 #nav-root {
   align-self: stretch;
 }
@@ -1081,6 +1093,89 @@ h1 {
   padding: 0.4rem 0.6rem;
   color: #334155;
   border: 1px solid #e2e8f0;
+}
+
+.fieldtypes-table {
+  margin-top: 0.85rem;
+}
+
+.fieldtypes-row {
+  display: grid;
+  grid-template-columns: 1.6fr repeat(4, 70px) 70px 90px;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.fieldtypes-row--header {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fieldtypes-list {
+  padding-left: 0;
+  gap: 0.45rem;
+}
+
+.fieldtypes-row.fieldtypes-row--empty {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+
+.fieldtypes-row:not(.fieldtypes-row--header) {
+  border-radius: 12px;
+}
+
+.fieldtypes-row--selected {
+  background: #fce7f3;
+  border-color: #fbcfe8;
+  box-shadow: inset 0 0 0 1px #fbcfe8;
+}
+
+.fieldtypes-field-label {
+  font-weight: 700;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fieldtypes-cell {
+  text-align: center;
+}
+
+.fieldtypes-cell--control {
+  display: flex;
+  justify-content: center;
+}
+
+.fieldtypes-cell--status {
+  color: #94a3b8;
+}
+
+.fieldtypes-cell--action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fieldtypes-checkbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.fieldtypes-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fieldtypes-regex-btn {
+  width: 100%;
+  padding: 0.35rem 0.65rem;
 }
 
 .metadata-tree__empty {
