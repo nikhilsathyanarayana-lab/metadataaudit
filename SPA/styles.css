@@ -1175,7 +1175,7 @@ h1 {
 
 .fieldtypes-row {
   display: grid;
-  grid-template-columns: 1.6fr repeat(4, 70px) 70px 90px;
+  grid-template-columns: 1.6fr repeat(4, 70px) 90px;
   align-items: center;
   gap: 0.35rem;
   padding: 0.5rem 0.75rem;
@@ -1224,10 +1224,6 @@ h1 {
 .fieldtypes-cell--control {
   display: flex;
   justify-content: center;
-}
-
-.fieldtypes-cell--status {
-  color: #94a3b8;
 }
 
 .fieldtypes-cell--action {
