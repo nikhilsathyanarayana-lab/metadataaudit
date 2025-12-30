@@ -65,6 +65,27 @@ const loadChartModule = async () => {
   return chartModulePromise;
 };
 
+// Resolve the Chart.js constructor from the loaded module regardless of export shape.
+const getChartConstructor = (chartModule) => {
+  if (!chartModule) {
+    return null;
+  }
+
+  if (typeof chartModule.Chart === 'function') {
+    return chartModule.Chart;
+  }
+
+  if (typeof chartModule.default === 'function') {
+    return chartModule.default;
+  }
+
+  if (typeof chartModule.default?.Chart === 'function') {
+    return chartModule.default.Chart;
+  }
+
+  return null;
+};
+
 // Draw app totals on each doughnut segment.
 const buildSegmentLabelPlugin = (appTotals) => {
   return {
@@ -136,7 +157,12 @@ const renderSubscriptionChart = async (chartCanvas, emptyState, subIds) => {
   }
   chartCanvas.hidden = false;
 
-  const { Chart } = await loadChartModule();
+  const Chart = getChartConstructor(await loadChartModule());
+  if (!Chart) {
+    // eslint-disable-next-line no-console
+    console.error('Chart.js failed to load.');
+    return;
+  }
   const context = chartCanvas.getContext('2d');
 
   if (!context) {
