@@ -3,11 +3,6 @@ const ctx = document.getElementById('subDonut');
 new Chart(ctx, {
   type: 'doughnut',
   data: {
-    labels: [
-      'Red',
-      'Blue',
-      'Yellow'
-    ],
     datasets: [{
       label: 'My First Dataset',
       data: [300, 50, 100],
