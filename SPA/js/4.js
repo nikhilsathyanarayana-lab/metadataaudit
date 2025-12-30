@@ -54,10 +54,17 @@ const renderSubscriptionSummary = (container) => {
   }
 
   container.textContent = '';
+  const pageTitle = document.createElement('h3');
+  pageTitle.className = 'pdf-page-title';
+  pageTitle.textContent = 'Overview';
+  container.appendChild(pageTitle);
   const subIds = getSubIds();
 
   if (!subIds.length) {
-    container.textContent = 'No subscription data yet.';
+    const emptyState = document.createElement('p');
+    emptyState.className = 'empty-state';
+    emptyState.textContent = 'No subscription data yet.';
+    container.appendChild(emptyState);
     return;
   }
 

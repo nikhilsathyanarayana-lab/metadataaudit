@@ -335,6 +335,12 @@ h1 {
   color: #3d3d3d;
 }
 
+.pdf-page-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
 .card-header {
   display: flex;
   align-items: flex-start;
