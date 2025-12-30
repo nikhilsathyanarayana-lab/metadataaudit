@@ -26,6 +26,40 @@ const APP_LISTING_PAYLOAD = Object.freeze({
 });
 
 let credentialEntries = Array.isArray(window?.appCredentials) ? window.appCredentials : [];
+const appCountsBySubId = new Map();
+
+// Track the latest app totals per SubID from app_names responses.
+const recordAppCounts = (credentialResults = []) => {
+  let hasResults = false;
+  const nextCounts = new Map();
+
+  credentialResults.forEach((result) => {
+    const subId = result?.credential?.subId;
+
+    if (!subId) {
+      return;
+    }
+
+    const apps = Array.isArray(result?.results) ? result.results : [];
+    const uniqueAppIds = new Set();
+
+    apps.forEach((app) => {
+      if (app?.appId) {
+        uniqueAppIds.add(String(app.appId));
+      }
+    });
+
+    hasResults = true;
+    nextCounts.set(String(subId), uniqueAppIds.size);
+  });
+
+  if (!hasResults) {
+    return;
+  }
+
+  appCountsBySubId.clear();
+  nextCounts.forEach((count, subId) => appCountsBySubId.set(subId, count));
+};
 
 // Clean up credential inputs and drop empty entries.
 const normalizeCredentials = (entries = []) =>
@@ -122,5 +156,17 @@ export async function app_names(entries) {
     };
   });
 
-  return Promise.all(requests);
+  const credentialResults = await Promise.all(requests);
+
+  recordAppCounts(credentialResults);
+
+  return credentialResults;
 }
+
+// Return the total number of apps discovered for a SubID.
+export const getAppCountForSub = (subId) => {
+  return appCountsBySubId.get(String(subId)) || 0;
+};
+
+// Snapshot all tracked app totals for debugging or UI summaries.
+export const getAppCountBySubId = () => Object.fromEntries(appCountsBySubId);

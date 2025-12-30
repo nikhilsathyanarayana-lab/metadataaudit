@@ -1,4 +1,5 @@
 import { tableData } from './3.js';
+import { getAppCountForSub } from '../API/app_names.js';
 
 // Read metadata aggregations from the browser when available.
 const getMetadataAggregations = () => {
@@ -24,36 +25,26 @@ const getSubIds = () => {
   return [...subIds].sort((first, second) => first.localeCompare(second));
 };
 
-// Count the number of apps planned for metadata scans per SubID.
-const getTotalAppsForSub = (subId) => {
-  const apps = new Set();
-
-  tableData.forEach((entry) => {
-    const matchesSubId = String(entry?.subId || '') === String(subId);
-
-    if (matchesSubId && entry?.appId) {
-      apps.add(String(entry.appId));
-    }
-  });
-
-  return apps.size;
-};
-
 // Check whether an app bucket has processed window results.
 const hasProcessedWindow = (appBucket) => {
   return Object.values(appBucket?.windows || {}).some((bucket) => bucket?.isProcessed);
 };
 
-// Count the apps with processed metadata per SubID.
-const getScannedAppsForSub = (subId) => {
-  const aggregations = getMetadataAggregations();
-  const appBuckets = aggregations?.[subId]?.apps;
+// Count processed app aggregations for a SubID using metadata buckets.
+const getProcessedAppsForSub = (subId) => {
+  const appBuckets = getMetadataAggregations()?.[subId]?.apps;
 
   if (!appBuckets || typeof appBuckets !== 'object') {
     return 0;
   }
 
-  return Object.values(appBuckets).filter((bucket) => hasProcessedWindow(bucket)).length;
+  const processedIds = Object.values(appBuckets)
+    .filter((bucket) => hasProcessedWindow(bucket))
+    .map((bucket) => bucket?.appId)
+    .filter(Boolean)
+    .map((appId) => String(appId));
+
+  return new Set(processedIds).size;
 };
 
 // Render the subscription summary list in the provided container.
@@ -74,9 +65,9 @@ const renderSubscriptionSummary = (container) => {
   list.className = 'subscription-progress-list';
 
   subIds.forEach((subId) => {
-    const totalApps = getTotalAppsForSub(subId);
-    const scannedApps = getScannedAppsForSub(subId);
-    const targetTotal = Math.max(totalApps, scannedApps);
+    const availableApps = getAppCountForSub(subId);
+    const processedApps = getProcessedAppsForSub(subId);
+    const targetTotal = Math.max(availableApps, processedApps);
 
     const item = document.createElement('li');
     item.className = 'subscription-progress-item';
@@ -87,7 +78,7 @@ const renderSubscriptionSummary = (container) => {
 
     const status = document.createElement('span');
     status.className = 'subscription-progress-status';
-    status.textContent = `Apps Scanned ${scannedApps} out of ${targetTotal}`;
+    status.textContent = `${processedApps} out of ${targetTotal || processedApps}`;
 
     item.append(label, status);
     list.appendChild(item);
