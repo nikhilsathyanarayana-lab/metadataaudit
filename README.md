@@ -1,7 +1,11 @@
 # Metadata Audit
 
 ## Overview
-Metadata Audit is a static web application that helps Pendo teams validate subscription metadata. The Integration API flow and the SPA rebuild offer similar core functionality but should be treated as distinct apps for hosting and documentation, and anything associated with the SPA should live under `root/SPA/`. Users can provide a SubID, domain, and integration key to pull metadata directly from the Engage API. Page-level controllers are written in vanilla JavaScript and store in-progress state in `sessionStorage` between screens.
+Metadata Audit is a static web application that helps Pendo teams validate subscription metadata pulled directly from the Engage API.
+
+**Pick the right experience:**
+- **Integration API flow (legacy multi-page)**: Uses the root-level HTML files (for example, `index.html`) with vanilla JS controllers and `sessionStorage` to carry SubID, domain, and integration key inputs across pages. You get metadata field analysis first, then a Deep Dive, with XLSX as the only export format.
+- **SPA rebuild (single-page)**: Lives entirely under `SPA/`, with `SPA/html/SPA.html` and `SPA/js/spa.js` delivering the consolidated workflow and navigation. The SPA combines field analysis and Deep Dive into one path and exports to PDF or XLSX.
 
 ## Quick start
 - **Hosted use**: The Integration API flow can run from any static host (e.g., GitHub Pages) because all requests go straight to the Engage API.
