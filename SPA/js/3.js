@@ -12,13 +12,34 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
-// Placeholder hook for future tableData population; runs early for diagnostics.
-const initializeTableDataPopulation = () => {
+// Populate an early tableData snapshot and log selected apps for debugging.
+const populateTables = () => {
+  tableData.length = 0;
+
+  const cachedSelections = getAppSelections();
+  const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
+
+  if (selectedApps.length) {
+    selectedApps.forEach((app) => {
+      METADATA_NAMESPACES.forEach((namespace) => {
+        tableData.push({
+          subId: app?.subId || 'Unknown SubID',
+          appName: app?.appName || app?.appId || 'Unknown app',
+          appId: app?.appId || '',
+          namespace,
+          sevenDay: 'Pending...',
+          thirtyDay: 'Pending...',
+          oneEightyDay: 'Pending...',
+        });
+      });
+    });
+  }
+
   // eslint-disable-next-line no-console
-  console.log('initializeTableDataPopulation');
+  console.log(selectedApps.length ? selectedApps : 'no selected apps');
 };
 
-initializeTableDataPopulation();
+populateTables();
 
 // Expose metadata table cache for console debugging.
 const registerTableDataGlobal = () => {
