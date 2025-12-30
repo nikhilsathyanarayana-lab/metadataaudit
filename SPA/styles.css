@@ -880,6 +880,10 @@ h1 {
   transform: translateY(10px);
 }
 
+#fieldtypes-modal .modal-content {
+  width: min(900px, 95%);
+}
+
 .modal-content {
   width: min(540px, 92%);
   background: #fff;
