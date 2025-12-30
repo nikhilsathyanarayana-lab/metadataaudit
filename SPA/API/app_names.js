@@ -71,6 +71,14 @@ export async function app_names(entries) {
         JSON.parse(JSON.stringify(APP_LISTING_PAYLOAD)),
       );
     } catch (error) {
+      const safeContext = {
+        subId: credential?.subId || '',
+        domain: credential?.domain || '',
+      };
+
+      // eslint-disable-next-line no-console
+      console.error('[app_names] Failed to fetch app list.', { ...safeContext, error });
+
       return {
         credential,
         errorType: 'failed',
@@ -84,10 +92,24 @@ export async function app_names(entries) {
       || response?.response?.data?.results;
 
     if (!response || response.errorType || !Array.isArray(results)) {
+      const safeContext = {
+        subId: credential?.subId || '',
+        domain: credential?.domain || '',
+      };
+      const errorType = response?.errorType || 'invalidResponse';
+      const errorHint = response?.errorHint || response?.response?.errorHint;
+
+      // eslint-disable-next-line no-console
+      console.error('[app_names] Invalid app list response.', {
+        ...safeContext,
+        errorType,
+        errorHint,
+      });
+
       return {
         credential,
-        errorType: response?.errorType || 'invalidResponse',
-        errorHint: response?.errorHint,
+        errorType,
+        errorHint,
       };
     }
 

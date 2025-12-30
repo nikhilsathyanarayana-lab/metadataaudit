@@ -315,6 +315,16 @@ export const executeMetadataCallPlan = async (
     try {
       const response = await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
 
+      if (response?.errorType || response?.response?.errorType) {
+        // eslint-disable-next-line no-console
+        console.error('[executeMetadataCallPlan] Aggregation returned an error response.', {
+          appId: nextCall?.app?.appId || nextCall?.credential?.appId || '',
+          subId: nextCall?.credential?.subId || '',
+          errorType: response?.errorType || response?.response?.errorType,
+          errorHint: response?.errorHint || response?.response?.errorHint,
+        });
+      }
+
       if (typeof onAggregation === 'function') {
         onAggregation({
           app: nextCall.app,
