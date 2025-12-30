@@ -618,6 +618,7 @@ h1 {
 }
 
 .primary-btn,
+.secondary-btn,
 .tertiary-btn {
   padding: 0.75rem 1.2rem;
   border-radius: 12px;
@@ -646,6 +647,22 @@ h1 {
 }
 
 .primary-btn:active {
+  transform: translateY(1px);
+}
+
+.secondary-btn {
+  background: #f6f6f6;
+  border-color: rgba(61, 61, 61, 0.24);
+  color: var(--pendo-charcoal);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.secondary-btn:hover {
+  background: #ededed;
+  border-color: rgba(61, 61, 61, 0.32);
+}
+
+.secondary-btn:active {
   transform: translateY(1px);
 }
 
