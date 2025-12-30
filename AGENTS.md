@@ -26,4 +26,3 @@
 - Standard flow: request → questions → code suggestions → GitHub PR.
 - For front-end changes impacting visuals, provide a screenshot when feasible.
 - Start using `jslint` as the default linter and run it locally to catch style or syntax issues before submitting changes.
-- After every feature change, update the README to keep the documented behavior in sync with the implementation.
