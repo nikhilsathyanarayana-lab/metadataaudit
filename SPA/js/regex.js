@@ -1,5 +1,6 @@
 // Manage the regex format modal lifecycle for expected value configuration.
 let regexFormatModalBound = false;
+let regexSaveHandler = null;
 
 // Collect references to regex modal nodes.
 const getRegexModalElements = () => {
@@ -52,6 +53,13 @@ const resetRegexModal = () => {
   if (input) {
     input.value = '';
   }
+
+  regexSaveHandler = null;
+};
+
+// Track the callback to run when a regex is saved.
+const setRegexSaveHandler = (saveHandler) => {
+  regexSaveHandler = typeof saveHandler === 'function' ? saveHandler : null;
 };
 
 // Hide the regex modal and clear its context.
@@ -71,7 +79,7 @@ const closeRegexModal = () => {
 
 // Wire submit and dismiss events for the regex modal.
 const bindRegexModalHandlers = () => {
-  const { modal, backdrop, form, feedback } = getRegexModalElements();
+  const { modal, backdrop, form, feedback, input } = getRegexModalElements();
 
   if (!modal || !backdrop) {
     return;
@@ -88,8 +96,22 @@ const bindRegexModalHandlers = () => {
     form.addEventListener('submit', (event) => {
       event.preventDefault();
 
+      const pattern = (input?.value || '').trim();
+
+      if (!pattern) {
+        if (feedback) {
+          feedback.textContent = 'Enter a regex pattern to save.';
+        }
+
+        return;
+      }
+
       if (feedback) {
         feedback.textContent = 'Saved regex pattern.';
+      }
+
+      if (typeof regexSaveHandler === 'function') {
+        regexSaveHandler(pattern);
       }
     });
   }
@@ -98,7 +120,7 @@ const bindRegexModalHandlers = () => {
 };
 
 // Fill modal labels with the current field context.
-const setRegexModalContext = (fieldName) => {
+const setRegexModalContext = (fieldName, existingPattern = '') => {
   const { subId, appId, field, feedback, input } = getRegexModalElements();
 
   if (subId) {
@@ -118,12 +140,12 @@ const setRegexModalContext = (fieldName) => {
   }
 
   if (input) {
-    input.value = '';
+    input.value = existingPattern || '';
   }
 };
 
 // Load and display the regex modal for the supplied field.
-export const openRegexModal = async (fieldName = '') => {
+export const openRegexModal = async (fieldName = '', existingPattern = '', onSave = null) => {
   try {
     const elements = await loadRegexModal();
 
@@ -131,7 +153,8 @@ export const openRegexModal = async (fieldName = '') => {
       bindRegexModalHandlers();
     }
 
-    setRegexModalContext(fieldName);
+    setRegexSaveHandler(onSave);
+    setRegexModalContext(fieldName, existingPattern);
 
     elements.modal.hidden = false;
     elements.backdrop.hidden = false;
