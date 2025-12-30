@@ -12,6 +12,14 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
+// Placeholder hook for future tableData population; runs early for diagnostics.
+const initializeTableDataPopulation = () => {
+  // eslint-disable-next-line no-console
+  console.log('initializeTableDataPopulation');
+};
+
+initializeTableDataPopulation();
+
 // Expose metadata table cache for console debugging.
 const registerTableDataGlobal = () => {
   if (typeof window === 'undefined') {
