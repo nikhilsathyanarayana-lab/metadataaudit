@@ -462,7 +462,7 @@ const renderFieldTypesList = () => {
     const emptyItem = document.createElement('li');
     emptyItem.className = 'metadata-tree__value fieldtypes-row fieldtypes-row--empty';
     emptyItem.setAttribute('role', 'row');
-    emptyItem.textContent = 'No fields available yet. Run metadata to populate this list.';
+    emptyItem.textContent = 'No fields available yet. Wait for metadata scan to complete and  populate this list.';
     list.appendChild(emptyItem);
     return;
   }
