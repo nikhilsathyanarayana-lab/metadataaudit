@@ -882,6 +882,15 @@ h1 {
 
 #fieldtypes-modal .modal-content {
   width: min(900px, 95%);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#fieldtypes-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 0.2rem;
 }
 
 .modal-content {
