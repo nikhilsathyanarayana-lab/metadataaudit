@@ -37,6 +37,26 @@ const FIELD_TYPE_OPTIONS = [
   { key: 'email', label: 'Email' },
 ];
 
+// Normalize app selections so they can be compared between renders.
+const normalizeAppSelections = (selections = []) => selections
+  .filter((entry) => entry && (entry.subId || entry.appId || entry.appName))
+  .map((entry) => ({
+    subId: String(entry.subId || ''),
+    appId: String(entry.appId || ''),
+    appName: String(entry.appName || ''),
+    isSelected: Boolean(entry.isSelected),
+  }))
+  .sort((first, second) => {
+    return first.subId.localeCompare(second.subId)
+      || first.appId.localeCompare(second.appId)
+      || first.appName.localeCompare(second.appName);
+  });
+
+// Build a stable signature string for the current app selections.
+const buildSelectionSignature = (selections = []) => JSON.stringify(normalizeAppSelections(selections));
+
+let lastSelectionSignature = buildSelectionSignature(getAppSelections());
+
 // Return the window bucket for a specific lookback.
 const getWindowBucket = (appBucket, lookbackWindow) => {
   return appBucket?.windows?.[String(lookbackWindow)] || appBucket?.windows?.[lookbackWindow];
@@ -768,6 +788,14 @@ const renderMetadataTables = async (tableConfigs) => {
   }
 };
 
+// Build table configuration references from the current section root.
+const getTableConfigsFromRoot = (sectionRoot) => METADATA_NAMESPACES
+  .map((namespace) => ({
+    namespace,
+    element: sectionRoot?.querySelector(`#${namespace}-metadata-table-body`),
+  }))
+  .filter(({ element }) => Boolean(element));
+
 // Populate metadata tables with discovered apps.
 export async function initSection(sectionRoot) {
   // eslint-disable-next-line no-console
@@ -777,12 +805,7 @@ export async function initSection(sectionRoot) {
     return;
   }
 
-  const tableConfigs = METADATA_NAMESPACES
-    .map((namespace) => ({
-      namespace,
-      element: sectionRoot?.querySelector(`#${namespace}-metadata-table-body`),
-    }))
-    .filter(({ element }) => Boolean(element));
+  const tableConfigs = getTableConfigsFromRoot(sectionRoot);
 
   if (!tableConfigs.length) {
     return;
@@ -790,9 +813,29 @@ export async function initSection(sectionRoot) {
 
   const expectedValuesButton = sectionRoot.querySelector('#expected-values-button');
 
-  if (expectedValuesButton) {
+  if (expectedValuesButton && !expectedValuesButton.dataset.boundExpectedValues) {
+    expectedValuesButton.dataset.boundExpectedValues = 'true';
     expectedValuesButton.addEventListener('click', () => openFieldTypesModal());
   }
 
+  lastSelectionSignature = buildSelectionSignature(getAppSelections());
+  await renderMetadataTables(tableConfigs);
+}
+
+// Refresh metadata tables when returning to the view with new selections.
+export async function onShow(sectionRoot) {
+  const tableConfigs = getTableConfigsFromRoot(sectionRoot);
+
+  if (!tableConfigs.length) {
+    return;
+  }
+
+  const currentSelectionSignature = buildSelectionSignature(getAppSelections());
+
+  if (currentSelectionSignature === lastSelectionSignature) {
+    return;
+  }
+
+  lastSelectionSignature = currentSelectionSignature;
   await renderMetadataTables(tableConfigs);
 }

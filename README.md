@@ -41,6 +41,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views. SPA state should stay in memory (for example, module-level variables) instead of relying on browser storage.
 - **Outputs**: Unified exports to PDF or XLSX, along with in-browser tables aligned to SPA view definitions.
 - **Navigation gating**: PDF (4) and Excel (5) SPA buttons stay disabled until the metadata scan on view 3 finishes.
+- **Metadata refresh**: Returning to view 3 after adjusting app selections on view 2 rebuilds the metadata tables so removed or newly selected apps stay in sync.
 - **PDF export view**: Presents a PDF export summary with per-SubID scan counts on the first preview page; the header text on this view stays out of the generated PDF while the summary content carries over.
 - **PDF workspace**: View 4 includes a dedicated workspace container with page-sized previews so future export content can be staged without iframes.
 - **Troubleshooting**: See `SPA/docs/spa.md` for navigation, caching rules, and common queue or progress-banner edge cases.
