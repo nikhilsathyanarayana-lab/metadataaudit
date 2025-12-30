@@ -308,6 +308,21 @@ const formatTableDataValue = (value) => {
   return value || pendingText;
 };
 
+// Emit metadata scan lifecycle events for navigation gating.
+const emitMetadataScanEvent = (eventName) => {
+  if (!eventName || typeof document === 'undefined') {
+    return;
+  }
+
+  document.dispatchEvent(new Event(eventName));
+};
+
+// Signal that metadata scans have started.
+const notifyMetadataScanStarted = () => emitMetadataScanEvent('metadata-scan-started');
+
+// Signal that metadata scans have finished.
+const notifyMetadataScanCompleted = () => emitMetadataScanEvent('metadata-scan-completed');
+
 // Read metadata aggregations from the browser when available.
 const getMetadataAggregations = () => {
   return typeof window !== 'undefined'
@@ -380,6 +395,27 @@ const renderTablesFromData = () => {
   });
 };
 
+// Run metadata scans while broadcasting status updates for navigation controls.
+const runMetadataScansWithStatus = async (appsForMetadata, onAggregation) => {
+  if (!Array.isArray(appsForMetadata) || !appsForMetadata.length || typeof onAggregation !== 'function') {
+    return;
+  }
+
+  let hasCompleted = false;
+  notifyMetadataScanStarted();
+
+  try {
+    await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
+    await runMetadataQueue(onAggregation, DEFAULT_LOOKBACK_WINDOW);
+    hasCompleted = true;
+    notifyMetadataScanCompleted();
+  } finally {
+    if (!hasCompleted) {
+      notifyMetadataScanCompleted();
+    }
+  }
+};
+
 // Render the metadata tables for each credential.
 const renderMetadataTables = async (tableConfigs) => {
   // eslint-disable-next-line no-console
@@ -392,6 +428,11 @@ const renderMetadataTables = async (tableConfigs) => {
   tableData.length = 0;
   tableStatusRows = [];
   activeTableConfigs = tableConfigs;
+
+  const handleAggregation = (payload) => {
+    processAggregation(payload);
+    processAPI();
+  };
 
   const recordTableDataRow = ({ subId, appId, appName, namespace }) => {
     tableData.push({
@@ -423,11 +464,7 @@ const renderMetadataTables = async (tableConfigs) => {
       });
       renderTablesFromData();
       appsForMetadata = selectedApps;
-      await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-      await runMetadataQueue((payload) => {
-        processAggregation(payload);
-        processAPI();
-      }, DEFAULT_LOOKBACK_WINDOW);
+      await runMetadataScansWithStatus(appsForMetadata, handleAggregation);
       return;
     }
 
@@ -479,11 +516,7 @@ const renderMetadataTables = async (tableConfigs) => {
     renderTablesFromData();
 
     if (appsForMetadata.length) {
-      await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-      await runMetadataQueue((payload) => {
-        processAggregation(payload);
-        processAPI();
-      }, DEFAULT_LOOKBACK_WINDOW);
+      await runMetadataScansWithStatus(appsForMetadata, handleAggregation);
     }
   } catch (error) {
     // eslint-disable-next-line no-console

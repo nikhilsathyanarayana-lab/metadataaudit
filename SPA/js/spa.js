@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Wire up SPA section switching and lazy initialization.
 function initPageSwitcher() {
   const pageButtons = document.querySelectorAll('[data-page-btn]');
+  const exportButtons = Array.from(pageButtons).filter((button) => {
+    return ['4', '5'].includes(button?.dataset?.pageBtn);
+  });
   const sectionContainer = document.querySelector('[data-page-container]');
   const statusElement = document.querySelector('[data-page-status]');
   const sectionCache = new Map();
@@ -40,6 +43,24 @@ function initPageSwitcher() {
     });
   };
 
+  // Disable export buttons until metadata scans finish.
+  const disableExportButtons = () => {
+    exportButtons.forEach((button) => {
+      button.disabled = true;
+      button.setAttribute('aria-disabled', 'true');
+      button.classList.add('page-switcher__btn--locked');
+    });
+  };
+
+  // Enable export buttons once metadata scans complete.
+  const enableExportButtons = () => {
+    exportButtons.forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute('aria-disabled');
+      button.classList.remove('page-switcher__btn--locked');
+    });
+  };
+
   // Attach the one-time unlock actions to the prerequisite buttons.
   const bindShortcutUnlockers = () => {
     const unlock = () => unlockPageSwitcher();
@@ -54,6 +75,10 @@ function initPageSwitcher() {
   };
 
   lockPageSwitcher();
+  disableExportButtons();
+
+  document.addEventListener('metadata-scan-started', disableExportButtons);
+  document.addEventListener('metadata-scan-completed', enableExportButtons);
 
   // Toggle button styling and aria state for the active page.
   const setActiveButton = (pageId) => {
