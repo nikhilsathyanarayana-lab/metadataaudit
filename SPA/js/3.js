@@ -271,7 +271,7 @@ const findFieldTypesRow = (fieldName) => {
   );
 };
 
-// Update the regex status cell for a field row to reflect the saved pattern.
+// Update the regex button label and tooltip for a field row to reflect the saved pattern.
 const updateRegexStatus = (fieldName, regexPattern = '') => {
   const fieldRow = findFieldTypesRow(fieldName);
 
@@ -279,15 +279,17 @@ const updateRegexStatus = (fieldName, regexPattern = '') => {
     return;
   }
 
-  const statusCell = fieldRow.querySelector('.fieldtypes-cell--status');
+  const regexButton = fieldRow.querySelector('.fieldtypes-regex-btn');
   const normalizedRegex = typeof regexPattern === 'string' ? regexPattern.trim() : '';
-  const displayValue = normalizedRegex || getFieldTypeSelection(fieldName)?.regex || '—';
+  const savedRegex = normalizedRegex || getFieldTypeSelection(fieldName)?.regex || '';
 
-  if (statusCell) {
-    statusCell.textContent = displayValue;
-    statusCell.title = normalizedRegex || getFieldTypeSelection(fieldName)?.regex
-      ? `Saved regex: ${displayValue}`
-      : 'No regex saved yet';
+  if (regexButton) {
+    const hasRegex = Boolean(savedRegex);
+    regexButton.title = hasRegex ? `Saved regex: ${savedRegex}` : 'No regex saved yet';
+    regexButton.setAttribute(
+      'aria-label',
+      hasRegex ? `Edit regex for ${fieldName}` : `Add regex for ${fieldName}`,
+    );
   }
 };
 
@@ -403,13 +405,6 @@ const createFieldTypesRow = (fieldName) => {
     listItem.appendChild(checkboxCell);
   });
 
-  const regexStatus = document.createElement('span');
-  regexStatus.className = 'fieldtypes-cell fieldtypes-cell--status';
-  regexStatus.setAttribute('role', 'cell');
-  regexStatus.textContent = savedSelection?.regex || '—';
-  regexStatus.title = savedSelection?.regex ? `Saved regex: ${savedSelection.regex}` : 'No regex saved yet';
-  listItem.appendChild(regexStatus);
-
   const regexButtonCell = document.createElement('div');
   regexButtonCell.className = 'fieldtypes-cell fieldtypes-cell--action';
   regexButtonCell.setAttribute('role', 'cell');
@@ -429,6 +424,8 @@ const createFieldTypesRow = (fieldName) => {
   regexButtonCell.appendChild(regexButton);
 
   listItem.appendChild(regexButtonCell);
+
+  updateRegexStatus(fieldName, savedSelection?.regex || '');
 
   bindFieldTypeCheckboxes(listItem, fieldName);
   updateFieldTypeRowState(listItem, listItem.querySelector('input[type="checkbox"]:checked'));
