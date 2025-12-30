@@ -9,11 +9,27 @@ import {
 import { getAppSelections } from './2.js';
 import { openRegexModal } from './regex.js';
 
+// Provide a shared SPA environment object for cached selections.
+const getFieldtypesContainer = () => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  if (!window.FIELDTYPES || typeof window.FIELDTYPES !== 'object') {
+    window.FIELDTYPES = {};
+  }
+
+  return window.FIELDTYPES;
+};
+
+const FIELDTYPES = getFieldtypesContainer();
 const METADATA_TABLE_WINDOWS = ['window7', 'window30', 'window180'];
 export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
 let fieldTypesModalBound = false;
+const fieldTypeSelections = FIELDTYPES.fieldTypeSelections || {};
+FIELDTYPES.fieldTypeSelections = fieldTypeSelections;
 const FIELD_TYPE_OPTIONS = [
   { key: 'text', label: 'Text' },
   { key: 'num', label: 'Num' },
@@ -158,6 +174,114 @@ const registerTableDataGlobal = () => {
 
 registerTableDataGlobal();
 
+// Normalize a metadata field name for consistent lookups.
+const normalizeFieldName = (fieldName) => {
+  return typeof fieldName === 'string' ? fieldName.trim() : '';
+};
+
+// Read any saved expected value selection for the provided field.
+const getFieldTypeSelection = (fieldName) => {
+  const normalizedName = normalizeFieldName(fieldName);
+
+  return normalizedName ? fieldTypeSelections[normalizedName] : undefined;
+};
+
+// Persist the checkbox selection for a field while keeping any saved regex.
+const setFieldTypeSelection = (fieldName, typeKey) => {
+  const normalizedName = normalizeFieldName(fieldName);
+
+  if (!normalizedName) {
+    return;
+  }
+
+  const existingSelection = fieldTypeSelections[normalizedName] || {};
+  const nextSelection = { ...existingSelection };
+
+  if (typeKey) {
+    nextSelection.type = typeKey;
+  } else {
+    delete nextSelection.type;
+  }
+
+  if (!nextSelection.type && !nextSelection.regex) {
+    delete fieldTypeSelections[normalizedName];
+    return;
+  }
+
+  fieldTypeSelections[normalizedName] = nextSelection;
+};
+
+// Persist a saved regex pattern for a field while keeping any selected type.
+const setFieldRegexSelection = (fieldName, regexPattern) => {
+  const normalizedName = normalizeFieldName(fieldName);
+  const normalizedRegex = typeof regexPattern === 'string' ? regexPattern.trim() : '';
+
+  if (!normalizedName) {
+    return;
+  }
+
+  const existingSelection = fieldTypeSelections[normalizedName] || {};
+
+  if (!normalizedRegex) {
+    if (existingSelection.type) {
+      fieldTypeSelections[normalizedName] = { type: existingSelection.type };
+    } else {
+      delete fieldTypeSelections[normalizedName];
+    }
+
+    return;
+  }
+
+  fieldTypeSelections[normalizedName] = {
+    ...existingSelection,
+    regex: normalizedRegex,
+  };
+};
+
+// Find the list item element for a specific field name.
+const findFieldTypesRow = (fieldName) => {
+  const { list } = getFieldTypesModalElements();
+
+  if (!list) {
+    return null;
+  }
+
+  return Array.from(list.querySelectorAll('.fieldtypes-row')).find(
+    (row) => normalizeFieldName(row?.dataset?.fieldName) === normalizeFieldName(fieldName),
+  );
+};
+
+// Update the regex status cell for a field row to reflect the saved pattern.
+const updateRegexStatus = (fieldName, regexPattern = '') => {
+  const fieldRow = findFieldTypesRow(fieldName);
+
+  if (!fieldRow) {
+    return;
+  }
+
+  const statusCell = fieldRow.querySelector('.fieldtypes-cell--status');
+  const normalizedRegex = typeof regexPattern === 'string' ? regexPattern.trim() : '';
+  const displayValue = normalizedRegex || getFieldTypeSelection(fieldName)?.regex || '—';
+
+  if (statusCell) {
+    statusCell.textContent = displayValue;
+    statusCell.title = normalizedRegex || getFieldTypeSelection(fieldName)?.regex
+      ? `Saved regex: ${displayValue}`
+      : 'No regex saved yet';
+  }
+};
+
+// Expose expected value selections for console inspection.
+const registerFieldTypeSelectionsGlobal = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.fieldTypeSelections = fieldTypeSelections;
+};
+
+registerFieldTypeSelectionsGlobal();
+
 // Build a unique, sorted list of field names from 180-day window results.
 const getUniqueWindow180Fields = () => {
   const fieldNames = new Set();
@@ -178,7 +302,7 @@ const getUniqueWindow180Fields = () => {
 };
 
 // Build a checkbox control for a specific field type option.
-const createFieldTypeCheckbox = (fieldName, optionKey, optionLabel) => {
+const createFieldTypeCheckbox = (fieldName, optionKey, optionLabel, isChecked = false) => {
   const checkboxLabel = document.createElement('label');
   checkboxLabel.className = 'fieldtypes-checkbox';
   checkboxLabel.dataset.fieldtypesOption = optionKey;
@@ -187,6 +311,7 @@ const createFieldTypeCheckbox = (fieldName, optionKey, optionLabel) => {
   checkbox.type = 'checkbox';
   checkbox.name = `fieldtype-${fieldName}-${optionKey}`;
   checkbox.value = optionKey;
+  checkbox.checked = isChecked;
   checkbox.setAttribute('aria-label', `${optionLabel} expected for ${fieldName}`);
   checkboxLabel.appendChild(checkbox);
 
@@ -217,11 +342,14 @@ const updateFieldTypeRowState = (rowElement, activeCheckbox) => {
 };
 
 // Attach change listeners to each checkbox in a field row.
-const bindFieldTypeCheckboxes = (rowElement) => {
+const bindFieldTypeCheckboxes = (rowElement, fieldName) => {
   const checkboxes = rowElement.querySelectorAll('input[type="checkbox"]');
 
   checkboxes.forEach((checkbox) => {
-    checkbox.addEventListener('change', () => updateFieldTypeRowState(rowElement, checkbox));
+    checkbox.addEventListener('change', () => {
+      updateFieldTypeRowState(rowElement, checkbox);
+      setFieldTypeSelection(fieldName, checkbox.checked ? checkbox.value : '');
+    });
   });
 };
 
@@ -230,6 +358,9 @@ const createFieldTypesRow = (fieldName) => {
   const listItem = document.createElement('li');
   listItem.className = 'metadata-tree__value fieldtypes-row';
   listItem.setAttribute('role', 'row');
+  listItem.dataset.fieldName = fieldName;
+
+  const savedSelection = getFieldTypeSelection(fieldName);
 
   const fieldLabel = document.createElement('span');
   fieldLabel.className = 'fieldtypes-field-label';
@@ -242,14 +373,21 @@ const createFieldTypesRow = (fieldName) => {
     const checkboxCell = document.createElement('div');
     checkboxCell.className = 'fieldtypes-cell fieldtypes-cell--control';
     checkboxCell.setAttribute('role', 'cell');
-    checkboxCell.appendChild(createFieldTypeCheckbox(fieldName, option.key, option.label));
+    const checkbox = createFieldTypeCheckbox(
+      fieldName,
+      option.key,
+      option.label,
+      savedSelection?.type === option.key,
+    );
+    checkboxCell.appendChild(checkbox);
     listItem.appendChild(checkboxCell);
   });
 
   const regexStatus = document.createElement('span');
   regexStatus.className = 'fieldtypes-cell fieldtypes-cell--status';
   regexStatus.setAttribute('role', 'cell');
-  regexStatus.textContent = '—';
+  regexStatus.textContent = savedSelection?.regex || '—';
+  regexStatus.title = savedSelection?.regex ? `Saved regex: ${savedSelection.regex}` : 'No regex saved yet';
   listItem.appendChild(regexStatus);
 
   const regexButtonCell = document.createElement('div');
@@ -260,12 +398,20 @@ const createFieldTypesRow = (fieldName) => {
   regexButton.type = 'button';
   regexButton.className = 'secondary-btn fieldtypes-regex-btn';
   regexButton.textContent = 'Regex';
-  regexButton.addEventListener('click', () => openRegexModal(fieldName));
+  regexButton.addEventListener('click', () => {
+    const currentSelection = getFieldTypeSelection(fieldName);
+
+    openRegexModal(fieldName, currentSelection?.regex || '', (regexPattern) => {
+      setFieldRegexSelection(fieldName, regexPattern);
+      updateRegexStatus(fieldName, regexPattern);
+    });
+  });
   regexButtonCell.appendChild(regexButton);
 
   listItem.appendChild(regexButtonCell);
 
-  bindFieldTypeCheckboxes(listItem);
+  bindFieldTypeCheckboxes(listItem, fieldName);
+  updateFieldTypeRowState(listItem, listItem.querySelector('input[type="checkbox"]:checked'));
 
   return listItem;
 };

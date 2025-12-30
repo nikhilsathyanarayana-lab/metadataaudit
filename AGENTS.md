@@ -12,6 +12,7 @@
 - When adding or updating markup, use clear, concise IDs that reflect the element purpose and align with existing naming patterns.
 - Temporary features may be added during the build; ensure they are easy to remove cleanly.
 - Clear/delete `localStorage` and any residual data after runs complete.
+- SPA storage rule: keep SPA state in memory (for example, module-level variables) and avoid adding new `sessionStorage` or `localStorage` dependencies.
 - Never expose API keys or secrets in exports or code.
 - Favor open-source client libraries; avoid proprietary SDKs without explicit human approval.
 - Agents should **not create or update tests** unless explicitly directed by a human user.

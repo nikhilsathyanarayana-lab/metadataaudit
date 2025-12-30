@@ -38,7 +38,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Purpose**: Combines metadata field analysis and Deep Dive into one single-page workflow with simplified navigation.
 - **Entry point**: `SPA/html/SPA.html` rendered by `SPA/js/spa.js` with view toggles documented in `SPA/docs/spa.md`.
 - **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/SPA/html/SPA.html`.
-- **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views.
+- **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views. SPA state should stay in memory (for example, module-level variables) instead of relying on browser storage.
 - **Outputs**: Unified exports to PDF or XLSX, along with in-browser tables aligned to SPA view definitions.
 - **Navigation gating**: PDF (4) and Excel (5) SPA buttons stay disabled until the metadata scan on view 3 finishes.
 - **PDF export view**: Presents a PDF export summary with per-SubID scan counts; the header text on this view stays out of the generated PDF while the summary content carries over.
@@ -58,10 +58,8 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Deep dives and queues**: `SPA/docs/deep-dive.md` captures detailed call sequencing, queue pacing, and diagnostics for Deep Dive and metadata fetches.
 
 ## Local storage and cached state
-- **SubID launch data (`subidLaunchData`)**: Saves SubID + domain + integration key rows for the legacy flow.
-- **App selection responses (`appSelectionResponses`)**: Persists app lists, selections, and lookback windows for reuse across refreshes.
-- **Manual app names (`manualAppNames`)**: Stores user-provided labels so exports and tables reflect overrides.
-- **Metadata field records (`metadataFieldRecords`, version 1)**: Normalizes visitor/account metadata snapshots per lookback window for reuse in exports.
+- **Legacy pages**: `sessionStorage` entries such as `subidLaunchData`, `appSelectionResponses`, `manualAppNames`, and `metadataFieldRecords` keep SubID launch rows, app selections, overrides, and snapshot exports available across refreshes. Clear these keys between runs to avoid stale data.
+- **SPA state**: Do not add new `sessionStorage`/`localStorage` dependencies. Keep SPA selections and temporary data in memory (for example, `window.tableData` or `window.FIELDTYPES.fieldTypeSelections`) so a refresh resets state.
 - **Deep Dive aggregates (`deepDiveMetaEvents`)**: Caches Deep Dive results to avoid redundant scans.
 - **SPA metadata aggregation summaries (`metadataAggregations`)**: Saves SubID → App ID lookups with windowed namespace buckets for console review without rebuilding tables.
 
@@ -69,8 +67,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - Metadata fields and Deep Dive queues track pending and completed Engage aggregation calls so progress text stays aligned with the actual request plan.
 - Deep Dive requests run with capped concurrency and staggered delays to reduce API pressure while updating pending-call summaries as windows split or retry.
 - Successful metadata API responses trigger a `processAPI` summary in `SPA/js/3.js` that logs namespaces and field names per SubID/AppID pair while hydrating cached 7/30/180 lookback columns by merging the 7/23/150-day buckets (with duplicates removed) only after the full window inputs are processed. After updating `tableData`, `processAPI` re-renders the metadata tables through the shared renderer instead of patching individual cells.
-- The SPA "Configure Expected Values" control in view 3 opens `SPA/html/fieldtypes.html`, which lists the unique `window180` metadata fields from the current `tableData` set so users can validate discovered names with mutually exclusive type checkboxes and a Regex button that opens `SPA/html/regex.html` for pattern entry. The regex modal header now swaps in the selected metadata field name so users always see which pattern they are editing.
-- The expected values modal uses a wider content container so all column headers and checkboxes stay visible without horizontal scrolling on desktop.
+- The SPA "Configure Expected Values" control in view 3 opens `SPA/html/fieldtypes.html`, which lists the unique `window180` metadata fields from the current `tableData` set so users can validate discovered names with mutually exclusive type checkboxes and a Regex button that opens `SPA/html/regex.html` for pattern entry. Selections and saved regex patterns persist while the SPA is running and surface again when reopening the modal; inspect them via `window.FIELDTYPES.fieldTypeSelections` when debugging.
 - SPA API calls surface failed or invalid Engage responses to the browser console to make integration issues visible without digging into cached data.
 - Detailed queue mechanics, call pacing, and progress banner behavior are described in `SPA/docs/deep-dive.md`.
 
