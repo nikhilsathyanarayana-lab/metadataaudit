@@ -270,6 +270,59 @@ h1 {
   border-radius: 18px;
 }
 
+.pdf-export-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.pdf-page {
+  width: 8.5in;
+  max-width: 100%;
+  min-height: 11in;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  page-break-after: always;
+  break-after: page;
+}
+
+.pdf-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.pdf-page-notes {
+  display: grid;
+  gap: 0.35rem;
+  color: #4a4a4a;
+}
+
+.pdf-placeholder-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.pdf-placeholder-copy {
+  margin: 0;
+  color: #6a6a6a;
+}
+
+.pdf-placeholder-body {
+  display: grid;
+  gap: 0.5rem;
+  color: #3d3d3d;
+}
+
 .card-header {
   display: flex;
   align-items: flex-start;
