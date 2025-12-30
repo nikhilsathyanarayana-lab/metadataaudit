@@ -122,7 +122,12 @@ const bindRegexModalHandlers = () => {
 
 // Fill modal labels with the current field context.
 const setRegexModalContext = (fieldName, existingPattern = '') => {
-  const { subId, appId, field, feedback, input } = getRegexModalElements();
+  const { title, subId, appId, field, feedback, input } = getRegexModalElements();
+  const resolvedFieldName = fieldName || 'Unknown field';
+
+  if (title) {
+    title.textContent = resolvedFieldName;
+  }
 
   if (subId) {
     subId.textContent = 'N/A';
@@ -133,7 +138,7 @@ const setRegexModalContext = (fieldName, existingPattern = '') => {
   }
 
   if (field) {
-    field.textContent = fieldName || 'Unknown field';
+    field.textContent = resolvedFieldName;
   }
 
   if (feedback) {
