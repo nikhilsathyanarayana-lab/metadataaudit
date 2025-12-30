@@ -66,6 +66,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - Metadata fields and Deep Dive queues track pending and completed Engage aggregation calls so progress text stays aligned with the actual request plan.
 - Deep Dive requests run with capped concurrency and staggered delays to reduce API pressure while updating pending-call summaries as windows split or retry.
 - Successful metadata API responses trigger a `processAPI` summary in `SPA/js/3.js` that logs namespaces and field names per SubID/AppID pair while hydrating cached 7/30/180 lookback columns by merging the 7/23/150-day buckets (with duplicates removed) only after the full window inputs are processed. After updating `tableData`, `processAPI` re-renders the metadata tables through the shared renderer instead of patching individual cells.
+- The SPA "Configure Expected Values" control in view 3 opens `SPA/html/fieldtypes.html`, which lists the unique `window180` metadata fields from the current `tableData` set so users can validate discovered names.
 - SPA API calls surface failed or invalid Engage responses to the browser console to make integration issues visible without digging into cached data.
 - Detailed queue mechanics, call pacing, and progress banner behavior are described in `SPA/docs/deep-dive.md`.
 

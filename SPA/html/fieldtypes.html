@@ -1,0 +1,29 @@
+<div id="fieldtypes-backdrop" class="modal-backdrop" hidden></div>
+<section
+  id="fieldtypes-modal"
+  class="modal"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="fieldtypes-modal-title"
+  hidden
+>
+  <div class="modal-content" id="fieldtypes-modal-content">
+    <div class="modal-header" id="fieldtypes-modal-header">
+      <div>
+        <p class="eyebrow" id="fieldtypes-modal-eyebrow">Expected values</p>
+        <h2 class="modal-title" id="fieldtypes-modal-title">Configure Expected Values</h2>
+        <p class="section-hint" id="fieldtypes-modal-subtitle">Review the unique metadata field names found in the 180-day window.</p>
+      </div>
+      <button type="button" class="close-btn" aria-label="Close expected values modal" data-close-fieldtypes-modal>&times;</button>
+    </div>
+
+    <div class="modal-body" id="fieldtypes-modal-body">
+      <p class="section-hint" id="fieldtypes-modal-hint">Fields load automatically after metadata completes. Use this list to confirm the values you expect to see.</p>
+      <ul class="metadata-tree__values" id="fieldtypes-list" aria-live="polite" aria-label="Expected field names"></ul>
+    </div>
+
+    <div class="modal-actions" id="fieldtypes-modal-actions">
+      <button type="button" class="secondary-btn" data-close-fieldtypes-modal>Close</button>
+    </div>
+  </div>
+</section>
