@@ -73,6 +73,34 @@
   color: var(--pdf-black);
 }
 
+.pdf-chart {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 300px;
+  padding: 0.75rem;
+  background: var(--pdf-white);
+  border: 1px solid var(--pdf-light-gray);
+  border-radius: 10px;
+}
+
+.pdf-chart .chart-canvas {
+  width: 100%;
+  max-width: 440px;
+  height: 320px;
+}
+
+.pdf-chart .empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0.5rem;
+  text-align: center;
+  color: rgba(0, 0, 0, 0.66);
+}
+
 .pdf-page-title {
   margin: 0;
   font-family: "Sora", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
