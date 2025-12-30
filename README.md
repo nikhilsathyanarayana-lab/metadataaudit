@@ -76,3 +76,4 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - Clear `sessionStorage` between runs to avoid stale SubID or manual naming data.
 - Keep secrets out of exports; integration keys are never written to disk.
 - XLSX downloads rely on ExcelJS from the CDN so browser styling persists in saved workbooks.
+- Accessibility: detailed ARIA and captioning work is paused for now; prioritize core SPA behaviors before revisiting table accessibility polish.

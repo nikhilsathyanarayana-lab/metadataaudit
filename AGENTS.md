@@ -19,6 +19,7 @@
 - Surface specific API errors via console logging for debugging and diagnostics.
 - Documentation style: keep inline comments clear and concise, focused on what a function can do. README content should be thorough—describe context, which page(s) the function runs on, inputs, and expected output structure.
 - Add a short, concise comment for every new function summarizing its purpose.
+- Accessibility scope: postpone detailed ARIA or captioning work unless explicitly requested; focus current efforts on core SPA behavior and documentation.
 
 ## Workflow expectations
 - Standard flow: request → questions → code suggestions → GitHub PR.
