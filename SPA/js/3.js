@@ -12,6 +12,12 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
+// Log when metadata API responses finish successfully.
+const processAPI = () => {
+  // eslint-disable-next-line no-console
+  console.log('processAPI successful');
+};
+
 // Populate an early tableData snapshot and log selected apps for debugging.
 const populateTables = () => {
   tableData.length = 0;
@@ -321,6 +327,7 @@ const renderMetadataTables = async (tableConfigs) => {
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
       await runMetadataQueue((payload) => {
         processAggregation(payload);
+        processAPI();
         refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW);
       return;
@@ -382,6 +389,7 @@ const renderMetadataTables = async (tableConfigs) => {
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
       await runMetadataQueue((payload) => {
         processAggregation(payload);
+        processAPI();
         refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW);
     }
