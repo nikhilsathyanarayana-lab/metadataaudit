@@ -39,13 +39,10 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Entry point**: `SPA/html/SPA.html` rendered by `SPA/js/spa.js` with view toggles documented in `SPA/docs/spa.md`.
 - **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/SPA/html/SPA.html`.
 - **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views. SPA state should stay in memory (for example, module-level variables) instead of relying on browser storage.
-- **Outputs**: Unified exports to PDF or XLSX, along with in-browser tables aligned to SPA view definitions.
-- **Navigation gating**: PDF (4) and Excel (5) SPA buttons stay disabled until the metadata scan on view 3 finishes.
+- **Outputs**: Unified XLSX exports along with in-browser tables aligned to SPA view definitions.
+- **Exports**: View 4 hosts the export tooling placeholder and view 5 reserves the Excel export workspace.
+- **Navigation gating**: The export SPA buttons (views 4 and 5) stay disabled until the metadata scan on view 3 finishes.
 - **Metadata refresh**: Returning to view 3 after adjusting app selections on view 2 rebuilds the metadata tables so removed or newly selected apps stay in sync.
-- **PDF export view**: The first preview page now loads as a blank canvas so future export content can be rebuilt from scratch without carrying prior summary markup. Page-specific markup and logic live in `SPA/html/pdf1.html` and `SPA/js/pdf1.js` to keep `SPA/js/4.js` minimal.
-- **Choose Modules control**: The PDF export card header includes a placeholder "Choose Modules" button to align with module selection alongside future PDF settings.
-- **PDF workspace**: View 4 includes a dedicated workspace container with page-sized previews that fetch individual PDF page fragments (starting with `pdf1.html`) so future export content can be staged without iframes.
-- **PDF styling**: The export preview pulls styles from `SPA/pdf.css`, which loads Inter and Sora from Google Fonts and applies the Pendo pink palette (hex `#ff4876` with a deeper `#de5083` accent) across headings while omitting the yellow brand swatch.
 - **Troubleshooting**: See `SPA/docs/spa.md` for navigation, caching rules, and common queue or progress-banner edge cases.
 
 ### Deep Dive (shared diagnostics)
@@ -53,7 +50,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Entry point**: Triggered from the Integration API flow or SPA Deep Dive view; detailed call flows live in `SPA/docs/deep-dive.md`.
 - **How to run**: Start from either experience, then launch Deep Dive from its respective UI section to populate queues.
 - **Inputs**: SubID, domain, integration key, and selected apps/lookback windows configured in the originating experience.
-- **Outputs**: Aggregated metadata event summaries and XLSX downloads; SPA also surfaces PDF exports alongside queue status text.
+- **Outputs**: Aggregated metadata event summaries and XLSX downloads; SPA also surfaces queue status text alongside export progress.
 - **Troubleshooting**: Review `SPA/docs/deep-dive.md` for queue pacing, retries, and diagnostics, and use console helpers in the relevant experience to inspect pending calls.
 
 ## SPA documentation
