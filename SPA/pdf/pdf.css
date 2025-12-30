@@ -1,0 +1,13 @@
+/* PDF export styling for SPA content */
+body {
+  margin: 0;
+  padding: 48px 32px 32px;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+}
+
+.pdf-title {
+  font-size: 72pt;
+  line-height: 1.05;
+  text-align: center;
+  margin: 0 0 24px;
+}
