@@ -14,6 +14,7 @@ const APP_LISTING_PAYLOAD = Object.freeze({
       },
       {
         select: {
+          subName: 'subName',
           appId: 'id',
           appName: 'name',
         },
@@ -150,6 +151,7 @@ export async function app_names(entries) {
     return {
       credential,
       results: results.map((app) => ({
+        subName: app?.subName || '',
         appId: app?.appId || '',
         appName: app?.appName || app?.appId || '',
       })),
