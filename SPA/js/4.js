@@ -37,15 +37,17 @@ const renderPdfPageOne = async (sectionRoot) => {
     await loadPdfPageOne();
   }
 
+  const pageApi = pdfPageEntry?.module?.default;
+
   workspace.replaceChildren(pdfPageEntry.element);
 
-  if (!pdfPageEntry.initialized && pdfPageEntry.module?.initPdfPage) {
-    await pdfPageEntry.module.initPdfPage(pdfPageEntry.element);
+  if (!pdfPageEntry.initialized && pageApi?.initPdfPage) {
+    await pageApi.initPdfPage(pdfPageEntry.element);
     pdfPageEntry.initialized = true;
   }
 
-  if (pdfPageEntry.initialized && pdfPageEntry.module?.onShowPdfPage) {
-    await pdfPageEntry.module.onShowPdfPage(pdfPageEntry.element);
+  if (pdfPageEntry.initialized && pageApi?.onShowPdfPage) {
+    await pageApi.onShowPdfPage(pdfPageEntry.element);
   }
 };
 
