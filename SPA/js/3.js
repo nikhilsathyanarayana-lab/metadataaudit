@@ -62,16 +62,21 @@ const processAPI = () => {
       const window7Bucket = getWindowBucket(appBucket, 7);
       const window23Bucket = getWindowBucket(appBucket, 23);
       const window150Bucket = getWindowBucket(appBucket, 150);
-      const hasNamespaces = [window7Bucket, window23Bucket, window150Bucket]
-        .some((bucket) => bucket?.namespaces && typeof bucket.namespaces === 'object');
+      const hasWindow7Data = Boolean(window7Bucket?.isProcessed);
+      const hasWindow23Data = Boolean(window23Bucket?.isProcessed);
+      const hasWindow150Data = Boolean(window150Bucket?.isProcessed);
 
-      if (!hasNamespaces) {
+      if (!hasWindow7Data && !hasWindow23Data && !hasWindow150Data) {
         return;
       }
 
-      const window7Fields = buildNamespaceFieldSummary([window7Bucket]);
-      const window30Fields = buildNamespaceFieldSummary([window7Bucket, window23Bucket]);
-      const window180Fields = buildNamespaceFieldSummary([window7Bucket, window23Bucket, window150Bucket]);
+      const window7Fields = hasWindow7Data ? buildNamespaceFieldSummary([window7Bucket]) : null;
+      const window30Fields = (hasWindow7Data && hasWindow23Data)
+        ? buildNamespaceFieldSummary([window7Bucket, window23Bucket])
+        : null;
+      const window180Fields = (hasWindow7Data && hasWindow23Data && hasWindow150Data)
+        ? buildNamespaceFieldSummary([window7Bucket, window23Bucket, window150Bucket])
+        : null;
 
       const normalizedSubId = String(subId || '');
       const normalizedAppId = String(appId || '');
@@ -85,9 +90,15 @@ const processAPI = () => {
           return;
         }
 
-        if (Object.prototype.hasOwnProperty.call(window7Fields, namespaceKey)) {
+        if (window7Fields && Object.prototype.hasOwnProperty.call(window7Fields, namespaceKey)) {
           entry.window7 = window7Fields[namespaceKey];
+        }
+
+        if (window30Fields && Object.prototype.hasOwnProperty.call(window30Fields, namespaceKey)) {
           entry.window30 = window30Fields[namespaceKey];
+        }
+
+        if (window180Fields && Object.prototype.hasOwnProperty.call(window180Fields, namespaceKey)) {
           entry.window180 = window180Fields[namespaceKey];
         }
       });
