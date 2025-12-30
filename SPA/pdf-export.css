@@ -73,10 +73,3 @@
   color: var(--pdf-black);
 }
 
-.pdf-page-title {
-  margin: 0;
-  font-family: "Sora", "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: var(--pdf-pank-deep);
-}

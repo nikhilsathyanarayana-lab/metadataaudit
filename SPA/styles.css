@@ -437,40 +437,6 @@ h1 {
   min-width: 0;
 }
 
-.subscription-summary .empty-state {
-  margin: 0;
-  color: #5d5d5d;
-}
-
-.subscription-progress-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.subscription-progress-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid rgba(61, 61, 61, 0.08);
-  border-radius: 12px;
-  background: #fff7fb;
-}
-
-.subscription-progress-label {
-  font-weight: 700;
-}
-
-.subscription-progress-status {
-  color: #5d5d5d;
-  font-weight: 600;
-}
-
 .integration-input {
   width: 100%;
   min-width: 0;
