@@ -304,16 +304,19 @@ const registerFieldTypeSelectionsGlobal = () => {
 
 registerFieldTypeSelectionsGlobal();
 
-// Build a unique, sorted list of field names from 180-day window results.
-const getUniqueWindow180Fields = () => {
+// Build a unique, sorted list of field names from any processed window results.
+const getUniqueAvailableFields = () => {
   const fieldNames = new Set();
 
   tableData.forEach((entry) => {
-    if (!Array.isArray(entry?.window180)) {
+    const availableFields = [entry?.window180, entry?.window30, entry?.window7]
+      .find((windowFields) => Array.isArray(windowFields));
+
+    if (!Array.isArray(availableFields)) {
       return;
     }
 
-    entry.window180.forEach((fieldName) => {
+    availableFields.forEach((fieldName) => {
       if (typeof fieldName === 'string' && fieldName.trim()) {
         fieldNames.add(fieldName);
       }
@@ -472,14 +475,14 @@ const renderFieldTypesList = () => {
     return;
   }
 
-  const uniqueFields = getUniqueWindow180Fields();
+  const uniqueFields = getUniqueAvailableFields();
   list.innerHTML = '';
 
   if (!uniqueFields.length) {
     const emptyItem = document.createElement('li');
     emptyItem.className = 'metadata-tree__value fieldtypes-row fieldtypes-row--empty';
     emptyItem.setAttribute('role', 'row');
-    emptyItem.textContent = 'No fields available yet. Wait for metadata scan to complete and  populate this list.';
+    emptyItem.textContent = 'No fields available yet. Keep the metadata scan running and this list will fill in as fields arrive.';
     list.appendChild(emptyItem);
     return;
   }
