@@ -3,14 +3,20 @@ import {
   DEFAULT_LOOKBACK_WINDOW,
   METADATA_NAMESPACES,
   buildMetadataQueue,
-  resolvePreferredWindowBucket,
   processAggregation,
   runMetadataQueue,
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
+const TABLE_VALUE_KEYS = {
+  7: 'window7',
+  30: 'window30',
+  180: 'window180',
+};
 export const tableData = [];
+let tableStatusRows = [];
+let activeTableConfigs = [];
 
 // Return the window bucket for a specific lookback.
 const getWindowBucket = (appBucket, lookbackWindow) => {
@@ -104,6 +110,8 @@ const processAPI = () => {
       });
     });
   });
+
+  renderTablesFromData();
 };
 
 // Populate an early tableData snapshot and log selected apps for debugging.
@@ -146,41 +154,33 @@ const registerTableDataGlobal = () => {
 
 registerTableDataGlobal();
 
-// Format field names or fallback text for metadata table cells.
-const formatFieldNames = ({ fieldNames = [], isProcessed = false } = {}) => {
-  const placeholder = 'Pending...';
+// Convert table cell values from cached table data into readable text.
+const formatTableDataValue = (value) => {
+  const pendingText = 'Pending...';
   const noDataText = 'No Data';
 
-  return Array.isArray(fieldNames) && fieldNames.length
-    ? fieldNames.join(', ')
-    : (isProcessed ? noDataText : placeholder);
+  if (Array.isArray(value)) {
+    return value.length ? value.join(', ') : noDataText;
+  }
+
+  if (value === null) {
+    return noDataText;
+  }
+
+  return value || pendingText;
 };
 
-// Return sorted field names and processing status for a specific lookback bucket.
-const getWindowMetadataState = ({ subId, appId, namespace, lookbackWindow }) => {
-  const defaultState = { fieldNames: [], isProcessed: false };
+// Return the table data record matching a specific SubID/AppID/namespace.
+const findTableDataEntry = ({ subId, appId, namespace }) => {
+  const normalizedSubId = String(subId || '');
+  const normalizedAppId = String(appId || '');
+  const normalizedNamespace = String(namespace || '');
 
-  if (!subId || !appId || !namespace) {
-    return defaultState;
-  }
-
-  const aggregations = getMetadataAggregations();
-  const appBucket = aggregations?.[subId]?.apps?.[appId];
-
-  if (!appBucket) {
-    return defaultState;
-  }
-
-  const preferredWindowBucket = resolvePreferredWindowBucket(appBucket, lookbackWindow);
-  const namespaceBucket = preferredWindowBucket?.namespaces?.[namespace];
-  const fieldNames = namespaceBucket && typeof namespaceBucket === 'object'
-    ? Object.keys(namespaceBucket).sort((first, second) => first.localeCompare(second))
-    : [];
-
-  return {
-    fieldNames,
-    isProcessed: Boolean(preferredWindowBucket?.isProcessed),
-  };
+  return tableData.find((entry) => (
+    String(entry?.subId || '') === normalizedSubId
+    && String(entry?.appId || '') === normalizedAppId
+    && String(entry?.namespace || '') === normalizedNamespace
+  ));
 };
 
 // Read metadata aggregations from the browser when available.
@@ -208,6 +208,14 @@ export const calculateMetadataTableValue = ({
   const targetNamespace = String(namespace);
   const targetSubId = String(subId);
   const targetAppId = String(appId);
+  const valueKey = TABLE_VALUE_KEYS[lookbackWindow];
+  const tableEntry = valueKey ? findTableDataEntry({ subId: targetSubId, appId: targetAppId, namespace }) : null;
+
+  if (!valueKey || !tableEntry) {
+    return;
+  }
+
+  const tableValue = formatTableDataValue(tableEntry[valueKey]);
 
   const applyFieldNames = (target) => {
     if (
@@ -215,13 +223,7 @@ export const calculateMetadataTableValue = ({
       && target.dataset.subId === targetSubId
       && target.dataset.appId === targetAppId
     ) {
-      const { fieldNames, isProcessed } = getWindowMetadataState({
-        subId: targetSubId,
-        appId: targetAppId,
-        namespace: targetNamespace,
-        lookbackWindow,
-      });
-      target.textContent = formatFieldNames({ fieldNames, isProcessed });
+      target.textContent = tableValue;
     }
   };
 
@@ -266,13 +268,11 @@ const createMetadataRow = ({ subId, appId, appName, namespace }) => {
     valueTarget.dataset.subId = subId || '';
     valueTarget.dataset.appId = appId || '';
     valueTarget.dataset.namespace = namespace || '';
-    const { fieldNames, isProcessed } = getWindowMetadataState({
-      subId,
-      appId,
-      namespace,
-      lookbackWindow,
-    });
-    valueTarget.textContent = formatFieldNames({ fieldNames, isProcessed });
+    const valueKey = TABLE_VALUE_KEYS[lookbackWindow];
+    const tableEntry = valueKey
+      ? findTableDataEntry({ subId, appId, namespace })
+      : null;
+    valueTarget.textContent = formatTableDataValue(tableEntry?.[valueKey]);
 
     valueCell.appendChild(valueTarget);
 
@@ -299,6 +299,40 @@ const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
   return row;
 };
 
+// Append shared status rows across all metadata tables.
+const addStatusRowForAllTables = (message, columnCount = 6, subId = '') => {
+  tableStatusRows.push({ message, columnCount, subId });
+};
+
+// Render every metadata table with the latest cached table data.
+const renderTablesFromData = () => {
+  if (!activeTableConfigs.length) {
+    return;
+  }
+
+  activeTableConfigs.forEach(({ namespace, element }) => {
+    if (!element) {
+      return;
+    }
+
+    element.innerHTML = '';
+    const rowsForNamespace = tableData.filter((entry) => entry?.namespace === namespace);
+
+    if (!rowsForNamespace.length && !tableStatusRows.length) {
+      element.appendChild(createMetadataStatusRow('No metadata rows available.'));
+      return;
+    }
+
+    rowsForNamespace.forEach((rowData) => {
+      element.appendChild(createMetadataRow(rowData));
+    });
+
+    tableStatusRows.forEach(({ message, columnCount, subId }) => {
+      element.appendChild(createMetadataStatusRow(message, columnCount, subId));
+    });
+  });
+};
+
 // Render the metadata tables for each credential.
 const renderMetadataTables = async (tableConfigs) => {
   // eslint-disable-next-line no-console
@@ -309,6 +343,8 @@ const renderMetadataTables = async (tableConfigs) => {
   }
 
   tableData.length = 0;
+  tableStatusRows = [];
+  activeTableConfigs = tableConfigs;
 
   const recordTableDataRow = ({ subId, appId, appName, namespace }) => {
     tableData.push({
@@ -322,88 +358,15 @@ const renderMetadataTables = async (tableConfigs) => {
     });
   };
 
-  const appendToAllTables = (buildRow) => {
-    // eslint-disable-next-line no-console
-    console.log('appendToAllTables');
-
-    tableConfigs.forEach(({ namespace, element }) => {
-      if (element) {
-        const row = buildRow(namespace);
-        element.appendChild(row);
-      }
-    });
-  };
-
-  // Add a shared status row to every metadata table when an error occurs.
-  const appendErrorRow = (message) => {
-    appendToAllTables(() => createMetadataStatusRow(message));
-  };
-
   try {
-    tableConfigs.forEach(({ element }) => {
-      if (element) {
-        element.innerHTML = '';
-      }
-    });
-
-    // Recalculate table cells using the latest aggregation summaries.
-    const refreshTableValues = ({ targetSubId = '', targetAppId = '' } = {}) => {
-      // eslint-disable-next-line no-console
-      console.log('refreshTableValues');
-
-      const normalizedTargetSubId = String(targetSubId || '');
-      const normalizedTargetAppId = String(targetAppId || '');
-
-      tableConfigs.forEach(({ namespace, element }) => {
-        element?.querySelectorAll('tr').forEach((row) => {
-          const rowSubId = String(row.dataset.subId || '');
-          const rowAppId = String(row.dataset.appId || '');
-
-          if (normalizedTargetSubId && rowSubId !== normalizedTargetSubId) {
-            return;
-          }
-
-          if (normalizedTargetAppId && rowAppId !== normalizedTargetAppId) {
-            return;
-          }
-
-          row.querySelectorAll('[data-value-window]').forEach((target) => {
-            const lookbackWindow = Number(target.dataset.valueWindow);
-
-            calculateMetadataTableValue({
-              subId: rowSubId,
-              appId: rowAppId,
-              namespace,
-              lookbackWindow,
-              valueTarget: target,
-            });
-          });
-        });
-      });
-    };
-
-    // Refresh aggregation and seven-day columns across all metadata tables.
-    const refreshAllTables = (targetAppContext = {}) => {
-      const { appId: targetAppId = '', subId: targetSubId = '' } = targetAppContext;
-
-      refreshTableValues({ targetAppId, targetSubId });
-    };
-
     const cachedSelections = getAppSelections();
     const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
     let appsForMetadata = [];
 
     if (selectedApps.length) {
       selectedApps.forEach((app) => {
-        appendToAllTables((namespace) => {
+        METADATA_NAMESPACES.forEach((namespace) => {
           recordTableDataRow({
-            subId: app?.subId,
-            appId: app?.appId,
-            appName: app?.appName,
-            namespace,
-          });
-
-          return createMetadataRow({
             subId: app?.subId,
             appId: app?.appId,
             appName: app?.appName,
@@ -411,25 +374,27 @@ const renderMetadataTables = async (tableConfigs) => {
           });
         });
       });
+      renderTablesFromData();
       appsForMetadata = selectedApps;
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
       await runMetadataQueue((payload) => {
         processAggregation(payload);
         processAPI();
-        refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW);
       return;
     }
 
     if (cachedSelections.length) {
-      appendToAllTables(() => createMetadataStatusRow('No apps selected for metadata tables.'));
+      addStatusRowForAllTables('No apps selected for metadata tables.');
+      renderTablesFromData();
       return;
     }
 
     const credentialResults = await app_names();
 
     if (!credentialResults.length) {
-      appendToAllTables(() => createMetadataStatusRow('No credentials available for app discovery.'));
+      addStatusRowForAllTables('No credentials available for app discovery.');
+      renderTablesFromData();
       return;
     }
 
@@ -438,27 +403,18 @@ const renderMetadataTables = async (tableConfigs) => {
 
       if (result?.errorType || !Array.isArray(result?.results)) {
         const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
-        appendToAllTables(() => createMetadataStatusRow(
-          `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
-        ));
+        addStatusRowForAllTables(`Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`);
         return;
       }
 
       if (!result.results.length) {
-        appendToAllTables(() => createMetadataStatusRow('No apps returned for SubID.', 6, subId));
+        addStatusRowForAllTables('No apps returned for SubID.', 6, subId);
         return;
       }
 
       result.results.forEach((app) => {
-        appendToAllTables((namespace) => {
+        METADATA_NAMESPACES.forEach((namespace) => {
           recordTableDataRow({
-            subId,
-            appId: app?.appId,
-            appName: app?.appName,
-            namespace,
-          });
-
-          return createMetadataRow({
             subId,
             appId: app?.appId,
             appName: app?.appName,
@@ -473,18 +429,20 @@ const renderMetadataTables = async (tableConfigs) => {
       });
     });
 
+    renderTablesFromData();
+
     if (appsForMetadata.length) {
       await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
       await runMetadataQueue((payload) => {
         processAggregation(payload);
         processAPI();
-        refreshAllTables(payload?.app);
       }, DEFAULT_LOOKBACK_WINDOW);
     }
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('[renderMetadataTables] Unable to load metadata tables.', error);
-    appendErrorRow('Unable to load metadata tables. Please try again.');
+    addStatusRowForAllTables('Unable to load metadata tables. Please try again.');
+    renderTablesFromData();
   }
 };
 
