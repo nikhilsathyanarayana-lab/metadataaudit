@@ -12,7 +12,7 @@ import { getAppSelections } from './2.js';
 const METADATA_TABLE_WINDOWS = [7, 30, 180];
 export const tableData = [];
 
-// Log seven-day namespace summaries for each processed SubID/AppID pair.
+// Log 7-day namespace summaries for each processed SubID/AppID pair.
 const processAPI = () => {
   const aggregations = getMetadataAggregations();
 
@@ -28,8 +28,8 @@ const processAPI = () => {
     }
 
     Object.entries(apps).forEach(([appId, appBucket]) => {
-      const sevenDayWindow = appBucket?.windows?.['7'] || appBucket?.windows?.[7];
-      const namespaces = sevenDayWindow?.namespaces;
+      const window7Bucket = appBucket?.windows?.['7'] || appBucket?.windows?.[7];
+      const namespaces = window7Bucket?.namespaces;
 
       if (!namespaces || typeof namespaces !== 'object') {
         return;
@@ -45,7 +45,7 @@ const processAPI = () => {
       }, {});
 
       // eslint-disable-next-line no-console
-      console.log('[processAPI] seven-day namespaces', {
+      console.log('[processAPI] 7-day namespaces', {
         subId,
         appId,
         namespaces: namespaceFields,
@@ -69,9 +69,9 @@ const populateTables = () => {
           appName: app?.appName || app?.appId || 'Unknown app',
           appId: app?.appId || '',
           namespace,
-          sevenDay: 'Pending...',
-          thirtyDay: 'Pending...',
-          oneEightyDay: 'Pending...',
+          window7: 'Pending...',
+          window30: 'Pending...',
+          window180: 'Pending...',
         });
       });
     });
@@ -264,9 +264,9 @@ const renderMetadataTables = async (tableConfigs) => {
       appName: appName || appId || 'Unknown app',
       appId: appId || '',
       namespace: namespace || '',
-      sevenDay: 'Pending...',
-      thirtyDay: 'Pending...',
-      oneEightyDay: 'Pending...',
+      window7: 'Pending...',
+      window30: 'Pending...',
+      window180: 'Pending...',
     });
   };
 
