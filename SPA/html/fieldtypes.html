@@ -19,7 +19,24 @@
 
     <div class="modal-body" id="fieldtypes-modal-body">
       <p class="section-hint" id="fieldtypes-modal-hint">Fields load automatically after metadata completes. Use this list to confirm the values you expect to see.</p>
-      <ul class="metadata-tree__values" id="fieldtypes-list" aria-live="polite" aria-label="Expected field names"></ul>
+      <div class="fieldtypes-table" role="table" aria-label="Expected metadata field types">
+        <div class="fieldtypes-row fieldtypes-row--header" role="row">
+          <span class="fieldtypes-cell fieldtypes-cell--label" role="columnheader">Metadata field</span>
+          <span class="fieldtypes-cell" role="columnheader">Text</span>
+          <span class="fieldtypes-cell" role="columnheader">Num</span>
+          <span class="fieldtypes-cell" role="columnheader">Boolean</span>
+          <span class="fieldtypes-cell" role="columnheader">Email</span>
+          <span class="fieldtypes-cell" role="columnheader">Regex</span>
+          <span class="fieldtypes-cell" role="columnheader">Button</span>
+        </div>
+        <ul
+          class="metadata-tree__values fieldtypes-list"
+          id="fieldtypes-list"
+          aria-live="polite"
+          aria-label="Expected field names"
+          role="rowgroup"
+        ></ul>
+      </div>
     </div>
 
     <div class="modal-actions" id="fieldtypes-modal-actions">
