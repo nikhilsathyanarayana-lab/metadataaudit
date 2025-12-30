@@ -40,7 +40,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/SPA/html/SPA.html`.
 - **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views. SPA state should stay in memory (for example, module-level variables) instead of relying on browser storage.
 - **Outputs**: Unified XLSX exports along with in-browser tables aligned to SPA view definitions.
-- **Exports**: View 4 embeds `SPA/pdf/pdf1.html` in an iframe for export previews (with Chart.js loaded from CDN for chart-ready layouts), and view 5 reserves the Excel export workspace.
+- **Exports**: View 4 embeds `SPA/pdf/pdf1.html` in an iframe for export previews (now rendering a sample Chart.js doughnut chart with CDN assets), and view 5 reserves the Excel export workspace.
 - **Navigation gating**: The export SPA buttons (views 4 and 5) stay disabled until the metadata scan on view 3 finishes.
 - **Metadata refresh**: Returning to view 3 after adjusting app selections on view 2 rebuilds the metadata tables so removed or newly selected apps stay in sync.
 - **Troubleshooting**: See `SPA/docs/spa.md` for navigation, caching rules, and common queue or progress-banner edge cases.
