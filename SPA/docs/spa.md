@@ -26,5 +26,5 @@
 - Metadata queues run through `SPA/API/metadata.js`, which builds call plans, sequences 7/23/150-day runs, and exposes console controls for print/inspect/rebuild/run. Queue executions respect window order so all 7-day calls finish before 23- or 150-day calls start.
 
 ## Console helpers
-- **`window.tableData`**: Mirrors SPA view 3 rows with `{ subId, appName, appId, namespace, sevenDay, thirtyDay, oneEightyDay }` objects so the rendered table state can be inspected or reused without DOM traversal.
+- **`window.tableData`**: Mirrors SPA view 3 rows with `{ subId, appName, appId, namespace, window7, window30, window180 }` objects so the rendered table state can be inspected or reused without DOM traversal.
 - **`window.metadataQueue`**: Queues 7/23/150-day metadata aggregation calls for each SubID + App ID pair. `print()` logs queued pairs, `rebuild()` re-queues the current page selections, `inspect()` surfaces queue entries, `size()` reports the queue length, and `run(limit)` executes queued calls while logging each aggregation through `processAggregation()`.

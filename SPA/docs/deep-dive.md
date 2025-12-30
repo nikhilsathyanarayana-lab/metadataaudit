@@ -26,7 +26,7 @@
 - **`window.deepDiveData`**: Loaded on `deep_dive.html` during bootstrap to expose cached selections and metadata lookups from `sessionStorage` keys (`appSelectionResponses`, `metadataFieldRecords`, `deepDiveMetaEvents`).
 - **`window.metadata_visitors`**: Filled after `collectDeepDiveMetadataFields()` processes visitor metadata responses. Returns arrays such as `{ subId, apps: [{ appId, metadataFields: [{ field, values: [{ value, count }] }] }] }`.
 - **`window.metadata_accounts`**: Filled after account metadata aggregations, returning rows `{ subId, appId, field, value, count }` for XLSX/JSON exports.
-- **`window.tableData`** (legacy): Mirrors metadata table rows with `{ subId, appName, appId, namespace, sevenDay, thirtyDay, oneEightyDay }` entries.
+- **`window.tableData`** (legacy): Mirrors metadata table rows with `{ subId, appName, appId, namespace, window7, window30, window180 }` entries.
 - **`window.metadataQueue`** (legacy): Builds 7/23/150-day metadata aggregation queues for each SubID + App ID pair on the page. `print()`, `rebuild()`, `inspect()`, `size()`, and `run(limit)` mirror the SPA queue helpers.
 - **`window.metadata_api_calls`**: Tracks Deep Dive request lifecycle while metadata responses stream in.
 - **`window.metadata_pending_api_calls`**: Captures pending call entries `{ appId, subId, status, queuedAt, startedAt, completedAt, error }` for queue monitoring.
