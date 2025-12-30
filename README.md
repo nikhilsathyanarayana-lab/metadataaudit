@@ -40,6 +40,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **How to run**: Serve the repo root (for example, `php -S localhost:8000`) and open `http://localhost:8000/SPA/html/SPA.html`.
 - **Inputs**: Integration key with read access plus SubID and domain, entered once and reused without `sessionStorage`/`localStorage` handoffs between views.
 - **Outputs**: Unified exports to PDF or XLSX, along with in-browser tables aligned to SPA view definitions.
+- **Subscriptions view**: Shows each SubID alongside an "Apps Scanned X out of Y" progress summary built from the metadata aggregation cache and the metadata table rows.
 - **Troubleshooting**: See `SPA/docs/spa.md` for navigation, caching rules, and common queue or progress-banner edge cases.
 
 ### Deep Dive (shared diagnostics)

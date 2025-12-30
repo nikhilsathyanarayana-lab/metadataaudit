@@ -3,12 +3,13 @@
     <div class="card-header" id="subscriptions-card-header">
       <div class="form-intro" id="subscriptions-form-intro">
         <h2 class="section-title" id="subscriptions-section-title">Subscriptions</h2>
-        <p class="section-hint" id="subscriptions-section-hint">Chart placeholder styled for the upcoming subscription insights.</p>
+        <p class="section-subtitle" id="subscriptions-section-subtitle">Subscription Details</p>
+        <p class="section-hint" id="subscriptions-section-hint">Number of apps scanned per sub</p>
       </div>
     </div>
 
-    <div class="chart-shell" id="subscriptions-chart-shell">
-      <canvas id="subscriptions-chart-canvas" class="chart-canvas" role="img" aria-label="Subscriptions chart canvas"></canvas>
+    <div class="subscription-summary" id="subscriptions-summary" aria-live="polite">
+      <p class="empty-state" id="subscriptions-empty-state">Waiting for subscription data.</p>
     </div>
   </section>
 </div>
