@@ -12,6 +12,7 @@ const METADATA_TABLE_WINDOWS = ['window7', 'window30', 'window180'];
 export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
+let fieldTypesModalBound = false;
 
 // Return the window bucket for a specific lookback.
 const getWindowBucket = (appBucket, lookbackWindow) => {
@@ -107,6 +108,7 @@ const processAPI = () => {
   });
 
   renderTablesFromData();
+  updateFieldTypesModal();
 };
 
 // Populate an early tableData snapshot and log selected apps for debugging.
@@ -148,6 +150,147 @@ const registerTableDataGlobal = () => {
 };
 
 registerTableDataGlobal();
+
+// Build a unique, sorted list of field names from 180-day window results.
+const getUniqueWindow180Fields = () => {
+  const fieldNames = new Set();
+
+  tableData.forEach((entry) => {
+    if (!Array.isArray(entry?.window180)) {
+      return;
+    }
+
+    entry.window180.forEach((fieldName) => {
+      if (typeof fieldName === 'string' && fieldName.trim()) {
+        fieldNames.add(fieldName);
+      }
+    });
+  });
+
+  return [...fieldNames].sort((first, second) => first.localeCompare(second));
+};
+
+// Grab modal, backdrop, and list nodes for the expected values modal.
+const getFieldTypesModalElements = () => {
+  return {
+    modal: document.getElementById('fieldtypes-modal'),
+    backdrop: document.getElementById('fieldtypes-backdrop'),
+    list: document.getElementById('fieldtypes-list'),
+  };
+};
+
+// Fetch and inject the expected values modal template when needed.
+const loadFieldTypesModal = async () => {
+  const existingElements = getFieldTypesModalElements();
+
+  if (existingElements.modal && existingElements.backdrop) {
+    return existingElements;
+  }
+
+  const modalUrl = new URL('../html/fieldtypes.html', import.meta.url);
+  const response = await fetch(modalUrl, { cache: 'no-cache' });
+
+  if (!response.ok) {
+    throw new Error('Unable to load expected values modal.');
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = (await response.text()).trim();
+  document.body.appendChild(template.content);
+
+  return getFieldTypesModalElements();
+};
+
+// Render the list of window180 fields inside the expected values modal.
+const renderFieldTypesList = () => {
+  const { list } = getFieldTypesModalElements();
+
+  if (!list) {
+    return;
+  }
+
+  const uniqueFields = getUniqueWindow180Fields();
+  list.innerHTML = '';
+
+  if (!uniqueFields.length) {
+    const emptyItem = document.createElement('li');
+    emptyItem.className = 'metadata-tree__value';
+    emptyItem.textContent = 'No fields available yet. Run metadata to populate this list.';
+    list.appendChild(emptyItem);
+    return;
+  }
+
+  const listFragment = document.createDocumentFragment();
+  uniqueFields.forEach((fieldName) => {
+    const listItem = document.createElement('li');
+    listItem.className = 'metadata-tree__value';
+    listItem.textContent = fieldName;
+    listFragment.appendChild(listItem);
+  });
+
+  list.appendChild(listFragment);
+};
+
+// Hide the expected values modal and backdrop.
+const closeFieldTypesModal = () => {
+  const { modal, backdrop } = getFieldTypesModalElements();
+
+  if (!modal || !backdrop) {
+    return;
+  }
+
+  modal.classList.remove('is-visible');
+  backdrop.classList.remove('is-visible');
+  modal.hidden = true;
+  backdrop.hidden = true;
+};
+
+// Attach close handlers once the expected values modal loads.
+const bindFieldTypesModalHandlers = () => {
+  const { modal, backdrop } = getFieldTypesModalElements();
+
+  if (!modal || !backdrop) {
+    return;
+  }
+
+  const closeButtons = modal.querySelectorAll('[data-close-fieldtypes-modal]');
+  closeButtons.forEach((button) => {
+    button.addEventListener('click', () => closeFieldTypesModal());
+  });
+
+  backdrop.addEventListener('click', () => closeFieldTypesModal());
+  fieldTypesModalBound = true;
+};
+
+// Show the expected values modal with the latest field list.
+const openFieldTypesModal = async () => {
+  try {
+    const elements = await loadFieldTypesModal();
+
+    if (!fieldTypesModalBound) {
+      bindFieldTypesModalHandlers();
+    }
+
+    renderFieldTypesList();
+
+    elements.modal.hidden = false;
+    elements.backdrop.hidden = false;
+    elements.modal.classList.add('is-visible');
+    elements.backdrop.classList.add('is-visible');
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Unable to open expected values modal.', error);
+  }
+};
+
+// Refresh the expected values modal if it already exists.
+const updateFieldTypesModal = () => {
+  if (!getFieldTypesModalElements().modal) {
+    return;
+  }
+
+  renderFieldTypesList();
+};
 
 // Convert table cell values from cached table data into readable text.
 const formatTableDataValue = (value) => {
@@ -368,6 +511,12 @@ export async function initSection(sectionRoot) {
 
   if (!tableConfigs.length) {
     return;
+  }
+
+  const expectedValuesButton = sectionRoot.querySelector('#expected-values-button');
+
+  if (expectedValuesButton) {
+    expectedValuesButton.addEventListener('click', () => openFieldTypesModal());
   }
 
   await renderMetadataTables(tableConfigs);
