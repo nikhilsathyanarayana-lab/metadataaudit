@@ -102,7 +102,7 @@ export async function initSection(sectionRoot) {
     return;
   }
 
-  const summaryContainer = sectionRoot.querySelector('#subscriptions-summary');
+  const summaryContainer = sectionRoot.querySelector('#pdf-export-summary');
   renderSubscriptionSummary(summaryContainer);
 }
 
@@ -112,6 +112,6 @@ export async function onShow(sectionRoot) {
     return;
   }
 
-  const summaryContainer = sectionRoot.querySelector('#subscriptions-summary');
+  const summaryContainer = sectionRoot.querySelector('#pdf-export-summary');
   renderSubscriptionSummary(summaryContainer);
 }
