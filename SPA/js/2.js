@@ -5,10 +5,9 @@ let appSelections = [];
 // Persist the latest app selection snapshot for reuse across SPA views.
 export const setAppSelections = (entries = []) => {
   appSelections = entries
-    .filter((entry) => entry && (entry.subId || entry.appId || entry.appName || entry.subName))
+    .filter((entry) => entry && (entry.subId || entry.appId || entry.appName))
     .map((entry) => ({
       subId: entry.subId || '',
-      subName: entry.subName || '',
       appId: entry.appId || '',
       appName: entry.appName || '',
       isSelected: Boolean(entry.isSelected),
@@ -19,7 +18,7 @@ export const setAppSelections = (entries = []) => {
 export const getAppSelections = () => [...appSelections];
 
 // Build a single row summarizing status or errors across columns.
-const createStatusRow = (message, columnCount = 5, subId = '') => {
+const createStatusRow = (message, columnCount = 4, subId = '') => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
   cell.colSpan = columnCount;
@@ -29,14 +28,11 @@ const createStatusRow = (message, columnCount = 5, subId = '') => {
 };
 
 // Build a selectable app entry row for the preview table.
-const createAppRow = ({ subId, subName, appId, appName }) => {
+const createAppRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
 
   const subIdCell = document.createElement('td');
   subIdCell.textContent = subId || 'Unknown SubID';
-
-  const subNameCell = document.createElement('td');
-  subNameCell.textContent = subName || 'Unknown Sub Name';
 
   const nameCell = document.createElement('td');
   nameCell.textContent = appName || appId || 'Unknown app';
@@ -50,20 +46,19 @@ const createAppRow = ({ subId, subName, appId, appName }) => {
   checkbox.type = 'checkbox';
   checkbox.disabled = true;
   checkbox.dataset.subId = subId || '';
-  checkbox.dataset.subName = subName || '';
   checkbox.dataset.appId = appId || '';
   checkbox.dataset.appName = appName || appId || '';
   checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subId || 'unknown SubID'}`);
   checkboxCell.appendChild(checkbox);
 
-  row.append(subIdCell, subNameCell, nameCell, appIdCell, checkboxCell);
+  row.append(subIdCell, nameCell, appIdCell, checkboxCell);
   return row;
 };
 
 // Determine how many columns the app table has.
 const getColumnCount = (tableBody) => {
   const headerCells = tableBody?.closest('table')?.querySelectorAll('thead th');
-  return headerCells?.length || 5;
+  return headerCells?.length || 4;
 };
 
 // Populate the preview table with apps for each credential.
@@ -98,7 +93,6 @@ const renderAppTable = async (tableBody) => {
     result.results.forEach((app) => {
       tableBody.appendChild(createAppRow({
         subId,
-        subName: app?.subName,
         appId: app?.appId,
         appName: app?.appName,
       }));
@@ -112,7 +106,6 @@ const applySavedSelections = (tableCheckboxes, savedSelections = []) => {
 
   const findMatchingSelection = (checkbox) => savedSelections.find(
     (entry) => entry.subId === checkbox.dataset.subId
-      && entry.subName === checkbox.dataset.subName
       && entry.appId === checkbox.dataset.appId
       && entry.appName === checkbox.dataset.appName,
   );
@@ -135,7 +128,6 @@ const applySavedSelections = (tableCheckboxes, savedSelections = []) => {
 // Capture the current selection state for persistence between renders.
 const buildSelectionSnapshot = (tableCheckboxes) => Array.from(tableCheckboxes).map((checkbox) => ({
   subId: checkbox.dataset.subId || '',
-  subName: checkbox.dataset.subName || '',
   appId: checkbox.dataset.appId || '',
   appName: checkbox.dataset.appName || '',
   isSelected: Boolean(checkbox.checked),
