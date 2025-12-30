@@ -44,6 +44,7 @@ Metadata Audit is a static web application that helps Pendo teams validate subsc
 - **Metadata refresh**: Returning to view 3 after adjusting app selections on view 2 rebuilds the metadata tables so removed or newly selected apps stay in sync.
 - **PDF export view**: Presents a PDF export summary with per-SubID scan counts on the first preview page and an Overview heading above the list; the header text on this view stays out of the generated PDF while the summary content carries over.
 - **PDF workspace**: View 4 includes a dedicated workspace container with page-sized previews so future export content can be staged without iframes.
+- **PDF styling**: The export preview pulls styles from `SPA/pdf.css`, which loads Inter and Sora from Google Fonts and applies the Pendo pink palette (hex `#ff4876` with a deeper `#de5083` accent) across headings while omitting the yellow brand swatch.
 - **Troubleshooting**: See `SPA/docs/spa.md` for navigation, caching rules, and common queue or progress-banner edge cases.
 
 ### Deep Dive (shared diagnostics)
