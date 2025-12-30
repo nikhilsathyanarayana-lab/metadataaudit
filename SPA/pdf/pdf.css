@@ -1,13 +1,69 @@
-/* PDF export styling for SPA content */
-body {
-  margin: 0;
-  padding: 48px 32px 32px;
-  font-family: 'Helvetica Neue', Arial, sans-serif;
+:root {
+  --pendo-pink: #e0006c;
+  --pendo-charcoal: #3d3d3d;
+  --pendo-light: #f9f6f8;
 }
 
-.pdf-title {
-  font-size: 72pt;
-  line-height: 1.05;
-  text-align: center;
-  margin: 0 0 24px;
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2rem;
+  display: flex;
+  justify-content: center;
+  background: radial-gradient(circle at top left, #ffffff, var(--pendo-light));
+  color: var(--pendo-charcoal);
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+}
+
+main {
+  width: min(960px, 100%);
+  background: #fff;
+  border: 1px solid rgba(224, 0, 108, 0.1);
+  border-radius: 18px;
+  padding: 2rem;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  margin-top: 0;
+  color: var(--pendo-pink);
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+}
+
+h2 {
+  margin-bottom: 0.35rem;
+}
+
+p {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+a {
+  color: var(--pendo-pink);
+}
+
+a:hover {
+  color: #b00053;
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.callout {
+  margin: 1.5rem 0;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  border: 1px solid rgba(224, 0, 108, 0.12);
+  background: #fff7fb;
 }
