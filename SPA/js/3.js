@@ -8,12 +8,7 @@ import {
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 
-const METADATA_TABLE_WINDOWS = [7, 30, 180];
-const TABLE_VALUE_KEYS = {
-  7: 'window7',
-  30: 'window30',
-  180: 'window180',
-};
+const METADATA_TABLE_WINDOWS = ['window7', 'window30', 'window180'];
 export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
@@ -170,19 +165,6 @@ const formatTableDataValue = (value) => {
   return value || pendingText;
 };
 
-// Return the table data record matching a specific SubID/AppID/namespace.
-const findTableDataEntry = ({ subId, appId, namespace }) => {
-  const normalizedSubId = String(subId || '');
-  const normalizedAppId = String(appId || '');
-  const normalizedNamespace = String(namespace || '');
-
-  return tableData.find((entry) => (
-    String(entry?.subId || '') === normalizedSubId
-    && String(entry?.appId || '') === normalizedAppId
-    && String(entry?.namespace || '') === normalizedNamespace
-  ));
-};
-
 // Read metadata aggregations from the browser when available.
 const getMetadataAggregations = () => {
   return typeof window !== 'undefined'
@@ -190,113 +172,35 @@ const getMetadataAggregations = () => {
     : {};
 };
 
-// Stamp the lookback cell for a specific SubID/AppID/namespace row.
-export const calculateMetadataTableValue = ({
-  subId,
-  appId,
-  namespace,
-  lookbackWindow = 7,
-  valueTarget,
-}) => {
-  // eslint-disable-next-line no-console
-  console.log('calculateMetadataTableValue');
-
-  if (typeof document === 'undefined' || !subId || !appId || !namespace) {
-    return;
-  }
-
-  const targetNamespace = String(namespace);
-  const targetSubId = String(subId);
-  const targetAppId = String(appId);
-  const valueKey = TABLE_VALUE_KEYS[lookbackWindow];
-  const tableEntry = valueKey ? findTableDataEntry({ subId: targetSubId, appId: targetAppId, namespace }) : null;
-
-  if (!valueKey || !tableEntry) {
-    return;
-  }
-
-  const tableValue = formatTableDataValue(tableEntry[valueKey]);
-
-  const applyFieldNames = (target) => {
-    if (
-      target.dataset.namespace === targetNamespace
-      && target.dataset.subId === targetSubId
-      && target.dataset.appId === targetAppId
-    ) {
-      target.textContent = tableValue;
-    }
+// Build a metadata row string showing SubID, app details, and lookback values.
+const buildMetadataRowMarkup = ({ subId, appId, appName, window7, window30, window180 }) => {
+  const valueLookup = {
+    window7,
+    window30,
+    window180,
   };
 
-  if (valueTarget) {
-    applyFieldNames(valueTarget);
-    return;
-  }
+  const lookbackCells = METADATA_TABLE_WINDOWS
+    .map((key) => `<td>${formatTableDataValue(valueLookup[key])}</td>`)
+    .join('');
 
-  const targets = document.querySelectorAll(`[data-value-window="${lookbackWindow}"]`);
-
-  targets.forEach((target) => {
-    applyFieldNames(target);
-  });
+  return [
+    '<tr>',
+    `<td>${subId || 'Unknown SubID'}</td>`,
+    `<td>${appName || appId || 'Unknown app'}</td>`,
+    `<td>${appId || ''}</td>`,
+    lookbackCells,
+    '</tr>',
+  ].join('');
 };
 
-// Build a metadata row showing SubID and app details for each table.
-const createMetadataRow = ({ subId, appId, appName, namespace }) => {
-  const row = document.createElement('tr');
-  row.dataset.subId = subId || '';
-  row.dataset.appId = appId || '';
-  row.dataset.namespace = namespace || '';
-
-  // Build a single table cell with supplied text.
-  const buildCell = (text = '') => {
-    const cell = document.createElement('td');
-    cell.textContent = text;
-    return cell;
-  };
-
-  row.append(
-    buildCell(subId || 'Unknown SubID'),
-    buildCell(appName || appId || 'Unknown app'),
-    buildCell(appId || ''),
-  );
-
-  const buildValueCell = (lookbackWindow) => {
-    const valueCell = document.createElement('td');
-    valueCell.dataset.window = lookbackWindow;
-
-    const valueTarget = document.createElement('span');
-    valueTarget.dataset.valueWindow = lookbackWindow;
-    valueTarget.dataset.subId = subId || '';
-    valueTarget.dataset.appId = appId || '';
-    valueTarget.dataset.namespace = namespace || '';
-    const valueKey = TABLE_VALUE_KEYS[lookbackWindow];
-    const tableEntry = valueKey
-      ? findTableDataEntry({ subId, appId, namespace })
-      : null;
-    valueTarget.textContent = formatTableDataValue(tableEntry?.[valueKey]);
-
-    valueCell.appendChild(valueTarget);
-
-    return valueCell;
-  };
-
-  METADATA_TABLE_WINDOWS.forEach((lookbackWindow) => {
-    row.appendChild(buildValueCell(lookbackWindow));
-  });
-
-  return row;
-};
-
-// Build a status row spanning the metadata table columns.
+// Build a status row string spanning the metadata table columns.
 const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
   // eslint-disable-next-line no-console
   console.log('createMetadataStatusRow');
 
-  const row = document.createElement('tr');
-  const cell = document.createElement('td');
-  cell.colSpan = columnCount;
-  cell.textContent = subId ? `${message} (${subId})` : message;
-  row.appendChild(cell);
-  return row;
+  const statusText = subId ? `${message} (${subId})` : message;
+  return `<tr><td colspan="${columnCount}">${statusText}</td></tr>`;
 };
 
 // Append shared status rows across all metadata tables.
@@ -310,26 +214,26 @@ const renderTablesFromData = () => {
     return;
   }
 
+  const statusMarkup = tableStatusRows
+    .map(({ message, columnCount, subId }) => createMetadataStatusRow(message, columnCount, subId))
+    .join('');
+
   activeTableConfigs.forEach(({ namespace, element }) => {
     if (!element) {
       return;
     }
 
-    element.innerHTML = '';
     const rowsForNamespace = tableData.filter((entry) => entry?.namespace === namespace);
+    const rowMarkup = rowsForNamespace
+      .map((rowData) => buildMetadataRowMarkup(rowData))
+      .join('');
 
-    if (!rowsForNamespace.length && !tableStatusRows.length) {
-      element.appendChild(createMetadataStatusRow('No metadata rows available.'));
+    if (!rowMarkup && !statusMarkup) {
+      element.innerHTML = createMetadataStatusRow('No metadata rows available.');
       return;
     }
 
-    rowsForNamespace.forEach((rowData) => {
-      element.appendChild(createMetadataRow(rowData));
-    });
-
-    tableStatusRows.forEach(({ message, columnCount, subId }) => {
-      element.appendChild(createMetadataStatusRow(message, columnCount, subId));
-    });
+    element.innerHTML = `${rowMarkup}${statusMarkup}`;
   });
 };
 
