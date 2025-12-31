@@ -104,32 +104,6 @@ const renderSubscriptionTable = () => {
   });
 };
 
-// Wait for metadata aggregations to populate before rendering the subscription table.
-const waitForMetadataAggregations = (onReady) => {
-  if (typeof onReady !== 'function') {
-    return;
-  }
-
-  let attempts = 0;
-  const maxAttempts = 40;
-  const pollIntervalMs = 250;
-
-  const checkAndRender = () => {
-    attempts += 1;
-
-    if (hasMetadataAggregations()) {
-      clearInterval(timerId);
-      onReady();
-    } else if (attempts >= maxAttempts) {
-      clearInterval(timerId);
-      console.warn('metadataAggregations not available; skipping subscription table render');
-    }
-  };
-
-  const timerId = setInterval(checkAndRender, pollIntervalMs);
-  checkAndRender();
-};
-
 // Count how many SubID slices are represented in the donut dataset.
 const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
   const count = Array.isArray(dataset) ? dataset.length : 0;
@@ -179,8 +153,6 @@ if (typeof document !== 'undefined') {
   const renderPdfPreview = () => {
     if (hasMetadataAggregations()) {
       renderSubscriptionTable();
-    } else {
-      waitForMetadataAggregations(renderSubscriptionTable);
     }
 
     renderPdfCharts();
