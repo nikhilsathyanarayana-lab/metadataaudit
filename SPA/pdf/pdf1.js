@@ -55,8 +55,15 @@ const subBarConfig = {
   }
 };
 
+// Confirm whether cached metadata aggregations are available on the window.
+const hasMetadataAggregations = () => (
+  typeof window !== 'undefined'
+    && window.metadataAggregations
+    && typeof window.metadataAggregations === 'object'
+);
+
 // Collect SubIDs from the cached metadata aggregations.
-const getSubscriptionIds = (aggregations = (typeof window !== 'undefined' && window.metadataAggregations)) => {
+const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
     return [];
   }
@@ -95,6 +102,32 @@ const renderSubscriptionTable = () => {
     row.append(labelCell, countCell);
     tableBody.appendChild(row);
   });
+};
+
+// Wait for metadata aggregations to populate before rendering the subscription table.
+const waitForMetadataAggregations = (onReady) => {
+  if (typeof onReady !== 'function') {
+    return;
+  }
+
+  let attempts = 0;
+  const maxAttempts = 40;
+  const pollIntervalMs = 250;
+
+  const checkAndRender = () => {
+    attempts += 1;
+
+    if (hasMetadataAggregations()) {
+      clearInterval(timerId);
+      onReady();
+    } else if (attempts >= maxAttempts) {
+      clearInterval(timerId);
+      console.warn('metadataAggregations not available; skipping subscription table render');
+    }
+  };
+
+  const timerId = setInterval(checkAndRender, pollIntervalMs);
+  checkAndRender();
 };
 
 // Count how many SubID slices are represented in the donut dataset.
@@ -144,7 +177,12 @@ const renderPdfCharts = () => {
 
 if (typeof document !== 'undefined') {
   const renderPdfPreview = () => {
-    renderSubscriptionTable();
+    if (hasMetadataAggregations()) {
+      renderSubscriptionTable();
+    } else {
+      waitForMetadataAggregations(renderSubscriptionTable);
+    }
+
     renderPdfCharts();
   };
 
