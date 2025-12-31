@@ -16,6 +16,14 @@ export async function initSection(sectionElement) {
   const previewFrame = sectionElement?.querySelector('#export-preview-frame');
   const prevButton = sectionElement?.querySelector('#export-nav-prev');
   const nextButton = sectionElement?.querySelector('#export-nav-next');
+  // Send updated metadata aggregations to the export preview iframe.
+  const postMetadataToPreview = () => {
+    if (!previewFrame?.contentWindow || typeof window === 'undefined' || !window.metadataAggregations) {
+      return;
+    }
+
+    previewFrame.contentWindow.postMessage({ type: 'metadataAggregations', payload: window.metadataAggregations }, '*');
+  };
 
   if (!previewFrame || !prevButton || !nextButton) {
     return;
@@ -27,6 +35,39 @@ export async function initSection(sectionElement) {
   if (startingIndex >= 0) {
     currentSourceIndex = startingIndex;
   }
+
+  if (typeof window !== 'undefined') {
+    let metadataAggregationsCache = window.metadataAggregations;
+    let hasLoggedMetadataCache = false;
+
+    // Log when metadata aggregations become available in the cache.
+    const logMetadataCacheAvailable = () => {
+      if (hasLoggedMetadataCache || !metadataAggregationsCache) {
+        return;
+      }
+
+      console.log('metadataAggregationsCache available');
+      hasLoggedMetadataCache = true;
+    };
+
+    Object.defineProperty(window, 'metadataAggregations', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return metadataAggregationsCache;
+      },
+      set(value) {
+        metadataAggregationsCache = value;
+        logMetadataCacheAvailable();
+        postMetadataToPreview();
+      },
+    });
+
+    logMetadataCacheAvailable();
+    postMetadataToPreview();
+  }
+
+  previewFrame.addEventListener('load', postMetadataToPreview);
 
   prevButton.addEventListener('click', () => {
     setExportPreviewSource(previewFrame, currentSourceIndex - 1);

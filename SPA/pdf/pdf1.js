@@ -1,18 +1,20 @@
 // Use provided donut data when available, otherwise fall back to sample values.
-const subDonutData = (typeof window !== 'undefined' && window.subDonutData)
+const defaultSubDonutData = {
+  datasets: [{
+    label: 'SubID coverage',
+    data: [300, 50, 100],
+    backgroundColor: [
+      'rgb(255, 99, 132)',
+      'rgb(54, 162, 235)',
+      'rgb(255, 205, 86)'
+    ],
+    hoverOffset: 4
+  }]
+};
+
+let subDonutData = (typeof window !== 'undefined' && window.subDonutData)
   ? window.subDonutData
-  : {
-    datasets: [{
-      label: 'My First Dataset',
-      data: [300, 50, 100],
-      backgroundColor: [
-        'rgb(255, 99, 132)',
-        'rgb(54, 162, 235)',
-        'rgb(255, 205, 86)'
-      ],
-      hoverOffset: 4
-    }]
-  };
+  : defaultSubDonutData;
 
 const barLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
 
@@ -77,11 +79,15 @@ const renderSubscriptionTable = () => {
   const tableBody = document.getElementById('subscription-table-body');
   const subscriptionIds = getSubscriptionIds();
 
-  if (!tableBody || subscriptionIds.length === 0) {
+  if (!tableBody) {
     return;
   }
 
   tableBody.innerHTML = '';
+
+  if (subscriptionIds.length === 0) {
+    return;
+  }
 
   subscriptionIds.forEach((subId, index) => {
     const rowNumber = String(index + 1).padStart(2, '0');
@@ -128,6 +134,31 @@ const subDonutCenterText = {
 };
 
 // Render the chart preview when the PDF iframe is ready.
+let subDonutChart;
+let subBarChart;
+
+// Build a donut dataset using the discovered SubIDs in the metadata cache.
+const buildSubDonutData = (aggregations = window.metadataAggregations) => {
+  const subscriptionIds = getSubscriptionIds(aggregations);
+
+  if (!subscriptionIds.length) {
+    return defaultSubDonutData;
+  }
+
+  const palette = defaultSubDonutData?.datasets?.[0]?.backgroundColor || [];
+
+  return {
+    labels: subscriptionIds,
+    datasets: [{
+      label: 'SubID coverage',
+      data: subscriptionIds.map(() => 1),
+      backgroundColor: palette,
+      hoverOffset: 4
+    }]
+  };
+};
+
+// Render the chart preview when the PDF iframe is ready.
 const renderPdfCharts = () => {
   if (typeof Chart === 'undefined') {
     return;
@@ -140,23 +171,46 @@ const renderPdfCharts = () => {
     return;
   }
 
-  new Chart(subDonutCanvas, {
+  subDonutChart?.destroy();
+  subBarChart?.destroy();
+
+  subDonutChart = new Chart(subDonutCanvas, {
     type: 'doughnut',
     data: subDonutData,
     plugins: [subDonutCenterText]
   });
 
-  new Chart(subBarCanvas, subBarConfig);
+  subBarChart = new Chart(subBarCanvas, subBarConfig);
 };
 
 if (typeof document !== 'undefined') {
+  // Refresh the PDF view when metadata updates arrive from the parent window.
+  const handleMetadataMessage = (event) => {
+    const message = event?.data;
+
+    if (!message || message.type !== 'metadataAggregations') {
+      return;
+    }
+
+    window.metadataAggregations = message.payload || {};
+    subDonutData = buildSubDonutData(window.metadataAggregations);
+    window.subDonutData = subDonutData;
+
+    renderSubscriptionTable();
+    renderPdfCharts();
+  };
+
   const renderPdfPreview = () => {
     if (hasMetadataAggregations()) {
+      subDonutData = buildSubDonutData(window.metadataAggregations);
+      window.subDonutData = subDonutData;
       renderSubscriptionTable();
     }
 
     renderPdfCharts();
   };
+
+  window.addEventListener('message', handleMetadataMessage);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', renderPdfPreview);
