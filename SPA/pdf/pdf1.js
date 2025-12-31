@@ -177,6 +177,11 @@ const renderPdfCharts = () => {
   subDonutChart = new Chart(subDonutCanvas, {
     type: 'doughnut',
     data: subDonutData,
+    options: {
+      plugins: {
+        legend: { display: false }
+      }
+    },
     plugins: [subDonutCenterText]
   });
 
