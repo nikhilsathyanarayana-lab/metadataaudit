@@ -64,6 +64,38 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+// Count distinct and total app IDs for each SubID in the metadata cache.
+const countAppsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return {};
+  }
+
+  return Object.entries(aggregations).reduce((counts, [subId, details]) => {
+    if (!subId || !details || typeof details !== 'object') {
+      return counts;
+    }
+
+    const apps = details.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return counts;
+    }
+
+    const appIds = Array.isArray(apps)
+      ? apps.map((app) => app?.appId).filter(Boolean)
+      : Object.keys(apps);
+
+    const uniqueIds = new Set(appIds);
+
+    counts[subId] = {
+      distinct: uniqueIds.size,
+      total: Array.isArray(apps) ? apps.length : appIds.length,
+    };
+
+    return counts;
+  }, {});
+};
+
 // Collect SubIDs from the cached metadata aggregations.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -78,6 +110,7 @@ const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.
 const renderSubscriptionTable = () => {
   const tableBody = document.getElementById('subscription-table-body');
   const subscriptionIds = getSubscriptionIds();
+  const appCounts = countAppsBySubscription();
 
   if (!tableBody) {
     return;
@@ -103,7 +136,8 @@ const renderSubscriptionTable = () => {
     const countCell = document.createElement('td');
     countCell.id = `subscription-count-${rowNumber}`;
     countCell.className = 'subscription-count-cell';
-    countCell.textContent = '0 of 0';
+    const { distinct = 0, total = 0 } = appCounts[subId] || {};
+    countCell.textContent = `${distinct} of ${total}`;
 
     row.append(labelCell, countCell);
     tableBody.appendChild(row);
