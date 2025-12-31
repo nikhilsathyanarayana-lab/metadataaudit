@@ -133,7 +133,6 @@ const waitForMetadataAggregations = (onReady) => {
 // Count how many SubID slices are represented in the donut dataset.
 const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
   const count = Array.isArray(dataset) ? dataset.length : 0;
-  console.log(`Computed SubID slices: ${count}`);
   return count;
 };
 
