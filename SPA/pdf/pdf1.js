@@ -16,46 +16,38 @@ let subDonutData = (typeof window !== 'undefined' && window.subDonutData)
   ? window.subDonutData
   : defaultSubDonutData;
 
-const barLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
+const defaultBarBackgrounds = [
+  'rgba(255, 99, 132, 0.2)',
+  'rgba(255, 159, 64, 0.2)',
+  'rgba(255, 205, 86, 0.2)',
+  'rgba(75, 192, 192, 0.2)',
+  'rgba(54, 162, 235, 0.2)',
+  'rgba(153, 102, 255, 0.2)',
+  'rgba(201, 203, 207, 0.2)'
+];
 
-const subBarData = {
-  labels: barLabels,
+const defaultBarBorders = [
+  'rgb(255, 99, 132)',
+  'rgb(255, 159, 64)',
+  'rgb(255, 205, 86)',
+  'rgb(75, 192, 192)',
+  'rgb(54, 162, 235)',
+  'rgb(153, 102, 255)',
+  'rgb(201, 203, 207)'
+];
+
+const defaultSubBarData = {
+  labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
   datasets: [{
-    label: 'My First Dataset',
+    label: 'Apps scanned',
     data: [65, 59, 80, 81, 56, 55, 40],
-    backgroundColor: [
-      'rgba(255, 99, 132, 0.2)',
-      'rgba(255, 159, 64, 0.2)',
-      'rgba(255, 205, 86, 0.2)',
-      'rgba(75, 192, 192, 0.2)',
-      'rgba(54, 162, 235, 0.2)',
-      'rgba(153, 102, 255, 0.2)',
-      'rgba(201, 203, 207, 0.2)'
-    ],
-    borderColor: [
-      'rgb(255, 99, 132)',
-      'rgb(255, 159, 64)',
-      'rgb(255, 205, 86)',
-      'rgb(75, 192, 192)',
-      'rgb(54, 162, 235)',
-      'rgb(153, 102, 255)',
-      'rgb(201, 203, 207)'
-    ],
+    backgroundColor: defaultBarBackgrounds,
+    borderColor: defaultBarBorders,
     borderWidth: 1
   }]
 };
 
-const subBarConfig = {
-  type: 'bar',
-  data: subBarData,
-  options: {
-    scales: {
-      y: {
-        beginAtZero: true
-      }
-    }
-  }
-};
+let subBarData = defaultSubBarData;
 
 // Confirm whether cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -95,6 +87,43 @@ const countAppsBySubscription = (aggregations = (hasMetadataAggregations() && wi
     return counts;
   }, {});
 };
+
+// Build a bar dataset that lists app totals per SubID.
+const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  const appCounts = countAppsBySubscription(aggregations);
+  const subscriptionIds = Object.keys(appCounts || {});
+
+  if (!subscriptionIds.length) {
+    return defaultSubBarData;
+  }
+
+  const backgrounds = subscriptionIds.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]);
+  const borders = subscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]);
+
+  return {
+    labels: subscriptionIds,
+    datasets: [{
+      label: 'Apps scanned',
+      data: subscriptionIds.map((subId) => appCounts[subId]?.total || 0),
+      backgroundColor: backgrounds,
+      borderColor: borders,
+      borderWidth: 1
+    }]
+  };
+};
+
+// Create a Chart.js bar config that keeps the Y-axis anchored at zero.
+const createSubBarConfig = (data) => ({
+  type: 'bar',
+  data,
+  options: {
+    scales: {
+      y: {
+        beginAtZero: true
+      }
+    }
+  }
+});
 
 // Collect SubIDs from the cached metadata aggregations.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
@@ -219,6 +248,7 @@ const renderPdfCharts = () => {
     plugins: [subDonutCenterText]
   });
 
+  const subBarConfig = createSubBarConfig(subBarData);
   subBarChart = new Chart(subBarCanvas, subBarConfig);
 };
 
@@ -233,6 +263,7 @@ if (typeof document !== 'undefined') {
 
     window.metadataAggregations = message.payload || {};
     subDonutData = buildSubDonutData(window.metadataAggregations);
+    subBarData = buildSubBarData(window.metadataAggregations);
     window.subDonutData = subDonutData;
 
     renderSubscriptionTable();
@@ -242,6 +273,7 @@ if (typeof document !== 'undefined') {
   const renderPdfPreview = () => {
     if (hasMetadataAggregations()) {
       subDonutData = buildSubDonutData(window.metadataAggregations);
+      subBarData = buildSubBarData(window.metadataAggregations);
       window.subDonutData = subDonutData;
       renderSubscriptionTable();
     }
