@@ -1,3 +1,25 @@
+// Read metadata aggregations from the SPA cache when available.
+const getMetadataAggregations = () => {
+  return typeof window !== 'undefined'
+    ? window.metadataAggregations || {}
+    : {};
+};
+
+// Store the count of unique SubIDs discovered during metadata scans for export consumers.
+export const updateSubScanCount = (aggregations = getMetadataAggregations()) => {
+  const uniqueSubIds = aggregations && typeof aggregations === 'object'
+    ? Object.keys(aggregations)
+    : [];
+
+  const subScanCount = uniqueSubIds.length;
+
+  if (typeof window !== 'undefined') {
+    window.subScanCount = subScanCount;
+  }
+
+  return subScanCount;
+};
+
 const subDonutData = {
   datasets: [{
     label: 'My First Dataset',
@@ -52,9 +74,31 @@ const subBarConfig = {
   }
 };
 
-new Chart(document.getElementById('subDonut'), {
-  type: 'doughnut',
-  data: subDonutData
-});
+// Render the chart preview when the PDF iframe is ready.
+const renderPdfCharts = () => {
+  if (typeof Chart === 'undefined') {
+    return;
+  }
 
-new Chart(document.getElementById('subBar'), subBarConfig);
+  const subDonutCanvas = document.getElementById('subDonut');
+  const subBarCanvas = document.getElementById('subBar');
+
+  if (!subDonutCanvas || !subBarCanvas) {
+    return;
+  }
+
+  new Chart(subDonutCanvas, {
+    type: 'doughnut',
+    data: subDonutData
+  });
+
+  new Chart(subBarCanvas, subBarConfig);
+};
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderPdfCharts);
+  } else {
+    renderPdfCharts();
+  }
+}
