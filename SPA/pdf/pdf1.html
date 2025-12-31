@@ -7,68 +7,68 @@
   <link rel="stylesheet" href="pdf.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
-  <main>
-    <h1>Overview</h1>
-    <div class="chart-row">
-      <div class="chart-block">
-        <canvas id="subDonut"></canvas>
+<body id="pdf-preview-body" class="pdf-preview-body">
+  <main id="pdf-overview" class="pdf-overview">
+    <h1 id="overview-title" class="overview-title">Overview</h1>
+    <div id="overview-chart-row" class="chart-row">
+      <div id="sub-donut-card" class="chart-block">
+        <canvas id="subDonut" class="chart-canvas donut-chart"></canvas>
       </div>
-      <div class="chart-block table-card">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">SubID</th>
-              <th scope="col">Number of Apps Scanned</th>
+      <div id="subscription-table-card" class="chart-block table-card">
+        <table id="subscription-summary-table" class="subscription-summary-table">
+          <thead id="subscription-table-head" class="subscription-table-head">
+            <tr id="subscription-header-row" class="subscription-header-row">
+              <th id="subscription-header-subid" class="subscription-header-cell" scope="col">SubID</th>
+              <th id="subscription-header-count" class="subscription-header-cell" scope="col">Number of Apps Scanned</th>
             </tr>
           </thead>
-          <tbody>
-            <tr>
-              <td>Sub 01</td>
-              <td>0 of 0</td>
+          <tbody id="subscription-table-body" class="subscription-table-body">
+            <tr id="subscription-row-01" class="subscription-row">
+              <td id="subscription-label-01" class="subscription-label-cell">Sub 01</td>
+              <td id="subscription-count-01" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 02</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-02" class="subscription-row">
+              <td id="subscription-label-02" class="subscription-label-cell">Sub 02</td>
+              <td id="subscription-count-02" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 03</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-03" class="subscription-row">
+              <td id="subscription-label-03" class="subscription-label-cell">Sub 03</td>
+              <td id="subscription-count-03" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 04</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-04" class="subscription-row">
+              <td id="subscription-label-04" class="subscription-label-cell">Sub 04</td>
+              <td id="subscription-count-04" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 05</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-05" class="subscription-row">
+              <td id="subscription-label-05" class="subscription-label-cell">Sub 05</td>
+              <td id="subscription-count-05" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 06</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-06" class="subscription-row">
+              <td id="subscription-label-06" class="subscription-label-cell">Sub 06</td>
+              <td id="subscription-count-06" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 07</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-07" class="subscription-row">
+              <td id="subscription-label-07" class="subscription-label-cell">Sub 07</td>
+              <td id="subscription-count-07" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 08</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-08" class="subscription-row">
+              <td id="subscription-label-08" class="subscription-label-cell">Sub 08</td>
+              <td id="subscription-count-08" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 09</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-09" class="subscription-row">
+              <td id="subscription-label-09" class="subscription-label-cell">Sub 09</td>
+              <td id="subscription-count-09" class="subscription-count-cell">0 of 0</td>
             </tr>
-            <tr>
-              <td>Sub 10</td>
-              <td>0 of 0</td>
+            <tr id="subscription-row-10" class="subscription-row">
+              <td id="subscription-label-10" class="subscription-label-cell">Sub 10</td>
+              <td id="subscription-count-10" class="subscription-count-cell">0 of 0</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
-    <div class="chart-full">
-      <canvas id="subBar"></canvas>
+    <div id="subscription-bar-card" class="chart-full">
+      <canvas id="subBar" class="chart-canvas bar-chart"></canvas>
     </div>
   </main>
 
