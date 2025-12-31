@@ -38,6 +38,17 @@ export async function initSection(sectionElement) {
 
   if (typeof window !== 'undefined') {
     let metadataAggregationsCache = window.metadataAggregations;
+    let hasLoggedMetadataCache = false;
+
+    // Log when metadata aggregations become available in the cache.
+    const logMetadataCacheAvailable = () => {
+      if (hasLoggedMetadataCache || !metadataAggregationsCache) {
+        return;
+      }
+
+      console.log('metadataAggregationsCache available');
+      hasLoggedMetadataCache = true;
+    };
 
     Object.defineProperty(window, 'metadataAggregations', {
       configurable: true,
@@ -47,10 +58,12 @@ export async function initSection(sectionElement) {
       },
       set(value) {
         metadataAggregationsCache = value;
+        logMetadataCacheAvailable();
         postMetadataToPreview();
       },
     });
 
+    logMetadataCacheAvailable();
     postMetadataToPreview();
   }
 
