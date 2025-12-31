@@ -7,22 +7,22 @@
   aria-labelledby="regex-format-modal-title"
   hidden
 >
-  <div class="modal-content" id="regex-format-modal-content">
-    <div class="modal-header" id="regex-format-modal-header">
-      <div>
-        <p class="eyebrow">Expected format</p>
-        <h2 class="modal-title" id="regex-format-modal-title">Field name</h2>
-        <p class="section-hint" id="regex-format-modal-subtitle">
-          Provide a JavaScript regular expression to validate this metadata field.
-        </p>
+    <div class="modal-content" id="regex-format-modal-content">
+      <div class="modal-header" id="regex-format-modal-header">
+        <div id="regex-format-modal-heading">
+          <p class="eyebrow">Expected format</p>
+          <h2 class="modal-title" id="regex-format-modal-title">Field name</h2>
+          <p class="section-hint" id="regex-format-modal-subtitle">
+            Provide a JavaScript regular expression to validate this metadata field.
+          </p>
+        </div>
+        <button
+          type="button"
+          class="close-btn"
+          aria-label="Close regex format modal"
+          data-close-regex-format-modal
+        >&times;</button>
       </div>
-      <button
-        type="button"
-        class="close-btn"
-        aria-label="Close regex format modal"
-        data-close-regex-format-modal
-      >&times;</button>
-    </div>
 
     <form class="modal-body" id="regex-format-modal-form" aria-describedby="regex-format-modal-hint">
       <label for="regex-format-input" class="section-title">Regular expression</label>
