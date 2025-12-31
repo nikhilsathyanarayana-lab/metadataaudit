@@ -171,6 +171,19 @@ const renderFieldAnalysis = () => {
   fieldSubBarChart = new Chart(barCanvas, createSubBarConfig(subBarData));
 };
 
+// Sync cached metadata aggregations with the chart and table.
+const updateFromMetadataAggregations = (aggregations) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return;
+  }
+
+  window.metadataAggregations = aggregations;
+  subBarData = buildSubBarData(aggregations);
+
+  renderSubscriptionTable();
+  renderFieldAnalysis();
+};
+
 if (typeof document !== 'undefined') {
   // Refresh the Field Analysis view when metadata updates arrive from the parent window.
   const handleMetadataMessage = (event) => {
@@ -180,17 +193,13 @@ if (typeof document !== 'undefined') {
       return;
     }
 
-    window.metadataAggregations = message.payload || {};
-    subBarData = buildSubBarData(window.metadataAggregations);
-
-    renderSubscriptionTable();
-    renderFieldAnalysis();
+    updateFromMetadataAggregations(message.payload || {});
   };
 
   const renderPdfPreview = () => {
     if (hasMetadataAggregations()) {
-      subBarData = buildSubBarData(window.metadataAggregations);
-      renderSubscriptionTable();
+      updateFromMetadataAggregations(window.metadataAggregations);
+      return;
     }
 
     renderFieldAnalysis();
