@@ -55,6 +55,81 @@ const subBarConfig = {
   }
 };
 
+// Confirm whether cached metadata aggregations are available on the window.
+const hasMetadataAggregations = () => (
+  typeof window !== 'undefined'
+    && window.metadataAggregations
+    && typeof window.metadataAggregations === 'object'
+);
+
+// Collect SubIDs from the cached metadata aggregations.
+const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return [];
+  }
+
+  console.log('getSubscriptionIds: collecting SubIDs');
+  return Object.keys(aggregations).filter((subId) => subId);
+};
+
+// Populate the subscription summary table with discovered SubIDs.
+const renderSubscriptionTable = () => {
+  const tableBody = document.getElementById('subscription-table-body');
+  const subscriptionIds = getSubscriptionIds();
+
+  if (!tableBody || subscriptionIds.length === 0) {
+    return;
+  }
+
+  tableBody.innerHTML = '';
+
+  subscriptionIds.forEach((subId, index) => {
+    const rowNumber = String(index + 1).padStart(2, '0');
+    const row = document.createElement('tr');
+    row.id = `subscription-row-${rowNumber}`;
+    row.className = 'subscription-row';
+
+    const labelCell = document.createElement('td');
+    labelCell.id = `subscription-label-${rowNumber}`;
+    labelCell.className = 'subscription-label-cell';
+    labelCell.textContent = subId;
+
+    const countCell = document.createElement('td');
+    countCell.id = `subscription-count-${rowNumber}`;
+    countCell.className = 'subscription-count-cell';
+    countCell.textContent = '0 of 0';
+
+    row.append(labelCell, countCell);
+    tableBody.appendChild(row);
+  });
+};
+
+// Wait for metadata aggregations to populate before rendering the subscription table.
+const waitForMetadataAggregations = (onReady) => {
+  if (typeof onReady !== 'function') {
+    return;
+  }
+
+  let attempts = 0;
+  const maxAttempts = 40;
+  const pollIntervalMs = 250;
+
+  const checkAndRender = () => {
+    attempts += 1;
+
+    if (hasMetadataAggregations()) {
+      clearInterval(timerId);
+      onReady();
+    } else if (attempts >= maxAttempts) {
+      clearInterval(timerId);
+      console.warn('metadataAggregations not available; skipping subscription table render');
+    }
+  };
+
+  const timerId = setInterval(checkAndRender, pollIntervalMs);
+  checkAndRender();
+};
+
 // Count how many SubID slices are represented in the donut dataset.
 const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
   const count = Array.isArray(dataset) ? dataset.length : 0;
@@ -102,9 +177,19 @@ const renderPdfCharts = () => {
 };
 
 if (typeof document !== 'undefined') {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderPdfCharts);
-  } else {
+  const renderPdfPreview = () => {
+    if (hasMetadataAggregations()) {
+      renderSubscriptionTable();
+    } else {
+      waitForMetadataAggregations(renderSubscriptionTable);
+    }
+
     renderPdfCharts();
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderPdfPreview);
+  } else {
+    renderPdfPreview();
   }
 }
