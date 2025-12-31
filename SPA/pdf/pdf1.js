@@ -61,6 +61,7 @@ const getSubscriptionIds = (aggregations = (typeof window !== 'undefined' && win
     return [];
   }
 
+  console.log('getSubscriptionIds: collecting SubIDs');
   return Object.keys(aggregations).filter((subId) => subId);
 };
 
