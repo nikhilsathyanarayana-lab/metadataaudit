@@ -51,6 +51,67 @@ a:hover {
   color: #b00053;
 }
 
+.chart-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin: 20px 0;
+}
+
+.chart-block {
+  flex: 1 1 320px;
+  max-width: 420px;
+}
+
+.chart-block canvas {
+  width: 100%;
+  height: auto;
+}
+
+.chart-full {
+  width: 100%;
+  margin: 20px 0;
+}
+
+.chart-full canvas {
+  width: 100%;
+  height: auto;
+}
+
+.table-card {
+  background: #fff7fb;
+  border: 1px solid rgba(224, 0, 108, 0.12);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.table-card table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-card th,
+.table-card td {
+  padding: 0.5rem 0.25rem;
+  text-align: left;
+  border-bottom: 1px solid #f0e6ed;
+}
+
+.table-card th {
+  color: var(--pendo-pink);
+  font-size: 0.95rem;
+}
+
+.table-card tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-card tbody td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .eyebrow {
   margin: 0 0 0.35rem;
   text-transform: uppercase;
