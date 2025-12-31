@@ -74,6 +74,25 @@ const subBarConfig = {
   }
 };
 
+// Draw the SubID scan total in the center of the doughnut chart after rendering.
+const subDonutCenterText = {
+  id: 'subDonutCenterText',
+  afterDraw(chart) {
+    const { ctx, chartArea: { left, top, width, height } } = chart;
+    const count = typeof window !== 'undefined' && typeof window.subScanCount === 'number'
+      ? window.subScanCount
+      : updateSubScanCount();
+
+    ctx.save();
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(count), left + (width / 2), top + (height / 2));
+    ctx.restore();
+  }
+};
+
 // Render the chart preview when the PDF iframe is ready.
 const renderPdfCharts = () => {
   if (typeof Chart === 'undefined') {
@@ -89,7 +108,8 @@ const renderPdfCharts = () => {
 
   new Chart(subDonutCanvas, {
     type: 'doughnut',
-    data: subDonutData
+    data: subDonutData,
+    plugins: [subDonutCenterText]
   });
 
   new Chart(subBarCanvas, subBarConfig);
