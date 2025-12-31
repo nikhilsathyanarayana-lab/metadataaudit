@@ -57,7 +57,9 @@ const subBarConfig = {
 
 // Count how many SubID slices are represented in the donut dataset.
 const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
-  return Array.isArray(dataset) ? dataset.length : 0;
+  const count = Array.isArray(dataset) ? dataset.length : 0;
+  console.log(`Computed SubID slices: ${count}`);
+  return count;
 };
 
 // Draw the SubID scan total in the center of the doughnut chart after rendering.
