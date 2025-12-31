@@ -5,10 +5,68 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Field Analysis</title>
   <link rel="stylesheet" href="pdf.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js"></script>
 </head>
-<body>
-  <main>
-    <h1>Field Analysis</h1>
+<body id="field-analysis-body" class="pdf-preview-body">
+  <main id="field-analysis" class="pdf-overview">
+    <h1 id="field-analysis-title" class="overview-title">Field Analysis</h1>
+    <div id="field-overview-chart-row" class="chart-row">
+      <div id="field-subscription-table-card" class="chart-block table-card">
+        <table id="field-subscription-summary-table" class="subscription-summary-table">
+          <thead id="field-subscription-table-head" class="subscription-table-head">
+            <tr id="field-subscription-header-row" class="subscription-header-row">
+              <th id="field-subscription-header-subid" class="subscription-header-cell" scope="col">SubID</th>
+              <th id="field-subscription-header-count" class="subscription-header-cell" scope="col">Number of Apps Scanned</th>
+            </tr>
+          </thead>
+          <tbody id="field-subscription-table-body" class="subscription-table-body">
+            <tr id="field-subscription-row-01" class="subscription-row">
+              <td id="field-subscription-label-01" class="subscription-label-cell">Sub 01</td>
+              <td id="field-subscription-count-01" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-02" class="subscription-row">
+              <td id="field-subscription-label-02" class="subscription-label-cell">Sub 02</td>
+              <td id="field-subscription-count-02" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-03" class="subscription-row">
+              <td id="field-subscription-label-03" class="subscription-label-cell">Sub 03</td>
+              <td id="field-subscription-count-03" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-04" class="subscription-row">
+              <td id="field-subscription-label-04" class="subscription-label-cell">Sub 04</td>
+              <td id="field-subscription-count-04" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-05" class="subscription-row">
+              <td id="field-subscription-label-05" class="subscription-label-cell">Sub 05</td>
+              <td id="field-subscription-count-05" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-06" class="subscription-row">
+              <td id="field-subscription-label-06" class="subscription-label-cell">Sub 06</td>
+              <td id="field-subscription-count-06" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-07" class="subscription-row">
+              <td id="field-subscription-label-07" class="subscription-label-cell">Sub 07</td>
+              <td id="field-subscription-count-07" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-08" class="subscription-row">
+              <td id="field-subscription-label-08" class="subscription-label-cell">Sub 08</td>
+              <td id="field-subscription-count-08" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-09" class="subscription-row">
+              <td id="field-subscription-label-09" class="subscription-label-cell">Sub 09</td>
+              <td id="field-subscription-count-09" class="subscription-count-cell">0 of 0</td>
+            </tr>
+            <tr id="field-subscription-row-10" class="subscription-row">
+              <td id="field-subscription-label-10" class="subscription-label-cell">Sub 10</td>
+              <td id="field-subscription-count-10" class="subscription-count-cell">0 of 0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="field-bar-card" class="chart-full">
+        <canvas id="fieldSubBar" class="chart-canvas bar-chart"></canvas>
+      </div>
+    </div>
   </main>
   <script type="module" src="pdf2.js"></script>
 </body>
