@@ -1,5 +1,3 @@
-export { updateSubScanCount } from '../pdf/pdf1.js';
-
 // Placeholder initializer for page four of the SPA.
 export async function initSection() {
   // Page 4 initialization placeholder
