@@ -36,13 +36,15 @@ const defaultBarBorders = [
   'rgb(201, 203, 207)'
 ];
 
+const defaultSubscriptionIds = Array.from({ length: 10 }, (_, index) => `Sub ${String(index + 1).padStart(2, '0')}`);
+
 const defaultSubBarData = {
-  labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
+  labels: defaultSubscriptionIds,
   datasets: [{
     label: 'Apps scanned',
-    data: [65, 59, 80, 81, 56, 55, 40],
-    backgroundColor: defaultBarBackgrounds,
-    borderColor: defaultBarBorders,
+    data: defaultSubscriptionIds.map(() => 0),
+    backgroundColor: defaultSubscriptionIds.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]),
+    borderColor: defaultSubscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]),
     borderWidth: 1
   }]
 };
