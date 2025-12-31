@@ -8,7 +8,6 @@ import {
 } from '../API/metadata.js';
 import { getAppSelections } from './2.js';
 import { openRegexModal } from './regex.js';
-import { updateSubScanCount } from './4.js';
 
 // Provide a shared SPA environment object for cached selections.
 const getFieldtypesContainer = () => {
@@ -670,12 +669,10 @@ const runMetadataScansWithStatus = async (appsForMetadata, onAggregation) => {
   try {
     await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
     await runMetadataQueue(onAggregation, DEFAULT_LOOKBACK_WINDOW);
-    updateSubScanCount();
     hasCompleted = true;
     notifyMetadataScanCompleted();
   } finally {
     if (!hasCompleted) {
-      updateSubScanCount();
       notifyMetadataScanCompleted();
     }
   }

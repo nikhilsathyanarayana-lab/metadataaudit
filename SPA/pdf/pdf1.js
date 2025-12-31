@@ -1,37 +1,18 @@
-// Read metadata aggregations from the SPA cache when available.
-const getMetadataAggregations = () => {
-  return typeof window !== 'undefined'
-    ? window.metadataAggregations || {}
-    : {};
-};
-
-// Store the count of unique SubIDs discovered during metadata scans for export consumers.
-export const updateSubScanCount = (aggregations = getMetadataAggregations()) => {
-  const uniqueSubIds = aggregations && typeof aggregations === 'object'
-    ? Object.keys(aggregations)
-    : [];
-
-  const subScanCount = uniqueSubIds.length;
-
-  if (typeof window !== 'undefined') {
-    window.subScanCount = subScanCount;
-  }
-
-  return subScanCount;
-};
-
-const subDonutData = {
-  datasets: [{
-    label: 'My First Dataset',
-    data: [300, 50, 100],
-    backgroundColor: [
-      'rgb(255, 99, 132)',
-      'rgb(54, 162, 235)',
-      'rgb(255, 205, 86)'
-    ],
-    hoverOffset: 4
-  }]
-};
+// Use provided donut data when available, otherwise fall back to sample values.
+const subDonutData = (typeof window !== 'undefined' && window.subDonutData)
+  ? window.subDonutData
+  : {
+    datasets: [{
+      label: 'My First Dataset',
+      data: [300, 50, 100],
+      backgroundColor: [
+        'rgb(255, 99, 132)',
+        'rgb(54, 162, 235)',
+        'rgb(255, 205, 86)'
+      ],
+      hoverOffset: 4
+    }]
+  };
 
 const barLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
 
@@ -74,6 +55,30 @@ const subBarConfig = {
   }
 };
 
+// Count how many SubID slices are represented in the donut dataset.
+const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
+  const count = Array.isArray(dataset) ? dataset.length : 0;
+  console.log(`Computed SubID slices: ${count}`);
+  return count;
+};
+
+// Draw the SubID scan total in the center of the doughnut chart after rendering.
+const subDonutCenterText = {
+  id: 'subDonutCenterText',
+  afterDraw(chart) {
+    const { ctx, chartArea: { left, top, width, height } } = chart;
+    const count = getSubScanCount(chart?.data?.datasets?.[0]?.data);
+
+    ctx.save();
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(count), left + (width / 2), top + (height / 2));
+    ctx.restore();
+  }
+};
+
 // Render the chart preview when the PDF iframe is ready.
 const renderPdfCharts = () => {
   if (typeof Chart === 'undefined') {
@@ -89,7 +94,8 @@ const renderPdfCharts = () => {
 
   new Chart(subDonutCanvas, {
     type: 'doughnut',
-    data: subDonutData
+    data: subDonutData,
+    plugins: [subDonutCenterText]
   });
 
   new Chart(subBarCanvas, subBarConfig);
