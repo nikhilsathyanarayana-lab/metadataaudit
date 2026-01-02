@@ -1,4 +1,5 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
+const OPTIONAL_NAMESPACE_CARDS = ['custom', 'salesforce'];
 
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -367,12 +368,41 @@ const renderTableRows = (namespace, rows = []) => {
   });
 };
 
+// Hide optional namespace cards when there is no data to show.
+const toggleNamespaceCardVisibility = (namespace, rows = []) => {
+  const namespaceCard = document.getElementById(`${namespace}-metadata-card`);
+  const hasRows = Array.isArray(rows) && rows.length > 0;
+
+  if (!namespaceCard) {
+    return false;
+  }
+
+  namespaceCard.style.display = hasRows ? '' : 'none';
+
+  if (!hasRows) {
+    const tableBody = document.getElementById(`${namespace}-metadata-body`);
+
+    if (tableBody) {
+      tableBody.innerHTML = '';
+    }
+  }
+
+  return hasRows;
+};
+
 // Render all namespace tables from cached metadata aggregations.
 const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const rowsByNamespace = mapAggregationsToRows(aggregations);
   const changeEntries = buildFieldChangeEntries(rowsByNamespace);
   METADATA_NAMESPACES.forEach((namespace) => {
-    renderTableRows(namespace, rowsByNamespace[namespace]);
+    const namespaceRows = rowsByNamespace[namespace];
+    const shouldRenderCard = OPTIONAL_NAMESPACE_CARDS.includes(namespace)
+      ? toggleNamespaceCardVisibility(namespace, namespaceRows)
+      : true;
+
+    if (shouldRenderCard) {
+      renderTableRows(namespace, namespaceRows);
+    }
   });
   renderFieldSummaryTable(changeEntries);
   renderFieldChangeSummary(buildFieldChangeSentences(changeEntries));
