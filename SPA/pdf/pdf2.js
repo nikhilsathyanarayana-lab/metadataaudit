@@ -107,7 +107,6 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   return {
     labels: fieldKeys,
     datasets: [{
-      label: 'Applications per field',
       data: fieldEntries.map(([, count]) => Number(count) || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
@@ -123,7 +122,11 @@ const createSubBarConfig = (data) => ({
   options: {
     scales: {
       y: {
-        beginAtZero: true
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1,
+          callback: (value) => (Number.isInteger(value) ? value : null)
+        }
       }
     }
   }
