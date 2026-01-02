@@ -40,7 +40,7 @@ const columnNumberToLetter = (columnNumber) => {
 };
 
 // Generates a date-stamped default file name for metadata exports.
-const buildDefaultFileName = () => {
+export const buildDefaultFileName = () => {
   const today = new Date();
   const dateStamp = today.toISOString().slice(0, 10);
   return `metadata_fields-${dateStamp}`;
@@ -263,6 +263,61 @@ const addOverviewSheet = (workbook, { visitorAlignment, accountAlignment, timefr
   return worksheet;
 };
 
+// Builds the metadata workbook and returns it for preview or download flows.
+export const buildMetadataWorkbook = async ({ onStatus } = {}) => {
+  onStatus?.('Loading available metadata for export…');
+  await ensureWorkbookLibraries();
+
+  waitForMetadataFields().catch((error) =>
+    logXlsx('error', 'Metadata fields may not finish loading before export completes.', error),
+  );
+
+  onStatus?.('Building XLSX workbook…');
+  const metadataDoc = await ensurePageDocument('metadata_fields.html');
+  const visitorTable = metadataDoc?.getElementById('visitor-metadata-table');
+  const accountTable = metadataDoc?.getElementById('account-metadata-table');
+
+  const workbook = new window.ExcelJS.Workbook();
+  const sheetNames = new Set();
+
+  const sevenDayRecords = getMetadataFieldRecords(7);
+  const thirtyDayRecords = getMetadataFieldRecords(30);
+  const oneEightyDayRecords = getMetadataFieldRecords(180);
+  const visitorAlignment = calculateAlignmentStats(sevenDayRecords, {
+    fieldKey: 'visitorFields',
+    windowDays: 7,
+  });
+  const accountAlignment = calculateAlignmentStats(sevenDayRecords, {
+    fieldKey: 'accountFields',
+    windowDays: 7,
+  });
+  const timeframeChanges = buildTimeframeChanges([
+    { label: '7 day', windowDays: 7, records: sevenDayRecords },
+    { label: '30 day', windowDays: 30, records: thirtyDayRecords },
+    { label: '180 day', windowDays: 180, records: oneEightyDayRecords },
+  ]);
+
+  addOverviewSheet(
+    workbook,
+    { visitorAlignment, accountAlignment, timeframeChanges },
+    sheetNames,
+  );
+
+  const appNameLookup = new Map();
+  [sevenDayRecords, thirtyDayRecords, oneEightyDayRecords]
+    .flat()
+    .forEach((record) => {
+      if (record?.appId && record?.appName) {
+        appNameLookup.set(record.appId, record.appName);
+      }
+    });
+
+  appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames, appNameLookup);
+  appendTableSheet(workbook, accountTable, 'Account', sheetNames, appNameLookup);
+
+  return { workbook, defaultFileName: buildDefaultFileName() };
+};
+
 // Orchestrates the metadata XLSX export flow from modal prompt to download delivery.
 export const exportMetadataXlsx = async () => {
   const desiredName = await openNamingModal(buildDefaultFileName, (value) =>
@@ -276,57 +331,11 @@ export const exportMetadataXlsx = async () => {
 
   try {
     setStatus('Preparing XLSX export…', { pending: true });
-    await ensureWorkbookLibraries();
-
-    setStatus('Loading available metadata for export…', { pending: true });
-    waitForMetadataFields().catch((error) =>
-      logXlsx('error', 'Metadata fields may not finish loading before export completes.', error),
-    );
-
-    setStatus('Building XLSX workbook…', { pending: true });
-    const metadataDoc = await ensurePageDocument('metadata_fields.html');
-    const visitorTable = metadataDoc?.getElementById('visitor-metadata-table');
-    const accountTable = metadataDoc?.getElementById('account-metadata-table');
-
-    const workbook = new window.ExcelJS.Workbook();
-    const sheetNames = new Set();
-
-    const sevenDayRecords = getMetadataFieldRecords(7);
-    const thirtyDayRecords = getMetadataFieldRecords(30);
-    const oneEightyDayRecords = getMetadataFieldRecords(180);
-    const visitorAlignment = calculateAlignmentStats(sevenDayRecords, {
-      fieldKey: 'visitorFields',
-      windowDays: 7,
+    const { workbook, defaultFileName } = await buildMetadataWorkbook({
+      onStatus: (message) => setStatus(message, { pending: true }),
     });
-    const accountAlignment = calculateAlignmentStats(sevenDayRecords, {
-      fieldKey: 'accountFields',
-      windowDays: 7,
-    });
-    const timeframeChanges = buildTimeframeChanges([
-      { label: '7 day', windowDays: 7, records: sevenDayRecords },
-      { label: '30 day', windowDays: 30, records: thirtyDayRecords },
-      { label: '180 day', windowDays: 180, records: oneEightyDayRecords },
-    ]);
 
-    addOverviewSheet(
-      workbook,
-      { visitorAlignment, accountAlignment, timeframeChanges },
-      sheetNames,
-    );
-
-    const appNameLookup = new Map();
-    [sevenDayRecords, thirtyDayRecords, oneEightyDayRecords]
-      .flat()
-      .forEach((record) => {
-        if (record?.appId && record?.appName) {
-          appNameLookup.set(record.appId, record.appName);
-        }
-      });
-
-    const visitorSheet = appendTableSheet(workbook, visitorTable, 'Visitor', sheetNames, appNameLookup);
-    const accountSheet = appendTableSheet(workbook, accountTable, 'Account', sheetNames, appNameLookup);
-
-    await downloadWorkbook(workbook, desiredName || buildDefaultFileName());
+    await downloadWorkbook(workbook, desiredName || defaultFileName);
     setStatus('Export ready. Your XLSX download should start shortly.', { pending: false });
   } catch (error) {
     logXlsx('error', 'Unable to export metadata XLSX.', error);
