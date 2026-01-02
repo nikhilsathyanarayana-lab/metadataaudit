@@ -1,7 +1,15 @@
 <div class="page-view" id="placeholder-view-four" data-page-section="4">
   <section class="card page-section" id="page-four-card">
-    <h2 class="section-title" id="page-four-title">Exports</h2>
-    <p class="section-hint" id="page-four-hint">Preview export output in the embedded frame below.</p>
+    <div class="card-header export-header" id="export-header">
+      <div class="export-heading" id="export-heading">
+        <h2 class="section-title" id="page-four-title">Exports</h2>
+        <p class="section-hint" id="page-four-hint">Preview export output in the embedded frame below.</p>
+      </div>
+      <div class="card-actions export-actions" id="export-actions" aria-label="Export actions">
+        <button class="secondary-btn" id="export-exclusion-button" type="button">Exclude sections</button>
+        <button class="primary-btn" id="export-pdf-button" type="button">Export PDF</button>
+      </div>
+    </div>
     <div class="export-preview" id="export-preview">
       <div class="export-preview-controls" aria-label="Export preview navigation">
         <button class="export-preview-button" type="button" id="export-nav-prev" aria-label="Previous export">&#8592;</button>
@@ -17,4 +25,60 @@
       ></iframe>
     </div>
   </section>
+
+  <div id="export-exclusion-backdrop" class="modal-backdrop" hidden></div>
+  <div
+    id="export-exclusion-modal"
+    class="modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="export-exclusion-title"
+    aria-describedby="export-exclusion-hint"
+    hidden
+  >
+    <div class="modal-content" id="export-exclusion-content">
+      <div class="modal-header" id="export-exclusion-header">
+        <div id="export-exclusion-heading">
+          <p class="eyebrow" id="export-exclusion-eyebrow">Export options</p>
+          <h2 class="modal-title" id="export-exclusion-title">Exclude sections</h2>
+          <p class="section-hint" id="export-exclusion-hint">Select any PDF sections to skip before exporting.</p>
+        </div>
+        <button
+          class="close-btn"
+          id="export-exclusion-close"
+          type="button"
+          aria-label="Close section exclusion modal"
+          data-close-export-exclusion-modal
+        >
+          &times;
+        </button>
+      </div>
+      <div class="modal-body" id="export-exclusion-body">
+        <ul class="export-exclusion-list" id="export-exclusion-list">
+          <li class="export-exclusion-item" id="exclude-overview-option">
+            <label class="export-exclusion-label" for="exclude-overview-input">
+              <input id="exclude-overview-input" class="export-exclusion-checkbox" type="checkbox" />
+              <span id="exclude-overview-copy">Metadata overview</span>
+            </label>
+          </li>
+          <li class="export-exclusion-item" id="exclude-summary-option">
+            <label class="export-exclusion-label" for="exclude-summary-input">
+              <input id="exclude-summary-input" class="export-exclusion-checkbox" type="checkbox" />
+              <span id="exclude-summary-copy">Subscription summaries</span>
+            </label>
+          </li>
+          <li class="export-exclusion-item" id="exclude-details-option">
+            <label class="export-exclusion-label" for="exclude-details-input">
+              <input id="exclude-details-input" class="export-exclusion-checkbox" type="checkbox" />
+              <span id="exclude-details-copy">Field-level details</span>
+            </label>
+          </li>
+        </ul>
+      </div>
+      <div class="modal-actions" id="export-exclusion-actions">
+        <button class="secondary-btn" id="export-exclusion-cancel" type="button" data-close-export-exclusion-modal>Cancel</button>
+        <button class="primary-btn" id="export-exclusion-save" type="button" data-close-export-exclusion-modal>Save</button>
+      </div>
+    </div>
+  </div>
 </div>
