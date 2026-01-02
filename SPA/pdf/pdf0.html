@@ -23,11 +23,24 @@
         <li id="toc-entry-field-summary" class="toc-entry">
           <a id="toc-link-field-summary" class="toc-entry-link" href="pdf3.html" target="_blank" rel="noopener">Field summary</a>
         </li>
-        <li id="toc-entry-subscription-details" class="toc-entry">
-          <a id="toc-link-subscription-details" class="toc-entry-link" href="pdf4.html" target="_blank" rel="noopener">Subscription details</a>
-        </li>
       </ol>
     </section>
+
+    <template id="toc-subscription-template" class="toc-subscription-template">
+      <li id="toc-entry-subscription-template" class="toc-entry toc-entry--subscription" data-subscription-entry>
+        <a
+          id="toc-link-subscription-template"
+          class="toc-entry-link toc-entry-link--subscription"
+          data-slot="subscription-link"
+          href="pdf4.html"
+          target="_blank"
+          rel="noopener"
+        >
+          Subscription details
+        </a>
+      </li>
+    </template>
   </main>
+  <script type="module" src="pdf0.js"></script>
 </body>
 </html>
