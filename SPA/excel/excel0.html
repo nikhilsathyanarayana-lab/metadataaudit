@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Engage Workbook Overview</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f7f8fb;
+      color: #1f2937;
+    }
+
+    .sheet-preview {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+      padding: 20px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .sheet-preview h1 {
+      font-size: 24px;
+      margin: 0 0 12px;
+    }
+
+    .sheet-preview p {
+      margin: 0 0 16px;
+      color: #4b5563;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .summary-card {
+      background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+      border: 1px solid #d7e3ff;
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .summary-card h2 {
+      font-size: 16px;
+      margin: 0 0 6px;
+    }
+
+    .summary-card span {
+      font-size: 14px;
+      color: #111827;
+    }
+  </style>
+</head>
+<body>
+  <main class="sheet-preview">
+    <h1>Workbook Overview</h1>
+    <p>High-level snapshot of workbook tabs included in the Excel export bundle.</p>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <h2>Metadata Summary</h2>
+        <span>Aggregated fields across 7, 30, and 180 day windows.</span>
+      </div>
+      <div class="summary-card">
+        <h2>Deep Dive</h2>
+        <span>Queued aggregations with retry counts and completion timestamps.</span>
+      </div>
+      <div class="summary-card">
+        <h2>Engagement Charts</h2>
+        <span>Traffic spikes and namespace comparisons by selected apps.</span>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
