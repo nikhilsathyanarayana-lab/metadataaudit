@@ -50,7 +50,10 @@ const recordAppCounts = (credentialResults = []) => {
     });
 
     hasResults = true;
-    nextCounts.set(String(subId), uniqueAppIds.size);
+    nextCounts.set(String(subId), {
+      total: apps.length,
+      distinct: uniqueAppIds.size,
+    });
   });
 
   if (!hasResults) {
@@ -165,7 +168,12 @@ export async function app_names(entries) {
 
 // Return the total number of apps discovered for a SubID.
 export const getAppCountForSub = (subId) => {
-  return appCountsBySubId.get(String(subId)) || 0;
+  return appCountsBySubId.get(String(subId))?.total || 0;
+};
+
+// Return the distinct app count for a SubID for selection calculations.
+export const getDistinctAppCountForSub = (subId) => {
+  return appCountsBySubId.get(String(subId))?.distinct || 0;
 };
 
 // Snapshot all tracked app totals for debugging or UI summaries.
