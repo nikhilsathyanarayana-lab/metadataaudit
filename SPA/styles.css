@@ -50,7 +50,7 @@ body {
 }
 
 .nav-inner {
-  max-width: 960px;
+  max-width: 80vw;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -155,7 +155,7 @@ body {
 
 .page-messages,
 .status-banner {
-  width: min(960px, 100%);
+  width: min(80vw, 100%);
 }
 
 .alert {
@@ -190,7 +190,7 @@ h1 {
 
 .page-header,
 .content {
-  width: min(960px, 100%);
+  width: min(80vw, 100%);
 }
 
 .page-header {
