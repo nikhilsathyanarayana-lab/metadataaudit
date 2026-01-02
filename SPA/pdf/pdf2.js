@@ -32,8 +32,8 @@ const defaultSubBarData = {
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
 
-// Build a default field occurrence map from the sample chart data.
-const buildDefaultFieldOccurrences = () => {
+// Build a default field total map from the sample chart data.
+const buildDefaultFieldTotals = () => {
   const defaultDataset = defaultSubBarData.datasets?.[0] || {};
 
   return (defaultSubBarData.labels || []).reduce((occurrences, label, index) => {
@@ -46,7 +46,7 @@ const buildDefaultFieldOccurrences = () => {
   }, {});
 };
 
-let fieldOccurrencesByName = buildDefaultFieldOccurrences();
+let fieldTotalsByName = buildDefaultFieldTotals();
 let fieldSummaryRows = [];
 
 // Check whether the window already includes metadata aggregations we can use.
@@ -86,6 +86,76 @@ const countFieldsAcrossApps = (aggregations = (hasMetadataAggregations() && wind
     });
 
     return counts;
+  }, {});
+};
+
+// Choose a processed window bucket for an app when tallying field totals.
+const selectProcessedWindow = (appBucket) => {
+  if (!appBucket || typeof appBucket !== 'object') {
+    return null;
+  }
+
+  const windows = Object.values(appBucket.windows || {});
+
+  if (!windows.length) {
+    return null;
+  }
+
+  return windows.find((windowBucket) => windowBucket?.isProcessed) || windows[0];
+};
+
+// Combine field totals across apps with the same name, segmented by namespace.
+const combineFieldTotalsByNamespace = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return {};
+  }
+
+  const appTotalsByName = {};
+
+  Object.values(aggregations).forEach((subBucket) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return;
+    }
+
+    Object.values(apps).forEach((appBucket) => {
+      const appName = appBucket?.appName || appBucket?.appId;
+      const processedWindow = selectProcessedWindow(appBucket);
+
+      if (!appName || !processedWindow || typeof processedWindow !== 'object') {
+        return;
+      }
+
+      if (!appTotalsByName[appName]) {
+        appTotalsByName[appName] = {};
+      }
+
+      Object.entries(processedWindow.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+        if (!namespaceFields || typeof namespaceFields !== 'object') {
+          return;
+        }
+
+        Object.entries(namespaceFields).forEach(([fieldName, fieldBucket]) => {
+          const total = Number(fieldBucket?.total) || 0;
+
+          if (!total) {
+            return;
+          }
+
+          const fieldKey = `${namespaceKey}.${fieldName}`;
+          appTotalsByName[appName][fieldKey] = (appTotalsByName[appName][fieldKey] || 0) + total;
+        });
+      });
+    });
+  });
+
+  return Object.values(appTotalsByName).reduce((totals, appTotals) => {
+    Object.entries(appTotals).forEach(([fieldKey, total]) => {
+      totals[fieldKey] = (totals[fieldKey] || 0) + Number(total || 0);
+    });
+
+    return totals;
   }, {});
 };
 
@@ -187,24 +257,24 @@ const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
   });
 };
 
-// Update cached field occurrence pairs and log them to the console.
-const updateFieldOccurrences = (aggregations) => {
-  const computedOccurrences = countFieldsAcrossApps(aggregations);
-  fieldOccurrencesByName = Object.keys(computedOccurrences).length
-    ? computedOccurrences
-    : buildDefaultFieldOccurrences();
-  console.log('Field occurrence counts', fieldOccurrencesByName);
+// Update cached field totals and log them to the console.
+const updateFieldTotals = (aggregations) => {
+  const computedTotals = combineFieldTotalsByNamespace(aggregations);
+  fieldTotalsByName = Object.keys(computedTotals).length
+    ? computedTotals
+    : buildDefaultFieldTotals();
+  console.log('Field record totals', fieldTotalsByName);
 };
 
-// Convert the field occurrence map into summary rows for the table.
-const buildFieldSummaryRowsFromOccurrences = (occurrences = fieldOccurrencesByName) => {
-  const occurrenceEntries = Object.entries(occurrences || {});
+// Convert the field totals map into summary rows for the table.
+const buildFieldSummaryRowsFromTotals = (totals = fieldTotalsByName) => {
+  const totalEntries = Object.entries(totals || {});
 
-  if (!occurrenceEntries.length) {
+  if (!totalEntries.length) {
     return [];
   }
 
-  return occurrenceEntries
+  return totalEntries
     .sort(([, countA], [, countB]) => Number(countB) - Number(countA))
     .map(([label, count]) => ({ label, count: Number(count) || 0 }));
 };
@@ -216,9 +286,9 @@ const updateFromMetadataAggregations = (aggregations) => {
   }
 
   window.metadataAggregations = aggregations;
-  updateFieldOccurrences(aggregations);
+  updateFieldTotals(aggregations);
   subBarData = buildSubBarData(aggregations);
-  fieldSummaryRows = buildFieldSummaryRowsFromOccurrences();
+  fieldSummaryRows = buildFieldSummaryRowsFromTotals();
 
   renderFieldAnalysis();
   renderFieldSummaryTable();
@@ -242,9 +312,9 @@ if (typeof document !== 'undefined') {
       return;
     }
 
-    updateFieldOccurrences(window.metadataAggregations);
+    updateFieldTotals(window.metadataAggregations);
     subBarData = buildSubBarData(window.metadataAggregations);
-    fieldSummaryRows = buildFieldSummaryRowsFromOccurrences();
+    fieldSummaryRows = buildFieldSummaryRowsFromTotals();
     renderFieldAnalysis();
     renderFieldSummaryTable();
   };
