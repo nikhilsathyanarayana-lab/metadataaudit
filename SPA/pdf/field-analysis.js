@@ -295,7 +295,9 @@ const buildFieldRecordRows = (totalsByWindow = fieldTotalsByWindow) => {
     return [];
   }
 
-  return sortedTotals.map(([fieldName, recordCount]) => ({ fieldName, recordCount }));
+  return sortedTotals
+    .slice(0, 10)
+    .map(([fieldName, recordCount]) => ({ fieldName, recordCount }));
 };
 
 // Sync cached metadata aggregations with the bar chart.
