@@ -1,6 +1,21 @@
 <div class="page-view" id="placeholder-view-five" data-page-section="5">
   <section class="card page-section" id="page-five-card">
-    <h2 class="section-title" id="page-five-title">Page 5</h2>
-    <p class="section-hint" id="page-five-hint">Content coming soon.</p>
+    <h2 class="section-title" id="page-five-title">Excel Exports</h2>
+    <p class="section-hint" id="page-five-hint">Review workbook previews and cycle through sample sheets.</p>
+    <div class="export-preview" id="excel-export-preview">
+      <div class="export-preview-controls" aria-label="Excel preview navigation">
+        <button class="export-preview-button" type="button" id="excel-nav-prev" aria-label="Previous Excel export">&#8592;</button>
+        <button class="export-preview-button" type="button" id="excel-nav-next" aria-label="Next Excel export">&#8594;</button>
+      </div>
+      <iframe
+        id="excel-preview-frame"
+        class="export-preview-frame"
+        title="Excel export preview"
+        src="SPA/excel/excel0.html"
+        width="100%"
+        loading="lazy"
+        allowfullscreen
+      ></iframe>
+    </div>
   </section>
 </div>

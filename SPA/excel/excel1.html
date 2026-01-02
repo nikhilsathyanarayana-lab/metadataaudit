@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metadata Fields Sheet</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #0b172a;
+      color: #e5e7eb;
+    }
+
+    .sheet-preview {
+      background: #0f213b;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      padding: 20px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .sheet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .sheet-header h1 {
+      font-size: 22px;
+      margin: 0;
+    }
+
+    .sheet-header span {
+      color: #a5b4fc;
+      font-weight: 600;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #0f172a;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: #111827;
+      color: #c7d2fe;
+      font-size: 14px;
+      border-bottom: 1px solid #1f2937;
+    }
+
+    td {
+      border-bottom: 1px solid #1f2937;
+      color: #e5e7eb;
+      font-size: 13px;
+    }
+
+    .status-chip {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #1e3a8a;
+      color: #dbeafe;
+    }
+  </style>
+</head>
+<body>
+  <main class="sheet-preview">
+    <div class="sheet-header">
+      <h1>Metadata Fields</h1>
+      <span>Sheet: metadata_fields</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Namespace</th>
+          <th>Field</th>
+          <th>Lookbacks</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>app.info</td>
+          <td>app_name</td>
+          <td>7d, 30d</td>
+          <td><span class="status-chip">Ready</span></td>
+        </tr>
+        <tr>
+          <td>system.metrics</td>
+          <td>latency_ms</td>
+          <td>30d, 180d</td>
+          <td><span class="status-chip">Pending</span></td>
+        </tr>
+        <tr>
+          <td>engagement.activity</td>
+          <td>event_count</td>
+          <td>7d, 30d, 180d</td>
+          <td><span class="status-chip">Ready</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>
