@@ -146,7 +146,7 @@ const renderFieldAnalysis = () => {
   }
 
   if (barTitle) {
-    barTitle.textContent = 'Top 10 Applications per Field';
+    barTitle.textContent = 'Top 10 Fields per Application';
   }
 
   fieldSubBarChart?.destroy();
