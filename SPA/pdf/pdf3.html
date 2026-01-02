@@ -9,11 +9,19 @@
 <body id="metadata-summary-body" class="pdf-preview-body">
   <main id="metadata-summary" class="pdf-overview">
     <h1 id="metadata-summary-title" class="overview-title">Field Summary</h1>
-    <p id="metadata-summary-intro" class="overview-intro">Retention counts by namespace for the past 7, 30, and 180 days.</p>
-    <section id="field-change-card" class="change-summary-card">
-      <h2 id="field-change-title" class="chart-title">Field Change Highlights</h2>
-      <p id="field-change-intro" class="field-change-intro">Recent additions or removals detected by Sub ID and app.</p>
-      <div id="field-change-summary" class="field-change-summary"></div>
+    <section id="field-summary-card" class="table-card metadata-card">
+      <h2 id="field-summary-title" class="chart-title">Field Coverage Summary</h2>
+      <table id="field-summary-table" class="subscription-summary-table">
+        <thead id="field-summary-head" class="subscription-table-head">
+          <tr id="field-summary-header-row" class="subscription-header-row">
+            <th id="field-summary-header-subid" class="subscription-header-cell" scope="col">Sub ID</th>
+            <th id="field-summary-header-app" class="subscription-header-cell" scope="col">App Name</th>
+            <th id="field-summary-header-namespace" class="subscription-header-cell" scope="col">Namespace</th>
+            <th id="field-summary-header-changes" class="subscription-header-cell" scope="col">Changes</th>
+          </tr>
+        </thead>
+        <tbody id="field-summary-body" class="subscription-table-body"></tbody>
+      </table>
     </section>
     <div id="metadata-summary-grid" class="metadata-summary-grid">
       <section id="visitor-metadata-card" class="table-card metadata-card">

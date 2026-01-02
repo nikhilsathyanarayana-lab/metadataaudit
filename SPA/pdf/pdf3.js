@@ -139,10 +139,10 @@ const buildFieldSetsByApp = (rowsByNamespace = {}) => {
   return fieldSets;
 };
 
-// Identify new or missing fields across retention windows.
-const buildFieldChangeSentences = (rowsByNamespace = {}) => {
+// Build detailed change entries across retention windows for each app.
+const buildFieldChangeEntries = (rowsByNamespace = {}) => {
   const fieldSets = buildFieldSetsByApp(rowsByNamespace);
-  const messages = [];
+  const changeEntries = [];
 
   fieldSets.forEach((entry) => {
     const hasAllWindows = entry.window7Fields && entry.window30Fields && entry.window180Fields;
@@ -156,31 +156,37 @@ const buildFieldChangeSentences = (rowsByNamespace = {}) => {
     const missingFields = [...entry.window180Fields].filter((field) => !entry.window7Fields.has(field)
       && !entry.window30Fields.has(field));
 
-    newFields.forEach((fieldName) => {
-      messages.push({
-        subId: entry.subId,
-        appName: entry.appName,
-        namespace: entry.namespace,
-        text: `New Field: "${fieldName}" detected for ${entry.appName} (Sub ID ${entry.subId}) in the ${entry.namespace} namespace.`,
-      });
-    });
+    if (!newFields.length && !missingFields.length) {
+      return;
+    }
 
-    missingFields.forEach((fieldName) => {
-      messages.push({
-        subId: entry.subId,
-        appName: entry.appName,
-        namespace: entry.namespace,
-        text: `No Longer Present: "${fieldName}" previously found for ${entry.appName} (Sub ID ${entry.subId}) is absent from the past 7 and 30 days in the ${entry.namespace} namespace.`,
-      });
+    changeEntries.push({
+      subId: entry.subId,
+      appName: entry.appName,
+      namespace: entry.namespace,
+      newFields,
+      missingFields,
     });
   });
 
-  messages.sort((first, second) => first.subId.localeCompare(second.subId)
+  changeEntries.sort((first, second) => first.subId.localeCompare(second.subId)
     || first.appName.localeCompare(second.appName)
-    || first.namespace.localeCompare(second.namespace)
-    || first.text.localeCompare(second.text));
+    || first.namespace.localeCompare(second.namespace));
 
-  return messages.map((entry) => entry.text);
+  return changeEntries;
+};
+
+// Identify new or missing fields across retention windows.
+const buildFieldChangeSentences = (rowsOrEntries = {}) => {
+  const changeEntries = Array.isArray(rowsOrEntries)
+    ? rowsOrEntries
+    : buildFieldChangeEntries(rowsOrEntries);
+
+  return changeEntries.flatMap((entry) => {
+    const newMessages = entry.newFields.map((fieldName) => `New Field: "${fieldName}" detected for ${entry.appName} (Sub ID ${entry.subId}) in the ${entry.namespace} namespace.`);
+    const missingMessages = entry.missingFields.map((fieldName) => `No Longer Present: "${fieldName}" previously found for ${entry.appName} (Sub ID ${entry.subId}) is absent from the past 7 and 30 days in the ${entry.namespace} namespace.`);
+    return [...newMessages, ...missingMessages];
+  });
 };
 
 // Render field change sentences into the PDF view.
@@ -215,6 +221,73 @@ const renderFieldChangeSummary = (sentences = []) => {
   });
 
   summaryContainer.appendChild(sentenceList);
+};
+
+// Render field change highlights into the summary table.
+const renderFieldSummaryTable = (changeEntries = []) => {
+  const tableBody = document.getElementById('field-summary-body');
+
+  if (!tableBody) {
+    return;
+  }
+
+  tableBody.innerHTML = '';
+
+  if (!changeEntries.length) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.id = 'field-summary-empty-row';
+    emptyRow.className = 'subscription-row subscription-row--empty';
+
+    const emptyCell = document.createElement('td');
+    emptyCell.id = 'field-summary-empty-cell';
+    emptyCell.className = 'subscription-count-cell subscription-count-cell--empty';
+    emptyCell.colSpan = 4;
+    emptyCell.textContent = 'No field changes detected yet.';
+
+    emptyRow.appendChild(emptyCell);
+    tableBody.appendChild(emptyRow);
+    return;
+  }
+
+  changeEntries.forEach((entry, index) => {
+    const rowNumber = String(index + 1).padStart(2, '0');
+    const summaryRow = document.createElement('tr');
+    summaryRow.id = `field-summary-row-${rowNumber}`;
+    summaryRow.className = 'subscription-row';
+
+    const subIdCell = document.createElement('td');
+    subIdCell.id = `field-summary-subid-${rowNumber}`;
+    subIdCell.className = 'subscription-label-cell';
+    subIdCell.textContent = entry.subId || '';
+
+    const appNameCell = document.createElement('td');
+    appNameCell.id = `field-summary-app-${rowNumber}`;
+    appNameCell.className = 'subscription-count-cell';
+    appNameCell.textContent = entry.appName || '';
+
+    const namespaceCell = document.createElement('td');
+    namespaceCell.id = `field-summary-namespace-${rowNumber}`;
+    namespaceCell.className = 'subscription-count-cell';
+    namespaceCell.textContent = entry.namespace || '';
+
+    const changeCell = document.createElement('td');
+    changeCell.id = `field-summary-change-${rowNumber}`;
+    changeCell.className = 'subscription-count-cell';
+    const changeParts = [];
+
+    if (entry.newFields?.length) {
+      changeParts.push(`New: ${entry.newFields.join(', ')}`);
+    }
+
+    if (entry.missingFields?.length) {
+      changeParts.push(`Missing: ${entry.missingFields.join(', ')}`);
+    }
+
+    changeCell.textContent = changeParts.join(' | ');
+
+    summaryRow.append(subIdCell, appNameCell, namespaceCell, changeCell);
+    tableBody.appendChild(summaryRow);
+  });
 };
 
 // Convert a field list into a printable string.
@@ -297,10 +370,12 @@ const renderTableRows = (namespace, rows = []) => {
 // Render all namespace tables from cached metadata aggregations.
 const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const rowsByNamespace = mapAggregationsToRows(aggregations);
+  const changeEntries = buildFieldChangeEntries(rowsByNamespace);
   METADATA_NAMESPACES.forEach((namespace) => {
     renderTableRows(namespace, rowsByNamespace[namespace]);
   });
-  renderFieldChangeSummary(buildFieldChangeSentences(rowsByNamespace));
+  renderFieldSummaryTable(changeEntries);
+  renderFieldChangeSummary(buildFieldChangeSentences(changeEntries));
 };
 
 // Process incoming metadata messages from the parent window.
