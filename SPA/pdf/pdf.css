@@ -318,6 +318,13 @@ a:hover {
   background: #fff7fb;
 }
 
+.application-subscription-heading {
+  margin: 1rem 0 0.25rem;
+  color: var(--pendo-charcoal);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
 .subscription-stat__label {
   margin: 0;
   font-size: 0.9rem;

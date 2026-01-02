@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Application Details</title>
+  <link rel="stylesheet" href="pdf.css">
+</head>
+<body id="application-details-body" class="pdf-preview-body">
+  <main id="application-details-main" class="pdf-overview subscription-overview">
+    <h1 id="application-details-title" class="overview-title">Application Details</h1>
+    <p id="application-details-intro" class="overview-intro">One sheet per application grouped by subscription with namespace coverage.</p>
+
+    <section id="application-details-container" class="subscription-page-container">
+      <p id="application-details-empty" class="subscription-empty-message">No application data available yet.</p>
+    </section>
+
+    <template id="application-subscription-heading-template" class="application-subscription-template">
+      <h2 id="application-template-sub-heading" class="application-subscription-heading" data-slot="sub-heading"></h2>
+    </template>
+
+    <template id="application-details-template" class="application-details-template">
+      <article id="application-template-card" class="subscription-card application-card" data-app-card>
+        <header id="application-template-header" class="subscription-card__header">
+          <p id="application-template-eyebrow" class="eyebrow subscription-card__eyebrow">Application</p>
+          <h2 id="application-template-title" class="subscription-card__title" data-slot="title"></h2>
+          <p id="application-template-summary" class="subscription-card__summary" data-slot="summary"></p>
+        </header>
+
+        <div id="application-template-stats" class="subscription-card__stats">
+          <div id="application-template-stat-subscription" class="subscription-stat">
+            <p id="application-template-stat-subscription-label" class="subscription-stat__label">Sub ID</p>
+            <p id="application-template-stat-subscription-value" class="subscription-stat__value" data-slot="sub-id"></p>
+          </div>
+          <div id="application-template-stat-appid" class="subscription-stat">
+            <p id="application-template-stat-appid-label" class="subscription-stat__label">App ID</p>
+            <p id="application-template-stat-appid-value" class="subscription-stat__value" data-slot="app-id"></p>
+          </div>
+          <div id="application-template-stat-fields7" class="subscription-stat">
+            <p id="application-template-stat-fields7-label" class="subscription-stat__label">Fields (7 days)</p>
+            <p id="application-template-stat-fields7-value" class="subscription-stat__value" data-slot="field-count-7"></p>
+          </div>
+          <div id="application-template-stat-fields30" class="subscription-stat">
+            <p id="application-template-stat-fields30-label" class="subscription-stat__label">Fields (30 days)</p>
+            <p id="application-template-stat-fields30-value" class="subscription-stat__value" data-slot="field-count-30"></p>
+          </div>
+          <div id="application-template-stat-fields180" class="subscription-stat">
+            <p id="application-template-stat-fields180-label" class="subscription-stat__label">Fields (180 days)</p>
+            <p id="application-template-stat-fields180-value" class="subscription-stat__value" data-slot="field-count-180"></p>
+          </div>
+          <div id="application-template-stat-fields-unique" class="subscription-stat">
+            <p id="application-template-stat-fields-unique-label" class="subscription-stat__label">Unique fields</p>
+            <p id="application-template-stat-fields-unique-value" class="subscription-stat__value" data-slot="field-count-unique"></p>
+          </div>
+        </div>
+
+        <section id="application-template-namespace" class="subscription-namespace">
+          <h3 id="application-template-namespace-title" class="subscription-namespace__title">Metadata</h3>
+          <table id="application-template-namespace-table" class="subscription-namespace__table">
+            <thead id="application-template-namespace-head" class="subscription-namespace__head">
+              <tr id="application-template-namespace-row" class="subscription-namespace__header-row">
+                <th id="application-template-namespace-header-namespace" class="subscription-namespace__header-cell" scope="col">Type</th>
+                <th id="application-template-namespace-header-window7" class="subscription-namespace__header-cell" scope="col">7 days</th>
+                <th id="application-template-namespace-header-window30" class="subscription-namespace__header-cell" scope="col">30 days</th>
+                <th id="application-template-namespace-header-window180" class="subscription-namespace__header-cell" scope="col">180 days</th>
+              </tr>
+            </thead>
+            <tbody id="application-template-namespace-body" class="subscription-namespace__body" data-slot="namespace-body"></tbody>
+          </table>
+        </section>
+      </article>
+    </template>
+  </main>
+  <script id="application-details-script" class="pdf-script" type="module" src="pdf5.js"></script>
+</body>
+</html>
