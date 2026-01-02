@@ -121,6 +121,21 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.metadata-summary-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.metadata-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.metadata-cell--window {
+  word-break: break-word;
+}
+
 .eyebrow {
   margin: 0 0 0.35rem;
   text-transform: uppercase;
