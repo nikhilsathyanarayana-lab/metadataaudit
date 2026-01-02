@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Subscription Details</title>
+  <link rel="stylesheet" href="pdf.css">
+</head>
+<body id="subscription-details-body" class="pdf-preview-body">
+  <main id="subscription-details-main" class="pdf-overview subscription-overview">
+    <h1 id="subscription-details-title" class="overview-title">Subscription Details</h1>
+    <p id="subscription-details-intro" class="overview-intro">One sheet per subscription with app counts and namespace coverage.</p>
+
+    <section id="subscription-details-container" class="subscription-page-container">
+      <p id="subscription-details-empty" class="subscription-empty-message">No subscription data available yet.</p>
+    </section>
+
+    <template id="subscription-details-template" class="subscription-details-template">
+      <article id="subscription-template-card" class="subscription-card" data-subscription-card>
+        <header id="subscription-template-header" class="subscription-card__header">
+          <p id="subscription-template-eyebrow" class="eyebrow subscription-card__eyebrow">Subscription</p>
+          <h2 id="subscription-template-title" class="subscription-card__title" data-slot="title"></h2>
+          <p id="subscription-template-summary" class="subscription-card__summary" data-slot="summary"></p>
+        </header>
+
+        <div id="subscription-template-stats" class="subscription-card__stats">
+          <div id="subscription-template-stat-apps" class="subscription-stat">
+            <p id="subscription-template-stat-apps-label" class="subscription-stat__label">Apps scanned</p>
+            <p id="subscription-template-stat-apps-value" class="subscription-stat__value" data-slot="app-count"></p>
+          </div>
+          <div id="subscription-template-stat-fields" class="subscription-stat">
+            <p id="subscription-template-stat-fields-label" class="subscription-stat__label">Unique fields</p>
+            <p id="subscription-template-stat-fields-value" class="subscription-stat__value" data-slot="field-count"></p>
+          </div>
+        </div>
+
+        <section id="subscription-template-apps" class="subscription-apps">
+          <h3 id="subscription-template-apps-title" class="subscription-apps__title">Applications</h3>
+          <ul id="subscription-template-apps-list" class="subscription-apps__list" data-slot="app-list"></ul>
+        </section>
+
+        <section id="subscription-template-namespace" class="subscription-namespace">
+          <h3 id="subscription-template-namespace-title" class="subscription-namespace__title">Namespace coverage</h3>
+          <table id="subscription-template-namespace-table" class="subscription-namespace__table">
+            <thead id="subscription-template-namespace-head" class="subscription-namespace__head">
+              <tr id="subscription-template-namespace-row" class="subscription-namespace__header-row">
+                <th id="subscription-template-namespace-header-namespace" class="subscription-namespace__header-cell" scope="col">Namespace</th>
+                <th id="subscription-template-namespace-header-window7" class="subscription-namespace__header-cell" scope="col">7 days</th>
+                <th id="subscription-template-namespace-header-window30" class="subscription-namespace__header-cell" scope="col">30 days</th>
+                <th id="subscription-template-namespace-header-window180" class="subscription-namespace__header-cell" scope="col">180 days</th>
+              </tr>
+            </thead>
+            <tbody id="subscription-template-namespace-body" class="subscription-namespace__body" data-slot="namespace-body"></tbody>
+          </table>
+        </section>
+      </article>
+    </template>
+  </main>
+  <script type="module" src="pdf4.js"></script>
+</body>
+</html>

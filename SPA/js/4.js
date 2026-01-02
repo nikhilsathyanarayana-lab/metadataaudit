@@ -1,4 +1,4 @@
-const exportSources = ['SPA/pdf/pdf0.html','SPA/pdf/pdf1.html', 'SPA/pdf/pdf2.html', 'SPA/pdf/pdf3.html'];
+const exportSources = ['SPA/pdf/pdf0.html','SPA/pdf/pdf1.html', 'SPA/pdf/pdf2.html', 'SPA/pdf/pdf3.html', 'SPA/pdf/pdf4.html'];
 let currentSourceIndex = 0;
 
 // Update the iframe source to the selected export preview.
