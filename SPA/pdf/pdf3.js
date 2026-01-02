@@ -251,7 +251,7 @@ const renderTableRows = (namespace, rows = []) => {
     const emptyCell = document.createElement('td');
     emptyCell.id = `${namespace}-metadata-empty-cell`;
     emptyCell.className = 'metadata-cell metadata-cell--empty';
-    emptyCell.colSpan = 6;
+    emptyCell.colSpan = 5;
     emptyCell.textContent = 'No metadata available yet. Keep the scan running to populate this table.';
     emptyRow.appendChild(emptyCell);
     tableBody.appendChild(emptyRow);
@@ -274,11 +274,6 @@ const renderTableRows = (namespace, rows = []) => {
     appNameCell.className = 'metadata-cell metadata-cell--app-name';
     appNameCell.textContent = row.appName || '';
 
-    const appIdCell = document.createElement('td');
-    appIdCell.id = `${namespace}-cell-app-id-${rowNumber}`;
-    appIdCell.className = 'metadata-cell metadata-cell--app-id';
-    appIdCell.textContent = row.appId || '';
-
     const window7Cell = document.createElement('td');
     window7Cell.id = `${namespace}-cell-window7-${rowNumber}`;
     window7Cell.className = 'metadata-cell metadata-cell--window';
@@ -294,7 +289,7 @@ const renderTableRows = (namespace, rows = []) => {
     window180Cell.className = 'metadata-cell metadata-cell--window';
     window180Cell.textContent = formatFieldList(row.window180);
 
-    tableRow.append(subCell, appNameCell, appIdCell, window7Cell, window30Cell, window180Cell);
+    tableRow.append(subCell, appNameCell, window7Cell, window30Cell, window180Cell);
     tableBody.appendChild(tableRow);
   });
 };
