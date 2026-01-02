@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metadata Summary</title>
+  <link rel="stylesheet" href="pdf.css">
+</head>
+<body id="metadata-summary-body" class="pdf-preview-body">
+  <main id="metadata-summary" class="pdf-overview">
+    <h1 id="metadata-summary-title" class="overview-title">Metadata Summary</h1>
+    <p id="metadata-summary-intro" class="overview-intro">Retention counts by namespace for the past 7, 30, and 180 days.</p>
+    <div id="metadata-summary-grid" class="metadata-summary-grid">
+      <section id="visitor-metadata-card" class="table-card metadata-card">
+        <h2 id="visitor-metadata-title" class="chart-title">Visitor</h2>
+        <table id="visitor-metadata-table" class="metadata-table">
+          <thead id="visitor-metadata-head" class="metadata-table-head">
+            <tr id="visitor-metadata-header-row" class="metadata-header-row">
+              <th id="visitor-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
+              <th id="visitor-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
+              <th id="visitor-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
+              <th id="visitor-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
+              <th id="visitor-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
+              <th id="visitor-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
+            </tr>
+          </thead>
+          <tbody id="visitor-metadata-body" class="metadata-table-body"></tbody>
+        </table>
+      </section>
+      <section id="account-metadata-card" class="table-card metadata-card">
+        <h2 id="account-metadata-title" class="chart-title">Account</h2>
+        <table id="account-metadata-table" class="metadata-table">
+          <thead id="account-metadata-head" class="metadata-table-head">
+            <tr id="account-metadata-header-row" class="metadata-header-row">
+              <th id="account-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
+              <th id="account-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
+              <th id="account-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
+              <th id="account-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
+              <th id="account-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
+              <th id="account-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
+            </tr>
+          </thead>
+          <tbody id="account-metadata-body" class="metadata-table-body"></tbody>
+        </table>
+      </section>
+      <section id="custom-metadata-card" class="table-card metadata-card">
+        <h2 id="custom-metadata-title" class="chart-title">Custom</h2>
+        <table id="custom-metadata-table" class="metadata-table">
+          <thead id="custom-metadata-head" class="metadata-table-head">
+            <tr id="custom-metadata-header-row" class="metadata-header-row">
+              <th id="custom-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
+              <th id="custom-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
+              <th id="custom-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
+              <th id="custom-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
+              <th id="custom-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
+              <th id="custom-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
+            </tr>
+          </thead>
+          <tbody id="custom-metadata-body" class="metadata-table-body"></tbody>
+        </table>
+      </section>
+      <section id="salesforce-metadata-card" class="table-card metadata-card">
+        <h2 id="salesforce-metadata-title" class="chart-title">Salesforce</h2>
+        <table id="salesforce-metadata-table" class="metadata-table">
+          <thead id="salesforce-metadata-head" class="metadata-table-head">
+            <tr id="salesforce-metadata-header-row" class="metadata-header-row">
+              <th id="salesforce-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
+              <th id="salesforce-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
+              <th id="salesforce-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
+              <th id="salesforce-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
+              <th id="salesforce-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
+              <th id="salesforce-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
+            </tr>
+          </thead>
+          <tbody id="salesforce-metadata-body" class="metadata-table-body"></tbody>
+        </table>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="pdf3.js"></script>
+</body>
+</html>
