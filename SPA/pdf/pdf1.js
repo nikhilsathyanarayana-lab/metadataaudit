@@ -60,6 +60,10 @@ const hasMetadataAggregations = () => (
 
 // Count distinct and total app IDs for each SubID in the metadata cache.
 const countAppsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (typeof window !== 'undefined' && window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
+    return window.appCountsBySubId;
+  }
+
   if (!aggregations || typeof aggregations !== 'object') {
     return {};
   }
@@ -263,7 +267,16 @@ if (typeof document !== 'undefined') {
       return;
     }
 
-    window.metadataAggregations = message.payload || {};
+    const payload = message.payload || {};
+    const aggregations = payload.metadataAggregations || (payload.appCountsBySubId ? {} : payload) || {};
+    const incomingAppCounts = payload.appCountsBySubId || message.appCountsBySubId;
+
+    window.metadataAggregations = aggregations || {};
+
+    if (incomingAppCounts && typeof incomingAppCounts === 'object') {
+      window.appCountsBySubId = incomingAppCounts;
+    }
+
     subDonutData = buildSubDonutData(window.metadataAggregations);
     subBarData = buildSubBarData(window.metadataAggregations);
     window.subDonutData = subDonutData;
