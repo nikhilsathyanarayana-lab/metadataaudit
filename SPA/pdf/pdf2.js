@@ -32,6 +32,16 @@ const defaultSubBarData = {
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
 
+const defaultFieldSummaryRows = [
+  { label: 'Email', count: 1450 },
+  { label: 'User ID', count: 1380 },
+  { label: 'Account ID', count: 1215 },
+  { label: 'Last Seen', count: 1140 },
+  { label: 'Region', count: 940 }
+];
+
+let fieldSummaryRows = defaultFieldSummaryRows;
+
 // Check whether the window already includes metadata aggregations we can use.
 const hasMetadataAggregations = () => (
   typeof window !== 'undefined'
@@ -109,6 +119,37 @@ const renderFieldAnalysis = () => {
   fieldSubBarChart = new Chart(barCanvas, createSubBarConfig(subBarData));
 };
 
+// Render a mock field summary table beneath the bar chart.
+const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
+  const tableBody = document.getElementById('field-summary-body');
+
+  if (!tableBody) {
+    return;
+  }
+
+  tableBody.innerHTML = '';
+
+  rows.forEach((row, index) => {
+    const rowNumber = String(index + 1).padStart(2, '0');
+    const summaryRow = document.createElement('tr');
+    summaryRow.id = `field-row-${rowNumber}`;
+    summaryRow.className = 'subscription-row';
+
+    const labelCell = document.createElement('td');
+    labelCell.id = `field-label-${rowNumber}`;
+    labelCell.className = 'subscription-label-cell';
+    labelCell.textContent = row.label || '';
+
+    const countCell = document.createElement('td');
+    countCell.id = `field-count-${rowNumber}`;
+    countCell.className = 'subscription-count-cell';
+    countCell.textContent = (row.count ?? '')?.toString();
+
+    summaryRow.append(labelCell, countCell);
+    tableBody.appendChild(summaryRow);
+  });
+};
+
 // Sync cached metadata aggregations with the bar chart.
 const updateFromMetadataAggregations = (aggregations) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -117,8 +158,10 @@ const updateFromMetadataAggregations = (aggregations) => {
 
   window.metadataAggregations = aggregations;
   subBarData = buildSubBarData(aggregations);
+  fieldSummaryRows = defaultFieldSummaryRows;
 
   renderFieldAnalysis();
+  renderFieldSummaryTable();
 };
 
 if (typeof document !== 'undefined') {
@@ -140,6 +183,7 @@ if (typeof document !== 'undefined') {
     }
 
     renderFieldAnalysis();
+    renderFieldSummaryTable();
   };
 
   window.addEventListener('message', handleMetadataMessage);

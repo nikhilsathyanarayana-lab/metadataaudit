@@ -15,6 +15,18 @@
         <h2 id="field-bar-title" class="chart-title">Most Common Fields</h2>
         <canvas id="fieldSubBar" class="chart-canvas bar-chart"></canvas>
       </div>
+      <div id="field-table-card" class="chart-full table-card">
+        <h2 id="field-table-title" class="chart-title">Field Coverage Summary</h2>
+        <table id="field-summary-table" class="subscription-summary-table">
+          <thead id="field-table-head" class="subscription-table-head">
+            <tr id="field-header-row" class="subscription-header-row">
+              <th id="field-header-label" class="subscription-header-cell" scope="col">Field</th>
+              <th id="field-header-count" class="subscription-header-cell" scope="col">Records Scanned</th>
+            </tr>
+          </thead>
+          <tbody id="field-summary-body" class="subscription-table-body"></tbody>
+        </table>
+      </div>
     </div>
   </main>
   <script type="module" src="pdf2.js"></script>
