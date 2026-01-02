@@ -41,7 +41,7 @@ const defaultSubscriptionIds = Array.from({ length: 10 }, (_, index) => `Sub ${S
 const defaultSubBarData = {
   labels: defaultSubscriptionIds,
   datasets: [{
-    label: 'Apps scanned',
+    label: 'Records scanned',
     data: defaultSubscriptionIds.map(() => 0),
     backgroundColor: defaultSubscriptionIds.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]),
     borderColor: defaultSubscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]),
@@ -94,10 +94,27 @@ const countAppsBySubscription = (aggregations = (hasMetadataAggregations() && wi
   }, {});
 };
 
-// Build a bar dataset that lists app totals per SubID.
+// Summarize total records scanned per SubID.
+const countRecordsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return {};
+  }
+
+  return Object.entries(aggregations).reduce((counts, [subId, details]) => {
+    if (!subId || !details || typeof details !== 'object') {
+      return counts;
+    }
+
+    counts[subId] = Number(details.recordsScanned) || 0;
+
+    return counts;
+  }, {});
+};
+
+// Build a bar dataset that lists record totals per SubID.
 const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  const appCounts = countAppsBySubscription(aggregations);
-  const subscriptionIds = Object.keys(appCounts || {});
+  const recordCounts = countRecordsBySubscription(aggregations);
+  const subscriptionIds = Object.keys(recordCounts || {});
 
   if (!subscriptionIds.length) {
     return defaultSubBarData;
@@ -109,8 +126,8 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   return {
     labels: subscriptionIds,
     datasets: [{
-      label: 'Apps scanned',
-      data: subscriptionIds.map((subId) => appCounts[subId]?.total || 0),
+      label: 'Records scanned',
+      data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
       borderWidth: 1
