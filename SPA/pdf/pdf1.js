@@ -168,6 +168,9 @@ const createSubBarConfig = (data) => ({
   type: 'bar',
   data,
   options: {
+    plugins: {
+      title: { display: false }
+    },
     scales: {
       y: {
         beginAtZero: true
