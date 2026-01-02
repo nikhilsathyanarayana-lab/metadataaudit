@@ -31,6 +31,8 @@ const defaultSubBarData = {
 
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
+let fieldTotalsByWindow = {};
+let fieldDifferencesByApp = [];
 
 // Build a default field total map from the sample chart data.
 const buildDefaultFieldTotals = () => {
@@ -45,9 +47,18 @@ const buildDefaultFieldTotals = () => {
     return occurrences;
   }, {});
 };
+// Build default per-window totals from the sample chart data.
+const buildDefaultWindowTotals = () => ({
+  sevenDay: buildDefaultFieldTotals(),
+  otherWindows: {},
+});
 
-let fieldTotalsByName = buildDefaultFieldTotals();
+fieldTotalsByWindow = buildDefaultWindowTotals();
 let fieldSummaryRows = [];
+const WINDOW_COLUMNS = [
+  { key: 'sevenDay', match: (windowKey) => Number(windowKey) === 7, label: '7-Day Records' },
+  { key: 'otherWindows', match: (windowKey) => Number(windowKey) !== 7, label: 'Other Window Records' }
+];
 
 // Check whether the window already includes metadata aggregations we can use.
 const hasMetadataAggregations = () => (
@@ -89,28 +100,22 @@ const countFieldsAcrossApps = (aggregations = (hasMetadataAggregations() && wind
   }, {});
 };
 
-// Choose a processed window bucket for an app when tallying field totals.
-const selectProcessedWindow = (appBucket) => {
-  if (!appBucket || typeof appBucket !== 'object') {
-    return null;
-  }
-
-  const windows = Object.values(appBucket.windows || {});
-
-  if (!windows.length) {
-    return null;
-  }
-
-  return windows.find((windowBucket) => windowBucket?.isProcessed) || windows[0];
+// Resolve which summary column should hold totals for a window bucket.
+const getColumnKeyForWindow = (windowKey) => {
+  const matchingColumn = WINDOW_COLUMNS.find((column) => column.match(windowKey));
+  return matchingColumn?.key;
 };
 
-// Combine field totals across apps with the same name, segmented by namespace.
-const combineFieldTotalsByNamespace = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+// Combine field totals across apps by window column without discarding buckets.
+const combineFieldTotalsByWindow = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
-    return {};
+    return buildDefaultWindowTotals();
   }
 
-  const appTotalsByName = {};
+  const totalsByWindow = WINDOW_COLUMNS.reduce((accumulator, column) => ({
+    ...accumulator,
+    [column.key]: {},
+  }), {});
 
   Object.values(aggregations).forEach((subBucket) => {
     const apps = subBucket?.apps;
@@ -120,43 +125,38 @@ const combineFieldTotalsByNamespace = (aggregations = (hasMetadataAggregations()
     }
 
     Object.values(apps).forEach((appBucket) => {
-      const appName = appBucket?.appName || appBucket?.appId;
-      const processedWindow = selectProcessedWindow(appBucket);
-
-      if (!appName || !processedWindow || typeof processedWindow !== 'object') {
-        return;
-      }
-
-      if (!appTotalsByName[appName]) {
-        appTotalsByName[appName] = {};
-      }
-
-      Object.entries(processedWindow.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
-        if (!namespaceFields || typeof namespaceFields !== 'object') {
+      Object.entries(appBucket?.windows || {}).forEach(([windowKey, windowBucket]) => {
+        if (!windowBucket || typeof windowBucket !== 'object') {
           return;
         }
 
-        Object.entries(namespaceFields).forEach(([fieldName, fieldBucket]) => {
-          const total = Number(fieldBucket?.total) || 0;
+        const columnKey = getColumnKeyForWindow(windowKey);
 
-          if (!total) {
+        if (!columnKey) {
+          return;
+        }
+
+        Object.entries(windowBucket.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+          if (!namespaceFields || typeof namespaceFields !== 'object') {
             return;
           }
 
-          const fieldKey = `${namespaceKey}.${fieldName}`;
-          appTotalsByName[appName][fieldKey] = (appTotalsByName[appName][fieldKey] || 0) + total;
+          Object.entries(namespaceFields).forEach(([fieldName, fieldBucket]) => {
+            const total = Number(fieldBucket?.total) || 0;
+
+            if (!total) {
+              return;
+            }
+
+            const fieldKey = `${namespaceKey}.${fieldName}`;
+            totalsByWindow[columnKey][fieldKey] = (totalsByWindow[columnKey][fieldKey] || 0) + total;
+          });
         });
       });
     });
   });
 
-  return Object.values(appTotalsByName).reduce((totals, appTotals) => {
-    Object.entries(appTotals).forEach(([fieldKey, total]) => {
-      totals[fieldKey] = (totals[fieldKey] || 0) + Number(total || 0);
-    });
-
-    return totals;
-  }, {});
+  return totalsByWindow;
 };
 
 // Build a bar dataset showing how many applications include each field.
@@ -183,6 +183,72 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
       borderWidth: 1
     }]
   };
+};
+
+// Build namespace/field sets for each window to compare coverage by app.
+const collectFieldSetsByWindow = (appBucket) => {
+  const windowFieldSets = {};
+
+  Object.entries(appBucket?.windows || {}).forEach(([windowKey, windowBucket]) => {
+    if (!windowBucket || typeof windowBucket !== 'object') {
+      return;
+    }
+
+    const columnKey = getColumnKeyForWindow(windowKey);
+
+    if (!columnKey) {
+      return;
+    }
+
+    if (!windowFieldSets[columnKey]) {
+      windowFieldSets[columnKey] = new Set();
+    }
+
+    Object.entries(windowBucket.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+      if (!namespaceFields || typeof namespaceFields !== 'object') {
+        return;
+      }
+
+      Object.keys(namespaceFields).forEach((fieldName) => {
+        windowFieldSets[columnKey].add(`${namespaceKey}.${fieldName}`);
+      });
+    });
+  });
+
+  return windowFieldSets;
+};
+
+// Describe missing/extra fields between 7-day and other windows for an app.
+const buildFieldDifferencesByApp = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return [];
+  }
+
+  return Object.entries(aggregations).reduce((differences, [subId, subBucket]) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return differences;
+    }
+
+    Object.values(apps).forEach((appBucket) => {
+      const appName = appBucket?.appName || appBucket?.appId || 'Unknown App';
+      const windowFieldSets = collectFieldSetsByWindow(appBucket);
+      const sevenDayFields = windowFieldSets.sevenDay || new Set();
+      const otherWindowFields = windowFieldSets.otherWindows || new Set();
+
+      const missingInSevenDay = [...otherWindowFields].filter((fieldKey) => !sevenDayFields.has(fieldKey));
+      const extraInSevenDay = [...sevenDayFields].filter((fieldKey) => !otherWindowFields.has(fieldKey));
+
+      if (!missingInSevenDay.length && !extraInSevenDay.length) {
+        return;
+      }
+
+      differences.push({ subId, appName, missingInSevenDay, extraInSevenDay });
+    });
+
+    return differences;
+  }, []);
 };
 
 // Create a Chart.js bar config that keeps the Y-axis anchored at zero.
@@ -248,37 +314,69 @@ const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
     labelCell.className = 'subscription-label-cell';
     labelCell.textContent = row.label || '';
 
-    const countCell = document.createElement('td');
-    countCell.id = `field-count-${rowNumber}`;
-    countCell.className = 'subscription-count-cell';
-    countCell.textContent = (row.count ?? '')?.toString();
+    const sevenDayCell = document.createElement('td');
+    sevenDayCell.id = `field-seven-${rowNumber}`;
+    sevenDayCell.className = 'subscription-count-cell';
+    sevenDayCell.textContent = row.appName || '';
 
-    summaryRow.append(labelCell, countCell);
+    const otherWindowCell = document.createElement('td');
+    otherWindowCell.id = `field-other-${rowNumber}`;
+    otherWindowCell.className = 'subscription-count-cell';
+    otherWindowCell.textContent = row.notes || '';
+
+    const differenceCell = document.createElement('td');
+    differenceCell.id = `field-diff-${rowNumber}`;
+    differenceCell.className = 'subscription-count-cell';
+    differenceCell.textContent = row.differences || '';
+
+    summaryRow.append(labelCell, sevenDayCell, otherWindowCell, differenceCell);
     tableBody.appendChild(summaryRow);
   });
 };
 
 // Update cached field totals and log them to the console.
 const updateFieldTotals = (aggregations) => {
-  const computedTotals = combineFieldTotalsByNamespace(aggregations);
-  fieldTotalsByName = Object.keys(computedTotals).length
-    ? computedTotals
-    : buildDefaultFieldTotals();
-  console.log('Field record totals', fieldTotalsByName);
+  const computedTotals = combineFieldTotalsByWindow(aggregations);
+  const hasWindowTotals = Object.values(computedTotals || {}).some((windowTotals) => (
+    windowTotals && Object.keys(windowTotals).length
+  ));
+
+  fieldTotalsByWindow = hasWindowTotals ? computedTotals : buildDefaultWindowTotals();
+  console.log('Field record totals by window', fieldTotalsByWindow);
 };
 
-// Convert the field totals map into summary rows for the table.
-const buildFieldSummaryRowsFromTotals = (totals = fieldTotalsByName) => {
-  const totalEntries = Object.entries(totals || {});
+// Update cached per-app field differences for window comparisons.
+const updateFieldDifferences = (aggregations) => {
+  fieldDifferencesByApp = buildFieldDifferencesByApp(aggregations);
+  console.log('Field coverage differences', fieldDifferencesByApp);
+};
 
-  if (!totalEntries.length) {
+// Convert per-app field differences into readable summary rows.
+const buildDifferenceSummaryRows = (differences = fieldDifferencesByApp) => {
+  if (!Array.isArray(differences) || !differences.length) {
     return [];
   }
 
-  return totalEntries
-    .sort(([, countA], [, countB]) => Number(countB) - Number(countA))
-    .map(([label, count]) => ({ label, count: Number(count) || 0 }));
+  return differences.map((difference) => {
+    const missingLabel = difference.missingInSevenDay?.length
+      ? `Missing in 7-Day: ${difference.missingInSevenDay.join(', ')}`
+      : '';
+    const extraLabel = difference.extraInSevenDay?.length
+      ? `Extra in 7-Day: ${difference.extraInSevenDay.join(', ')}`
+      : '';
+    const differenceText = [missingLabel, extraLabel].filter(Boolean).join(' | ');
+
+    return {
+      label: difference.subId || 'Unknown SubID',
+      appName: difference.appName || 'Unknown App',
+      notes: '',
+      differences: differenceText,
+    };
+  });
 };
+
+// Merge mismatch details into the table dataset.
+const buildFieldSummaryRows = () => buildDifferenceSummaryRows(fieldDifferencesByApp);
 
 // Sync cached metadata aggregations with the bar chart.
 const updateFromMetadataAggregations = (aggregations) => {
@@ -288,8 +386,9 @@ const updateFromMetadataAggregations = (aggregations) => {
 
   window.metadataAggregations = aggregations;
   updateFieldTotals(aggregations);
+  updateFieldDifferences(aggregations);
   subBarData = buildSubBarData(aggregations);
-  fieldSummaryRows = buildFieldSummaryRowsFromTotals();
+  fieldSummaryRows = buildFieldSummaryRows();
 
   renderFieldAnalysis();
   renderFieldSummaryTable();
@@ -314,8 +413,9 @@ if (typeof document !== 'undefined') {
     }
 
     updateFieldTotals(window.metadataAggregations);
+    updateFieldDifferences(window.metadataAggregations);
     subBarData = buildSubBarData(window.metadataAggregations);
-    fieldSummaryRows = buildFieldSummaryRowsFromTotals();
+    fieldSummaryRows = buildFieldSummaryRows();
     renderFieldAnalysis();
     renderFieldSummaryTable();
   };
