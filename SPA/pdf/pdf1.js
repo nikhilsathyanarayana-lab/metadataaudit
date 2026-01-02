@@ -232,6 +232,43 @@ const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
   return count;
 };
 
+// Draw the individual sub counts on top of each donut slice.
+const subDonutSliceLabels = {
+  id: 'subDonutSliceLabels',
+  afterDatasetDraw(chart, args) {
+    const meta = chart?.getDatasetMeta(args.index);
+    const dataset = chart?.data?.datasets?.[args.index];
+
+    if (!meta || !dataset || !Array.isArray(dataset.data)) {
+      return;
+    }
+
+    const { ctx } = chart;
+    ctx.save();
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    meta.data.forEach((arc, index) => {
+      const value = dataset.data[index];
+
+      if (value === undefined || value === null) {
+        return;
+      }
+
+      const angle = (arc.startAngle + arc.endAngle) / 2;
+      const radius = arc.innerRadius + ((arc.outerRadius - arc.innerRadius) / 2);
+      const x = arc.x + (radius * Math.cos(angle));
+      const y = arc.y + (radius * Math.sin(angle));
+
+      ctx.fillText(String(value), x, y);
+    });
+
+    ctx.restore();
+  }
+};
+
 // Draw the SubID scan total in the center of the doughnut chart after rendering.
 const subDonutCenterText = {
   id: 'subDonutCenterText',
@@ -303,7 +340,7 @@ const renderPdfCharts = () => {
         legend: { display: false }
       }
     },
-    plugins: [subDonutCenterText]
+    plugins: [subDonutCenterText, subDonutSliceLabels]
   });
 
   const subBarConfig = createSubBarConfig(subBarData);
