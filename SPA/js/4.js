@@ -33,6 +33,57 @@ export async function initSection(sectionElement) {
   const exclusionButton = sectionElement?.querySelector('#export-exclusion-button');
   const exclusionCloseButtons = exclusionModal?.querySelectorAll('[data-close-export-exclusion-modal]');
   const exportPdfButton = sectionElement?.querySelector('#export-pdf-button');
+
+  // Return the exclusion selections from the modal checkboxes.
+  const getExportExclusions = () => ({
+    overview: Boolean(sectionElement?.querySelector('#exclude-overview-input')?.checked),
+    summary: Boolean(sectionElement?.querySelector('#exclude-summary-input')?.checked),
+    details: Boolean(sectionElement?.querySelector('#exclude-details-input')?.checked),
+  });
+
+  // Filter the export sources to honor the selected exclusions.
+  const getIncludedSources = () => {
+    const exclusions = getExportExclusions();
+
+    return exportSources.filter((source) => {
+      if (exclusions.overview && source.includes('pdf1.html')) {
+        return false;
+      }
+
+      if (exclusions.summary && source.includes('pdf3.html')) {
+        return false;
+      }
+
+      if (exclusions.details && source.includes('pdf4.html')) {
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  // Open a new window for the selected export page and trigger the print flow.
+  const openPdfExportWindow = (sourceUrl) => {
+    if (typeof window === 'undefined' || !sourceUrl) {
+      return;
+    }
+
+    const exportWindow = window.open(sourceUrl, '_blank', 'noopener');
+
+    if (!exportWindow) {
+      // eslint-disable-next-line no-console
+      console.warn('Unable to open export window.');
+      return;
+    }
+
+    const triggerPrint = () => {
+      exportWindow.removeEventListener('load', triggerPrint);
+      exportWindow.focus();
+      exportWindow.print();
+    };
+
+    exportWindow.addEventListener('load', triggerPrint);
+  };
   // Send updated metadata aggregations to the export preview iframe.
   const postMetadataToPreview = () => {
     if (!previewFrame?.contentWindow || typeof window === 'undefined' || !window.metadataAggregations) {
@@ -129,6 +180,28 @@ export async function initSection(sectionElement) {
     document.dispatchEvent(new CustomEvent('pdf-export-requested'));
   };
 
+  // Kick off PDF export by honoring exclusions and printing the selected page.
+  const handlePdfExportRequest = () => {
+    const includedSources = getIncludedSources();
+
+    if (!includedSources.length) {
+      // eslint-disable-next-line no-console
+      console.warn('All export sections are excluded; nothing to export.');
+      return;
+    }
+
+    const normalizedCurrentSource = previewFrame?.src
+      ? new URL(previewFrame.src, window.location.href).pathname
+      : '';
+    const matchingSource = includedSources.find((source) => {
+      return new URL(source, window.location.href).pathname === normalizedCurrentSource;
+    });
+    const exportSource = matchingSource || includedSources[0];
+
+    closeExclusionModal();
+    openPdfExportWindow(new URL(exportSource, window.location.href).toString());
+  };
+
   exclusionButton?.addEventListener('click', openExclusionModal);
   exclusionCloseButtons?.forEach((button) => {
     button.addEventListener('click', closeExclusionModal);
@@ -143,5 +216,6 @@ export async function initSection(sectionElement) {
   };
 
   document.addEventListener('keydown', handleEscape);
+  document.addEventListener('pdf-export-requested', handlePdfExportRequest);
   exportPdfButton?.addEventListener('click', triggerPdfExport);
 }
