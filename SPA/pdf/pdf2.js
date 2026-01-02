@@ -21,7 +21,7 @@ const defaultBarBorders = [
 const defaultSubBarData = {
   labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
   datasets: [{
-    label: 'Most common fields',
+    label: 'Applications per field',
     data: [65, 59, 80, 81, 56, 55, 40],
     backgroundColor: defaultBarBackgrounds,
     borderColor: defaultBarBorders,
@@ -31,17 +31,23 @@ const defaultSubBarData = {
 
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
-let fieldOccurrencesByName = {};
 
-const defaultFieldSummaryRows = [
-  { label: 'Email', count: 1450 },
-  { label: 'User ID', count: 1380 },
-  { label: 'Account ID', count: 1215 },
-  { label: 'Last Seen', count: 1140 },
-  { label: 'Region', count: 940 }
-];
+// Build a default field occurrence map from the sample chart data.
+const buildDefaultFieldOccurrences = () => {
+  const defaultDataset = defaultSubBarData.datasets?.[0] || {};
 
-let fieldSummaryRows = defaultFieldSummaryRows;
+  return (defaultSubBarData.labels || []).reduce((occurrences, label, index) => {
+    const defaultCount = Array.isArray(defaultDataset.data)
+      ? Number(defaultDataset.data[index]) || 0
+      : 0;
+
+    occurrences[label] = defaultCount;
+    return occurrences;
+  }, {});
+};
+
+let fieldOccurrencesByName = buildDefaultFieldOccurrences();
+let fieldSummaryRows = [];
 
 // Check whether the window already includes metadata aggregations we can use.
 const hasMetadataAggregations = () => (
@@ -83,40 +89,23 @@ const countFieldsAcrossApps = (aggregations = (hasMetadataAggregations() && wind
   }, {});
 };
 
-// Summarize total records scanned per SubID.
-const countRecordsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  if (!aggregations || typeof aggregations !== 'object') {
-    return {};
-  }
-
-  return Object.entries(aggregations).reduce((counts, [subId, details]) => {
-    if (!subId || !details || typeof details !== 'object') {
-      return counts;
-    }
-
-    counts[subId] = Number(details.recordsScanned) || 0;
-
-    return counts;
-  }, {});
-};
-
-// Build a bar dataset that lists record totals per SubID.
+// Build a bar dataset showing how many applications include each field.
 const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  const recordCounts = countRecordsBySubscription(aggregations);
-  const subscriptionIds = Object.keys(recordCounts || {});
+  const fieldCounts = countFieldsAcrossApps(aggregations);
+  const fieldKeys = Object.keys(fieldCounts || {});
 
-  if (!subscriptionIds.length) {
+  if (!fieldKeys.length) {
     return defaultSubBarData;
   }
 
-  const backgrounds = subscriptionIds.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]);
-  const borders = subscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]);
+  const backgrounds = fieldKeys.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]);
+  const borders = fieldKeys.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]);
 
   return {
-    labels: subscriptionIds,
+    labels: fieldKeys,
     datasets: [{
-      label: 'Most common fields',
-      data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
+      label: 'Applications per field',
+      data: fieldKeys.map((fieldKey) => fieldCounts[fieldKey] || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
       borderWidth: 1
@@ -144,9 +133,14 @@ const renderFieldAnalysis = () => {
   }
 
   const barCanvas = document.getElementById('fieldSubBar');
+  const barTitle = document.getElementById('field-bar-title');
 
   if (!barCanvas) {
     return;
+  }
+
+  if (barTitle) {
+    barTitle.textContent = 'Applications per Field';
   }
 
   fieldSubBarChart?.destroy();
@@ -186,8 +180,24 @@ const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
 
 // Update cached field occurrence pairs and log them to the console.
 const updateFieldOccurrences = (aggregations) => {
-  fieldOccurrencesByName = countFieldsAcrossApps(aggregations);
+  const computedOccurrences = countFieldsAcrossApps(aggregations);
+  fieldOccurrencesByName = Object.keys(computedOccurrences).length
+    ? computedOccurrences
+    : buildDefaultFieldOccurrences();
   console.log('Field occurrence counts', fieldOccurrencesByName);
+};
+
+// Convert the field occurrence map into summary rows for the table.
+const buildFieldSummaryRowsFromOccurrences = (occurrences = fieldOccurrencesByName) => {
+  const occurrenceEntries = Object.entries(occurrences || {});
+
+  if (!occurrenceEntries.length) {
+    return [];
+  }
+
+  return occurrenceEntries
+    .sort(([, countA], [, countB]) => Number(countB) - Number(countA))
+    .map(([label, count]) => ({ label, count: Number(count) || 0 }));
 };
 
 // Sync cached metadata aggregations with the bar chart.
@@ -197,9 +207,9 @@ const updateFromMetadataAggregations = (aggregations) => {
   }
 
   window.metadataAggregations = aggregations;
-  subBarData = buildSubBarData(aggregations);
-  fieldSummaryRows = defaultFieldSummaryRows;
   updateFieldOccurrences(aggregations);
+  subBarData = buildSubBarData(aggregations);
+  fieldSummaryRows = buildFieldSummaryRowsFromOccurrences();
 
   renderFieldAnalysis();
   renderFieldSummaryTable();
@@ -223,9 +233,11 @@ if (typeof document !== 'undefined') {
       return;
     }
 
+    updateFieldOccurrences(window.metadataAggregations);
+    subBarData = buildSubBarData(window.metadataAggregations);
+    fieldSummaryRows = buildFieldSummaryRowsFromOccurrences();
     renderFieldAnalysis();
     renderFieldSummaryTable();
-    updateFieldOccurrences(window.metadataAggregations);
   };
 
   window.addEventListener('message', handleMetadataMessage);
