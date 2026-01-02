@@ -61,7 +61,7 @@ export const getMetadataFields = (subId, appId, namespace, lookbackWindow = 180)
 // Ensure a namespace bucket exists for a SubID + App ID combination.
 const getAppAggregationBucket = (subId, appId, appName) => {
   if (!metadataAggregations[subId]) {
-    metadataAggregations[subId] = { apps: {} };
+    metadataAggregations[subId] = { apps: {}, recordsScanned: 0 };
   }
 
   const appBuckets = metadataAggregations[subId].apps;
@@ -73,6 +73,7 @@ const getAppAggregationBucket = (subId, appId, appName) => {
       timeseriesStart: null,
       lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
       windows: {},
+      recordsScanned: 0,
     };
   }
 
@@ -93,10 +94,21 @@ const getWindowNamespaceBucket = (appBucket, lookbackWindow) => {
       }), {}),
       timeseriesStart: null,
       isProcessed: false,
+      recordsScanned: 0,
     };
   }
 
   return appBucket.windows[windowKey];
+};
+
+// Increment the recordsScanned counter for a bucket when new results arrive.
+const incrementRecordsScanned = (bucket, incrementBy = 0) => {
+  if (!bucket || !Number.isFinite(Number(incrementBy))) {
+    return;
+  }
+
+  const currentTotal = Number(bucket.recordsScanned) || 0;
+  bucket.recordsScanned = currentTotal + Number(incrementBy);
 };
 
 // Normalize a metadata value to an array of string tokens for counting.
@@ -361,12 +373,17 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   const aggregationResults = Array.isArray(response?.results) ? response.results : [];
   const appBucket = getAppAggregationBucket(subId, appId, appName);
   const windowBucket = getWindowNamespaceBucket(appBucket, lookbackWindow);
+  const recordsScanned = aggregationResults.length;
 
   appBucket.appName = appName;
   appBucket.lookbackWindow = lookbackWindow;
   appBucket.timeseriesStart = response?.startTime || appBucket.timeseriesStart;
   windowBucket.timeseriesStart = response?.startTime || windowBucket.timeseriesStart;
   windowBucket.isProcessed = true;
+
+  incrementRecordsScanned(metadataAggregations[subId], recordsScanned);
+  incrementRecordsScanned(appBucket, recordsScanned);
+  incrementRecordsScanned(windowBucket, recordsScanned);
 
   aggregationResults.forEach((result) => {
     tallyAggregationResult(windowBucket.namespaces, result, METADATA_NAMESPACES);

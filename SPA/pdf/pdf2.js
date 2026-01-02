@@ -21,7 +21,7 @@ const defaultBarBorders = [
 const defaultSubBarData = {
   labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
   datasets: [{
-    label: 'Apps scanned',
+    label: 'Records scanned',
     data: [65, 59, 80, 81, 56, 55, 40],
     backgroundColor: defaultBarBackgrounds,
     borderColor: defaultBarBorders,
@@ -39,38 +39,6 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
-// Count distinct and total app IDs for each SubID in the metadata cache.
-const countAppsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  if (!aggregations || typeof aggregations !== 'object') {
-    return {};
-  }
-
-  return Object.entries(aggregations).reduce((counts, [subId, details]) => {
-    if (!subId || !details || typeof details !== 'object') {
-      return counts;
-    }
-
-    const apps = details.apps;
-
-    if (!apps || typeof apps !== 'object') {
-      return counts;
-    }
-
-    const appIds = Array.isArray(apps)
-      ? apps.map((app) => app?.appId).filter(Boolean)
-      : Object.keys(apps);
-
-    const uniqueIds = new Set(appIds);
-
-    counts[subId] = {
-      distinct: uniqueIds.size,
-      total: Array.isArray(apps) ? apps.length : appIds.length,
-    };
-
-    return counts;
-  }, {});
-};
-
 // Collect SubIDs from the cached metadata aggregations.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -84,7 +52,7 @@ const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.
 const renderSubscriptionTable = () => {
   const tableBody = document.getElementById('field-subscription-table-body');
   const subscriptionIds = getSubscriptionIds();
-  const appCounts = countAppsBySubscription();
+  const recordCounts = countRecordsBySubscription();
 
   if (!tableBody) {
     return;
@@ -110,18 +78,35 @@ const renderSubscriptionTable = () => {
     const countCell = document.createElement('td');
     countCell.id = `field-subscription-count-${rowNumber}`;
     countCell.className = 'subscription-count-cell';
-    const { distinct = 0, total = 0 } = appCounts[subId] || {};
-    countCell.textContent = `${distinct} of ${total}`;
+    const recordsScanned = Number(recordCounts[subId]) || 0;
+    countCell.textContent = recordsScanned.toLocaleString();
 
     row.append(labelCell, countCell);
     tableBody.appendChild(row);
   });
 };
 
-// Build a bar dataset that lists app totals per SubID.
+// Summarize total records scanned per SubID.
+const countRecordsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return {};
+  }
+
+  return Object.entries(aggregations).reduce((counts, [subId, details]) => {
+    if (!subId || !details || typeof details !== 'object') {
+      return counts;
+    }
+
+    counts[subId] = Number(details.recordsScanned) || 0;
+
+    return counts;
+  }, {});
+};
+
+// Build a bar dataset that lists record totals per SubID.
 const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  const appCounts = countAppsBySubscription(aggregations);
-  const subscriptionIds = Object.keys(appCounts || {});
+  const recordCounts = countRecordsBySubscription(aggregations);
+  const subscriptionIds = Object.keys(recordCounts || {});
 
   if (!subscriptionIds.length) {
     return defaultSubBarData;
@@ -133,8 +118,8 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   return {
     labels: subscriptionIds,
     datasets: [{
-      label: 'Apps scanned',
-      data: subscriptionIds.map((subId) => appCounts[subId]?.total || 0),
+      label: 'Records scanned',
+      data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
       borderWidth: 1
