@@ -175,11 +175,6 @@ export async function initSection(sectionElement) {
   // Open the exclusion modal to let users pick PDF sections to skip.
   const openExclusionModal = () => setExclusionModalVisibility(exclusionModal, exclusionBackdrop, true);
 
-  // Trigger a PDF export request for the current preview state.
-  const triggerPdfExport = () => {
-    document.dispatchEvent(new CustomEvent('pdf-export-requested'));
-  };
-
   // Kick off PDF export by honoring exclusions and printing the selected page.
   const handlePdfExportRequest = () => {
     const includedSources = getIncludedSources();
@@ -200,6 +195,12 @@ export async function initSection(sectionElement) {
 
     closeExclusionModal();
     openPdfExportWindow(new URL(exportSource, window.location.href).toString());
+  };
+
+  // Trigger a PDF export request for the current preview state.
+  const triggerPdfExport = () => {
+    document.dispatchEvent(new CustomEvent('pdf-export-requested'));
+    handlePdfExportRequest();
   };
 
   exclusionButton?.addEventListener('click', openExclusionModal);
