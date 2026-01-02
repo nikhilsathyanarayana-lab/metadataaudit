@@ -78,11 +78,14 @@ a:hover {
 .chart-full {
   width: 100%;
   margin: 20px 0;
+  display: flex;
+  justify-content: center;
 }
 
 .chart-full canvas {
-  width: 100%;
+  width: min(1100px, 100%);
   height: auto;
+  display: block;
 }
 
 .table-card {
