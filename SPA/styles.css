@@ -762,6 +762,16 @@ h1 {
   max-width: min(1600px, calc(100vw - 2.5rem));
 }
 
+.timeframe-change-table-wrapper {
+  margin-bottom: 1rem;
+}
+
+.timeframe-change-empty {
+  margin: 0.75rem 0 0;
+  padding: 0 1rem 1rem;
+  color: #505050;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;

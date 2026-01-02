@@ -1,5 +1,30 @@
 <div class="page-view" id="metadata-summary-view" data-page-section="3">
   <section class="page-section" aria-label="Metadata tables">
+    <section class="card timeframe-change-card" id="timeframe-change-card" aria-label="Metadata timeframe differences">
+      <div class="card-header timeframe-change-card-header" id="timeframe-change-card-header">
+        <div class="form-intro timeframe-change-intro" id="timeframe-change-form-intro">
+          <h2 class="section-title timeframe-change-title" id="timeframe-change-section-title">Field differences by timeframe</h2>
+          <p class="section-hint timeframe-change-hint" id="timeframe-change-section-hint">Fields that appear in one retention window but not another for the selected apps.</p>
+        </div>
+      </div>
+
+      <div class="table-wrapper timeframe-change-table-wrapper" id="timeframe-change-table-wrapper" role="region" aria-label="Metadata timeframe differences table wrapper" tabindex="0">
+        <table class="data-table timeframe-change-table" id="timeframe-change-table">
+          <thead class="timeframe-change-table-head" id="timeframe-change-table-head">
+            <tr class="timeframe-change-header-row" id="timeframe-change-header-row">
+              <th scope="col" class="timeframe-change-col timeframe-change-col-field" id="timeframe-change-col-field">Field</th>
+              <th scope="col" class="timeframe-change-col timeframe-change-col-app" id="timeframe-change-col-app-name">App Name</th>
+              <th scope="col" class="timeframe-change-col timeframe-change-col-sub" id="timeframe-change-col-sub-id">Sub ID</th>
+              <th scope="col" class="timeframe-change-col timeframe-change-col-note" id="timeframe-change-col-note">Note</th>
+            </tr>
+          </thead>
+          <tbody class="timeframe-change-table-body" id="timeframe-change-table-body">
+          </tbody>
+        </table>
+        <p class="table-empty timeframe-change-empty" id="timeframe-change-empty" hidden>No field differences detected across available timeframes.</p>
+      </div>
+    </section>
+
     <section class="card" id="visitor-metadata-card" aria-label="Visitor metadata table">
       <div class="card-header" id="visitor-metadata-card-header">
         <div class="form-intro" id="visitor-metadata-form-intro">

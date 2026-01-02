@@ -28,6 +28,7 @@ export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
 let fieldTypesModalBound = false;
+let timeframeChangeRows = [];
 const fieldTypeSelections = FIELDTYPES.fieldTypeSelections || {};
 FIELDTYPES.fieldTypeSelections = fieldTypeSelections;
 const FIELD_TYPE_OPTIONS = [
@@ -86,6 +87,111 @@ const buildNamespaceFieldSummary = (windowBuckets = []) => {
     summary[namespace] = uniqueFields.length ? uniqueFields : null;
     return summary;
   }, {});
+};
+
+// Build a consistent lookup key for app-level comparisons.
+const buildAppLookupKey = (subId, appId, appName) => {
+  const normalizedSubId = String(subId || '');
+  const normalizedAppId = String(appId || '') || String(appName || '');
+  return `${normalizedSubId}::${normalizedAppId}`;
+};
+
+// Evaluate field changes between available lookback windows for selected apps.
+const buildTimeframeChangeRows = () => {
+  const selectedApps = getAppSelections().filter((entry) => entry?.isSelected);
+
+  if (!selectedApps.length) {
+    return [];
+  }
+
+  const selectedAppKeys = new Set(selectedApps.map((app) => buildAppLookupKey(app.subId, app.appId, app.appName)));
+  const appSummaries = new Map();
+
+  tableData.forEach((entry) => {
+    const appKey = buildAppLookupKey(entry?.subId, entry?.appId, entry?.appName);
+
+    if (!selectedAppKeys.has(appKey)) {
+      return;
+    }
+
+    const summary = appSummaries.get(appKey) || {
+      subId: entry?.subId || '',
+      appId: entry?.appId || '',
+      appName: entry?.appName || entry?.appId || '',
+      windows: {
+        window7: new Set(),
+        window30: new Set(),
+        window180: new Set(),
+      },
+      windowAvailability: {
+        window7: false,
+        window30: false,
+        window180: false,
+      },
+    };
+
+    METADATA_TABLE_WINDOWS.forEach((windowKey) => {
+      const fields = entry?.[windowKey];
+
+      if (!Array.isArray(fields)) {
+        return;
+      }
+
+      summary.windowAvailability[windowKey] = true;
+      fields.forEach((field) => {
+        if (typeof field === 'string' && field.trim()) {
+          summary.windows[windowKey].add(field.trim());
+        }
+      });
+    });
+
+    appSummaries.set(appKey, summary);
+  });
+
+  const timeframeLabels = {
+    window7: '7 day',
+    window30: '30 day',
+    window180: '180 day',
+  };
+
+  const changes = [];
+
+  appSummaries.forEach((summary) => {
+    const frames = METADATA_TABLE_WINDOWS.map((windowKey) => ({
+      key: windowKey,
+      label: timeframeLabels[windowKey] || windowKey,
+      fields: summary.windows[windowKey],
+      hasData: summary.windowAvailability[windowKey],
+    }));
+
+    frames.forEach((sourceFrame) => {
+      if (!sourceFrame.hasData) {
+        return;
+      }
+
+      frames.forEach((targetFrame) => {
+        if (!targetFrame.hasData || targetFrame.key === sourceFrame.key) {
+          return;
+        }
+
+        sourceFrame.fields.forEach((field) => {
+          if (!targetFrame.fields.has(field)) {
+            changes.push({
+              field,
+              appName: summary.appName,
+              subId: summary.subId,
+              note: `${field} was not found in the ${targetFrame.label} window but was found in the ${sourceFrame.label} window for ${summary.appName || summary.appId || 'Unknown app'}.`,
+            });
+          }
+        });
+      });
+    });
+  });
+
+  return changes.sort((first, second) => {
+    return String(first.subId || '').localeCompare(String(second.subId || ''))
+      || String(first.appName || '').localeCompare(String(second.appName || ''));
+  });
 };
 
 // Hydrate cached table data with namespace field names as metadata calls finish.
@@ -151,6 +257,8 @@ const processAPI = () => {
     });
   });
 
+  timeframeChangeRows = buildTimeframeChangeRows();
+  renderTimeframeChangeTable();
   renderTablesFromData();
   updateFieldTypesModal();
 };
@@ -194,6 +302,64 @@ const registerTableDataGlobal = () => {
 };
 
 registerTableDataGlobal();
+
+// Resolve timeframe change table elements for reuse.
+const getTimeframeChangeElements = () => {
+  if (typeof document === 'undefined') {
+    return {};
+  }
+
+  return {
+    tableBody: document.getElementById('timeframe-change-table-body'),
+    emptyState: document.getElementById('timeframe-change-empty'),
+  };
+};
+
+// Render field differences between available lookback windows.
+const renderTimeframeChangeTable = () => {
+  const { tableBody, emptyState } = getTimeframeChangeElements();
+
+  if (!tableBody || !emptyState) {
+    return;
+  }
+
+  tableBody.innerHTML = '';
+
+  if (!timeframeChangeRows.length) {
+    emptyState.hidden = false;
+    return;
+  }
+
+  emptyState.hidden = true;
+
+  const fragment = document.createDocumentFragment();
+
+  timeframeChangeRows.forEach(({ field, appName, subId, note }) => {
+    const row = document.createElement('tr');
+    row.className = 'timeframe-change-row';
+
+    const fieldCell = document.createElement('td');
+    fieldCell.className = 'timeframe-change-cell timeframe-change-cell--field';
+    fieldCell.textContent = field || 'Unknown field';
+
+    const appNameCell = document.createElement('td');
+    appNameCell.className = 'timeframe-change-cell timeframe-change-cell--app';
+    appNameCell.textContent = appName || 'Unknown app';
+
+    const subIdCell = document.createElement('td');
+    subIdCell.className = 'timeframe-change-cell timeframe-change-cell--sub';
+    subIdCell.textContent = subId || 'Unknown SubID';
+
+    const noteCell = document.createElement('td');
+    noteCell.className = 'timeframe-change-cell timeframe-change-cell--note';
+    noteCell.textContent = note || 'No note available.';
+
+    row.append(fieldCell, appNameCell, subIdCell, noteCell);
+    fragment.appendChild(row);
+  });
+
+  tableBody.appendChild(fragment);
+};
 
 // Normalize a metadata field name for consistent lookups.
 const normalizeFieldName = (fieldName) => {
@@ -718,6 +884,8 @@ const renderMetadataTables = async (tableConfigs) => {
   tableData.length = 0;
   tableStatusRows = [];
   activeTableConfigs = tableConfigs;
+  timeframeChangeRows = [];
+  renderTimeframeChangeTable();
 
   const handleAggregation = (payload) => {
     processAggregation(payload);
