@@ -137,3 +137,88 @@ a:hover {
   border: 1px solid rgba(224, 0, 108, 0.12);
   background: #fff7fb;
 }
+
+.toc-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.toc-section {
+  margin: 0;
+  padding: 0;
+}
+
+.toc-description {
+  max-width: 760px;
+}
+
+.toc-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.toc-entry {
+  list-style: decimal;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(224, 0, 108, 0.12);
+  border-radius: 12px;
+  background: #fff7fb;
+}
+
+.toc-entry-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.toc-entry-link {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.toc-entry-link:hover {
+  text-decoration: underline;
+}
+
+.toc-entry-label {
+  padding: 0.1rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(224, 0, 108, 0.25);
+  background: #fff;
+  color: var(--pendo-pink);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.toc-entry-summary {
+  margin: 0;
+}
+
+.toc-notes {
+  padding: 1rem 1.25rem;
+  border: 1px dashed rgba(224, 0, 108, 0.5);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.toc-notes-title {
+  margin: 0 0 0.5rem;
+}
+
+.toc-note-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.toc-note-item {
+  margin: 0;
+}
