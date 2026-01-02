@@ -41,7 +41,6 @@ const defaultSubscriptionIds = Array.from({ length: 10 }, (_, index) => `Sub ${S
 const defaultSubBarData = {
   labels: defaultSubscriptionIds,
   datasets: [{
-    label: 'Records scanned',
     data: defaultSubscriptionIds.map(() => 0),
     backgroundColor: defaultSubscriptionIds.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]),
     borderColor: defaultSubscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]),
@@ -154,7 +153,6 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   return {
     labels: subscriptionIds,
     datasets: [{
-      label: 'Records scanned',
       data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
@@ -168,9 +166,6 @@ const createSubBarConfig = (data) => ({
   type: 'bar',
   data,
   options: {
-    plugins: {
-      title: { display: false }
-    },
     scales: {
       y: {
         beginAtZero: true
