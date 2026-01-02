@@ -32,7 +32,6 @@ const defaultSubBarData = {
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
 let fieldTotalsByWindow = {};
-let fieldDifferencesByApp = [];
 
 // Build a default field total map from the sample chart data.
 const buildDefaultFieldTotals = () => {
@@ -54,7 +53,7 @@ const buildDefaultWindowTotals = () => ({
 });
 
 fieldTotalsByWindow = buildDefaultWindowTotals();
-let fieldSummaryRows = [];
+let fieldRecordRows = [];
 const WINDOW_COLUMNS = [
   { key: 'sevenDay', match: (windowKey) => Number(windowKey) === 7, label: '7-Day Records' },
   { key: 'otherWindows', match: (windowKey) => Number(windowKey) !== 7, label: 'Other Window Records' }
@@ -185,72 +184,6 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   };
 };
 
-// Build namespace/field sets for each window to compare coverage by app.
-const collectFieldSetsByWindow = (appBucket) => {
-  const windowFieldSets = {};
-
-  Object.entries(appBucket?.windows || {}).forEach(([windowKey, windowBucket]) => {
-    if (!windowBucket || typeof windowBucket !== 'object') {
-      return;
-    }
-
-    const columnKey = getColumnKeyForWindow(windowKey);
-
-    if (!columnKey) {
-      return;
-    }
-
-    if (!windowFieldSets[columnKey]) {
-      windowFieldSets[columnKey] = new Set();
-    }
-
-    Object.entries(windowBucket.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
-      if (!namespaceFields || typeof namespaceFields !== 'object') {
-        return;
-      }
-
-      Object.keys(namespaceFields).forEach((fieldName) => {
-        windowFieldSets[columnKey].add(`${namespaceKey}.${fieldName}`);
-      });
-    });
-  });
-
-  return windowFieldSets;
-};
-
-// Describe missing/extra fields between 7-day and other windows for an app.
-const buildFieldDifferencesByApp = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  if (!aggregations || typeof aggregations !== 'object') {
-    return [];
-  }
-
-  return Object.entries(aggregations).reduce((differences, [subId, subBucket]) => {
-    const apps = subBucket?.apps;
-
-    if (!apps || typeof apps !== 'object') {
-      return differences;
-    }
-
-    Object.values(apps).forEach((appBucket) => {
-      const appName = appBucket?.appName || appBucket?.appId || 'Unknown App';
-      const windowFieldSets = collectFieldSetsByWindow(appBucket);
-      const sevenDayFields = windowFieldSets.sevenDay || new Set();
-      const otherWindowFields = windowFieldSets.otherWindows || new Set();
-
-      const missingInSevenDay = [...otherWindowFields].filter((fieldKey) => !sevenDayFields.has(fieldKey));
-      const extraInSevenDay = [...sevenDayFields].filter((fieldKey) => !otherWindowFields.has(fieldKey));
-
-      if (!missingInSevenDay.length && !extraInSevenDay.length) {
-        return;
-      }
-
-      differences.push({ subId, appName, missingInSevenDay, extraInSevenDay });
-    });
-
-    return differences;
-  }, []);
-};
-
 // Create a Chart.js bar config that keeps the Y-axis anchored at zero.
 const createSubBarConfig = (data) => ({
   type: 'bar',
@@ -293,9 +226,9 @@ const renderFieldAnalysis = () => {
   fieldSubBarChart = new Chart(barCanvas, createSubBarConfig(subBarData));
 };
 
-// Render a mock field summary table beneath the bar chart.
-const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
-  const tableBody = document.getElementById('field-summary-body');
+// Render field record totals beneath the bar chart.
+const renderFieldRecordsTable = (rows = fieldRecordRows) => {
+  const tableBody = document.getElementById('field-records-body');
 
   if (!tableBody) {
     return;
@@ -306,30 +239,20 @@ const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
   rows.forEach((row, index) => {
     const rowNumber = String(index + 1).padStart(2, '0');
     const summaryRow = document.createElement('tr');
-    summaryRow.id = `field-row-${rowNumber}`;
-    summaryRow.className = 'subscription-row';
+    summaryRow.id = `field-record-row-${rowNumber}`;
+    summaryRow.className = 'subscription-row field-record-row';
 
     const labelCell = document.createElement('td');
-    labelCell.id = `field-label-${rowNumber}`;
-    labelCell.className = 'subscription-label-cell';
-    labelCell.textContent = row.label || '';
+    labelCell.id = `field-record-name-${rowNumber}`;
+    labelCell.className = 'subscription-label-cell field-record-label-cell';
+    labelCell.textContent = row.fieldName || '';
 
-    const sevenDayCell = document.createElement('td');
-    sevenDayCell.id = `field-seven-${rowNumber}`;
-    sevenDayCell.className = 'subscription-count-cell';
-    sevenDayCell.textContent = row.appName || '';
+    const countCell = document.createElement('td');
+    countCell.id = `field-record-count-${rowNumber}`;
+    countCell.className = 'subscription-count-cell field-record-count-cell';
+    countCell.textContent = Number(row.recordCount || 0).toLocaleString();
 
-    const otherWindowCell = document.createElement('td');
-    otherWindowCell.id = `field-other-${rowNumber}`;
-    otherWindowCell.className = 'subscription-count-cell';
-    otherWindowCell.textContent = row.notes || '';
-
-    const differenceCell = document.createElement('td');
-    differenceCell.id = `field-diff-${rowNumber}`;
-    differenceCell.className = 'subscription-count-cell';
-    differenceCell.textContent = row.differences || '';
-
-    summaryRow.append(labelCell, sevenDayCell, otherWindowCell, differenceCell);
+    summaryRow.append(labelCell, countCell);
     tableBody.appendChild(summaryRow);
   });
 };
@@ -345,38 +268,35 @@ const updateFieldTotals = (aggregations) => {
   console.log('Field record totals by window', fieldTotalsByWindow);
 };
 
-// Update cached per-app field differences for window comparisons.
-const updateFieldDifferences = (aggregations) => {
-  fieldDifferencesByApp = buildFieldDifferencesByApp(aggregations);
-  console.log('Field coverage differences', fieldDifferencesByApp);
-};
+// Merge field totals across windows to power the records table.
+const buildFieldRecordRows = (totalsByWindow = fieldTotalsByWindow) => {
+  const mergedTotals = Object.values(totalsByWindow || {}).reduce((accumulator, windowTotals) => {
+    if (!windowTotals || typeof windowTotals !== 'object') {
+      return accumulator;
+    }
 
-// Convert per-app field differences into readable summary rows.
-const buildDifferenceSummaryRows = (differences = fieldDifferencesByApp) => {
-  if (!Array.isArray(differences) || !differences.length) {
+    Object.entries(windowTotals).forEach(([fieldKey, total]) => {
+      const numericTotal = Number(total) || 0;
+
+      if (!numericTotal) {
+        return;
+      }
+
+      accumulator[fieldKey] = (accumulator[fieldKey] || 0) + numericTotal;
+    });
+
+    return accumulator;
+  }, {});
+
+  const sortedTotals = Object.entries(mergedTotals)
+    .sort(([, countA], [, countB]) => Number(countB) - Number(countA));
+
+  if (!sortedTotals.length) {
     return [];
   }
 
-  return differences.map((difference) => {
-    const missingLabel = difference.missingInSevenDay?.length
-      ? `Missing in 7-Day: ${difference.missingInSevenDay.join(', ')}`
-      : '';
-    const extraLabel = difference.extraInSevenDay?.length
-      ? `Extra in 7-Day: ${difference.extraInSevenDay.join(', ')}`
-      : '';
-    const differenceText = [missingLabel, extraLabel].filter(Boolean).join(' | ');
-
-    return {
-      label: difference.subId || 'Unknown SubID',
-      appName: difference.appName || 'Unknown App',
-      notes: '',
-      differences: differenceText,
-    };
-  });
+  return sortedTotals.map(([fieldName, recordCount]) => ({ fieldName, recordCount }));
 };
-
-// Merge mismatch details into the table dataset.
-const buildFieldSummaryRows = () => buildDifferenceSummaryRows(fieldDifferencesByApp);
 
 // Sync cached metadata aggregations with the bar chart.
 const updateFromMetadataAggregations = (aggregations) => {
@@ -386,12 +306,11 @@ const updateFromMetadataAggregations = (aggregations) => {
 
   window.metadataAggregations = aggregations;
   updateFieldTotals(aggregations);
-  updateFieldDifferences(aggregations);
   subBarData = buildSubBarData(aggregations);
-  fieldSummaryRows = buildFieldSummaryRows();
+  fieldRecordRows = buildFieldRecordRows();
 
   renderFieldAnalysis();
-  renderFieldSummaryTable();
+  renderFieldRecordsTable();
 };
 
 if (typeof document !== 'undefined') {
@@ -413,11 +332,10 @@ if (typeof document !== 'undefined') {
     }
 
     updateFieldTotals(window.metadataAggregations);
-    updateFieldDifferences(window.metadataAggregations);
     subBarData = buildSubBarData(window.metadataAggregations);
-    fieldSummaryRows = buildFieldSummaryRows();
+    fieldRecordRows = buildFieldRecordRows();
     renderFieldAnalysis();
-    renderFieldSummaryTable();
+    renderFieldRecordsTable();
   };
 
   window.addEventListener('message', handleMetadataMessage);

@@ -15,18 +15,16 @@
         <h2 id="field-bar-title" class="chart-title">Top 10 Fields per Application</h2>
         <canvas id="fieldSubBar" class="chart-canvas bar-chart"></canvas>
       </div>
-      <div id="field-table-card" class="chart-half table-card">
-        <h2 id="field-table-title" class="chart-title">Field Coverage Summary</h2>
-        <table id="field-summary-table" class="subscription-summary-table">
-          <thead id="field-table-head" class="subscription-table-head">
-              <tr id="field-header-row" class="subscription-header-row">
-                <th id="field-header-label" class="subscription-header-cell" scope="col">SubID</th>
-                <th id="field-header-count" class="subscription-header-cell" scope="col">App Name</th>
-                <th id="field-header-other" class="subscription-header-cell" scope="col"></th>
-                <th id="field-header-diff" class="subscription-header-cell" scope="col">Differences</th>
+      <div id="field-records-card" class="chart-half table-card field-records-card">
+        <h2 id="field-records-title" class="chart-title">Fields with Records Received</h2>
+        <table id="field-records-table" class="subscription-summary-table field-records-table">
+          <thead id="field-records-head" class="subscription-table-head">
+              <tr id="field-records-header-row" class="subscription-header-row">
+                <th id="field-records-header-name" class="subscription-header-cell" scope="col">Field Name</th>
+                <th id="field-records-header-count" class="subscription-header-cell" scope="col">Records Received</th>
               </tr>
           </thead>
-          <tbody id="field-summary-body" class="subscription-table-body"></tbody>
+          <tbody id="field-records-body" class="subscription-table-body"></tbody>
         </table>
       </div>
     </div>
