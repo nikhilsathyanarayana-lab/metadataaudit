@@ -21,7 +21,7 @@ const defaultBarBorders = [
 const defaultSubBarData = {
   labels: ['January', 'February', 'March', 'April', 'May', 'June', 'July'],
   datasets: [{
-    label: 'Records scanned',
+    label: 'Most common fields',
     data: [65, 59, 80, 81, 56, 55, 40],
     backgroundColor: defaultBarBackgrounds,
     borderColor: defaultBarBorders,
@@ -38,53 +38,6 @@ const hasMetadataAggregations = () => (
     && window.metadataAggregations
     && typeof window.metadataAggregations === 'object'
 );
-
-// Collect SubIDs from the cached metadata aggregations.
-const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
-  if (!aggregations || typeof aggregations !== 'object') {
-    return [];
-  }
-
-  return Object.keys(aggregations).filter((subId) => subId);
-};
-
-// Populate the Field Analysis subscription table.
-const renderSubscriptionTable = () => {
-  const tableBody = document.getElementById('field-subscription-table-body');
-  const subscriptionIds = getSubscriptionIds();
-  const recordCounts = countRecordsBySubscription();
-
-  if (!tableBody) {
-    return;
-  }
-
-  tableBody.innerHTML = '';
-
-  if (subscriptionIds.length === 0) {
-    return;
-  }
-
-  subscriptionIds.forEach((subId, index) => {
-    const rowNumber = String(index + 1).padStart(2, '0');
-    const row = document.createElement('tr');
-    row.id = `field-subscription-row-${rowNumber}`;
-    row.className = 'subscription-row';
-
-    const labelCell = document.createElement('td');
-    labelCell.id = `field-subscription-label-${rowNumber}`;
-    labelCell.className = 'subscription-label-cell';
-    labelCell.textContent = subId;
-
-    const countCell = document.createElement('td');
-    countCell.id = `field-subscription-count-${rowNumber}`;
-    countCell.className = 'subscription-count-cell';
-    const recordsScanned = Number(recordCounts[subId]) || 0;
-    countCell.textContent = recordsScanned.toLocaleString();
-
-    row.append(labelCell, countCell);
-    tableBody.appendChild(row);
-  });
-};
 
 // Summarize total records scanned per SubID.
 const countRecordsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
@@ -118,7 +71,7 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   return {
     labels: subscriptionIds,
     datasets: [{
-      label: 'Records scanned',
+      label: 'Most common fields',
       data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
@@ -140,7 +93,7 @@ const createSubBarConfig = (data) => ({
   }
 });
 
-// Render the Field Analysis table and bar chart.
+// Render the Field Analysis bar chart.
 const renderFieldAnalysis = () => {
   if (typeof Chart === 'undefined') {
     return;
@@ -156,7 +109,7 @@ const renderFieldAnalysis = () => {
   fieldSubBarChart = new Chart(barCanvas, createSubBarConfig(subBarData));
 };
 
-// Sync cached metadata aggregations with the chart and table.
+// Sync cached metadata aggregations with the bar chart.
 const updateFromMetadataAggregations = (aggregations) => {
   if (!aggregations || typeof aggregations !== 'object') {
     return;
@@ -165,7 +118,6 @@ const updateFromMetadataAggregations = (aggregations) => {
   window.metadataAggregations = aggregations;
   subBarData = buildSubBarData(aggregations);
 
-  renderSubscriptionTable();
   renderFieldAnalysis();
 };
 
