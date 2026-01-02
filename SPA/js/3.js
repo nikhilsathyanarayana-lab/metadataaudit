@@ -289,7 +289,7 @@ const registerFieldTypeSelectionsGlobal = () => {
 
 registerFieldTypeSelectionsGlobal();
 
-// Build a unique, sorted list of field names from any processed window results.
+// Build a unique, sorted list of namespaced field names from any processed window results.
 const getUniqueAvailableFields = () => {
   const fieldNames = new Set();
 
@@ -302,9 +302,15 @@ const getUniqueAvailableFields = () => {
     }
 
     availableFields.forEach((fieldName) => {
-      if (typeof fieldName === 'string' && fieldName.trim()) {
-        fieldNames.add(fieldName);
+      const normalizedField = normalizeFieldName(fieldName);
+      const namespacePrefix = typeof entry?.namespace === 'string' ? entry.namespace.trim() : '';
+
+      if (!normalizedField) {
+        return;
       }
+
+      const namespacedField = namespacePrefix ? `${namespacePrefix}.${normalizedField}` : normalizedField;
+      fieldNames.add(namespacedField);
     });
   });
 
