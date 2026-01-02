@@ -6,8 +6,8 @@ const sharedLogger = createLogger('SharedEntries');
 
 // Wires up the export modal controls and delegates format handlers based on available options.
 const initExportModal = (options = {}) => {
-  const { enableJsonExport = false, additionalFormats = {} } = options;
-  const exportButton = document.getElementById('export-button');
+  const { enableJsonExport = false, additionalFormats = {}, exportButtonId = 'metadata-export-button' } = options;
+  const exportButton = document.getElementById(exportButtonId);
   const modal = document.getElementById('export-modal');
   const backdrop = document.getElementById('export-backdrop');
 
@@ -73,7 +73,8 @@ const initExportModal = (options = {}) => {
 
 // Lazy-loads shared modal templates and initializes common UI features used across pages.
 export const bootstrapShared = async (options = {}) => {
-  const exportButton = document.getElementById('export-button');
+  const { exportButtonId = 'metadata-export-button' } = options;
+  const exportButton = document.getElementById(exportButtonId);
 
   if (!exportButton) {
     return;
@@ -87,5 +88,5 @@ export const bootstrapShared = async (options = {}) => {
     await loadTemplate('Modals/xlsx-naming-modal.html');
   }
 
-  initExportModal(options);
+  initExportModal({ ...options, exportButtonId });
 };

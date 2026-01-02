@@ -19,6 +19,7 @@
         <button
           type="button"
           class="close-btn"
+          id="spa-regex-format-close-button"
           aria-label="Close regex format modal"
           data-close-regex-format-modal
         >&times;</button>
@@ -40,8 +41,12 @@
     </form>
 
     <div class="modal-actions" id="regex-format-modal-actions">
-      <button type="button" class="secondary-btn" data-close-regex-format-modal>Cancel</button>
-      <button type="submit" form="regex-format-modal-form" class="primary-btn">Save regex</button>
+      <button type="button" class="secondary-btn" id="spa-regex-format-cancel-button" data-close-regex-format-modal>
+        Cancel
+      </button>
+      <button type="submit" form="regex-format-modal-form" class="primary-btn" id="spa-regex-format-save-button">
+        Save regex
+      </button>
     </div>
   </div>
 </section>

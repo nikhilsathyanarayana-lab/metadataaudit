@@ -17,7 +17,15 @@
       </div>
       <div class="header-actions" id="metadata-deep-dive-actions" aria-label="Metadata actions">
         <button type="button" class="tertiary-btn" id="deep-dive-start">Start scan</button>
-        <button type="button" class="primary-btn" id="export-button" disabled aria-disabled="true">Export</button>
+        <button
+          type="button"
+          class="primary-btn"
+          id="deep-dive-export-button"
+          disabled
+          aria-disabled="true"
+        >
+          Export
+        </button>
       </div>
     </div>
   </header>
@@ -32,9 +40,33 @@
         <div class="lookback-controls" id="deep-dive-lookback-controls" role="group" aria-label="Select metadata window">
           <span class="lookback-label">Window:</span>
           <div class="lookback-buttons">
-            <button type="button" class="lookback-button tertiary-btn" data-lookback-button data-lookback="7">7 days</button>
-            <button type="button" class="lookback-button tertiary-btn" data-lookback-button data-lookback="30">30 days</button>
-            <button type="button" class="lookback-button tertiary-btn" data-lookback-button data-lookback="180">180 days</button>
+            <button
+              type="button"
+              class="lookback-button tertiary-btn"
+              id="deep-dive-lookback-7"
+              data-lookback-button
+              data-lookback="7"
+            >
+              7 days
+            </button>
+            <button
+              type="button"
+              class="lookback-button tertiary-btn"
+              id="deep-dive-lookback-30"
+              data-lookback-button
+              data-lookback="30"
+            >
+              30 days
+            </button>
+            <button
+              type="button"
+              class="lookback-button tertiary-btn"
+              id="deep-dive-lookback-180"
+              data-lookback-button
+              data-lookback="180"
+            >
+              180 days
+            </button>
           </div>
         </div>
       </div>
