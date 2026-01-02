@@ -36,4 +36,4 @@
 - View 5 (`SPA/html/5.html`) currently serves as a placeholder card for future follow-up actions or exports so the navigation remains consistent while downstream workflows are finalized.
 
 ## PDF exports
-- Static PDF-ready assets live under `SPA/pdf/`. Use `pdf1.html` with `pdf/pdf.css` for a simple export shell that centers a 72pt "Overview" title at the top of the page.
+- Static PDF-ready assets live under `SPA/pdf/`. Use `overview-dashboard.html` with `pdf/pdf.css` for a simple export shell that centers a 72pt "Overview" title at the top of the page.

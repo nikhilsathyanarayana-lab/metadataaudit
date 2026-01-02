@@ -1,3 +1,6 @@
+/*jslint browser: true */
+/*jslint es6: true */
+
 const defaultSubscriptionIds = Array.from({ length: 5 }, (_, index) => `Sub ${String(index + 1).padStart(2, '0')}`);
 
 // Confirm that cached metadata aggregations are available on the window.
@@ -43,7 +46,7 @@ const buildSubscriptionEntry = (template, subId, index) => {
   if (link) {
     link.id = linkId;
     link.textContent = `Subscription details - ${safeSubId}`;
-    link.href = `pdf4.html#subscription-card-${anchorTarget}`;
+    link.href = `subscription-details.html#subscription-card-${anchorTarget}`;
   }
 
   return clone;
