@@ -31,6 +31,7 @@ const defaultSubBarData = {
 
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
+let fieldOccurrencesByName = {};
 
 const defaultFieldSummaryRows = [
   { label: 'Email', count: 1450 },
@@ -48,6 +49,39 @@ const hasMetadataAggregations = () => (
     && window.metadataAggregations
     && typeof window.metadataAggregations === 'object'
 );
+
+// Count how many apps expose each namespace/field combination across all SubIDs.
+const countFieldsAcrossApps = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return {};
+  }
+
+  return Object.values(aggregations).reduce((counts, subBucket) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return counts;
+    }
+
+    Object.values(apps).forEach((appBucket) => {
+      const appFieldKeys = new Set();
+
+      Object.values(appBucket?.windows || {}).forEach((windowBucket) => {
+        Object.entries(windowBucket?.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+          Object.keys(namespaceFields || {}).forEach((fieldName) => {
+            appFieldKeys.add(`${namespaceKey}.${fieldName}`);
+          });
+        });
+      });
+
+      appFieldKeys.forEach((fieldKey) => {
+        counts[fieldKey] = (counts[fieldKey] || 0) + 1;
+      });
+    });
+
+    return counts;
+  }, {});
+};
 
 // Summarize total records scanned per SubID.
 const countRecordsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
@@ -150,6 +184,12 @@ const renderFieldSummaryTable = (rows = fieldSummaryRows) => {
   });
 };
 
+// Update cached field occurrence pairs and log them to the console.
+const updateFieldOccurrences = (aggregations) => {
+  fieldOccurrencesByName = countFieldsAcrossApps(aggregations);
+  console.log('Field occurrence counts', fieldOccurrencesByName);
+};
+
 // Sync cached metadata aggregations with the bar chart.
 const updateFromMetadataAggregations = (aggregations) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -159,6 +199,7 @@ const updateFromMetadataAggregations = (aggregations) => {
   window.metadataAggregations = aggregations;
   subBarData = buildSubBarData(aggregations);
   fieldSummaryRows = defaultFieldSummaryRows;
+  updateFieldOccurrences(aggregations);
 
   renderFieldAnalysis();
   renderFieldSummaryTable();
@@ -184,6 +225,7 @@ if (typeof document !== 'undefined') {
 
     renderFieldAnalysis();
     renderFieldSummaryTable();
+    updateFieldOccurrences(window.metadataAggregations);
   };
 
   window.addEventListener('message', handleMetadataMessage);
