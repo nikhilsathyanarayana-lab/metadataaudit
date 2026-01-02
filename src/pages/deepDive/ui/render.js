@@ -301,7 +301,7 @@ export const installDeepDiveGlobalErrorHandlers = () => {
 };
 
 export const setExportAvailability = (enabled) => {
-  const exportButton = document.getElementById('export-button');
+  const exportButton = document.getElementById('deep-dive-export-button');
 
   if (!exportButton) {
     return;

@@ -748,7 +748,7 @@ export const exportDeepDiveXlsx = async () => {
     return;
   }
 
-  const { setStatus, restore } = createExportStatusHelper();
+  const { setStatus, restore } = createExportStatusHelper({ buttonId: 'deep-dive-export-button' });
 
   try {
     setStatus('Preparing deep-dive XLSX export…', { pending: true });

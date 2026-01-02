@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initApiCallConsoleLogger();
     registerApiResponseNotification();
     await bootstrapShared({
+      exportButtonId: 'deep-dive-export-button',
       enableJsonExport: true,
       additionalFormats: { json: exportDeepDiveJson, xlsx: exportDeepDiveXlsx },
     });

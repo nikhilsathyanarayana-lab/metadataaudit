@@ -19,6 +19,7 @@
       <button
         type="button"
         class="close-btn"
+        id="app-name-close-button"
         aria-label="Close app name modal"
         data-close-app-name-modal
       >&times;</button>
@@ -44,8 +45,10 @@
     </form>
 
     <div class="modal-actions" id="app-name-modal-actions">
-      <button type="button" class="secondary-btn" data-close-app-name-modal>Cancel</button>
-      <button type="submit" form="app-name-modal-form" class="primary-btn">Save app name</button>
+      <button type="button" class="secondary-btn" id="app-name-cancel-button" data-close-app-name-modal>Cancel</button>
+      <button type="submit" form="app-name-modal-form" class="primary-btn" id="app-name-save-button">
+        Save app name
+      </button>
     </div>
   </div>
 </section>

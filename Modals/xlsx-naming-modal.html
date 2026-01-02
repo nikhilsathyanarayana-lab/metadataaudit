@@ -7,7 +7,13 @@
         <h2 class="modal-title" id="xlsx-naming-modal-title">Name your workbook</h2>
         <p class="section-hint">Enter a name for the XLSX export. Each page will be saved to its own sheet.</p>
       </div>
-      <button type="button" class="close-btn" aria-label="Close workbook naming modal" data-dismiss-xlsx-modal>&times;</button>
+      <button
+        type="button"
+        class="close-btn"
+        id="xlsx-naming-close-button"
+        aria-label="Close workbook naming modal"
+        data-dismiss-xlsx-modal
+      >&times;</button>
     </div>
 
     <form class="modal-body" id="xlsx-naming-form">
@@ -25,7 +31,7 @@
     </form>
 
     <div class="modal-actions" id="xlsx-naming-modal-actions">
-      <button type="button" class="secondary-btn" data-dismiss-xlsx-modal>Cancel</button>
+      <button type="button" class="secondary-btn" id="xlsx-naming-cancel-button" data-dismiss-xlsx-modal>Cancel</button>
       <button type="submit" form="xlsx-naming-form" class="primary-btn" id="confirm-xlsx-export">Download XLSX</button>
     </div>
   </div>

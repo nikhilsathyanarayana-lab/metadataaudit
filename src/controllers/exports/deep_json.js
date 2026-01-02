@@ -18,7 +18,7 @@ export const downloadDeepDiveJson = (data, filename) => {
 
 export const exportDeepDiveJson = () => {
   logDeepDive('info', 'Starting deep-dive JSON export flow');
-  const { setStatus, restore } = createExportStatusHelper();
+  const { setStatus, restore } = createExportStatusHelper({ buttonId: 'deep-dive-export-button' });
 
   try {
     setStatus('Preparing deep-dive JSON export…', { pending: true });

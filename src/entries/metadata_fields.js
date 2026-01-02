@@ -8,6 +8,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderNavigation('#nav-root', { activePage: 'integration' });
   clearPendingCallQueue();
   initApiCallConsoleLogger();
-  await bootstrapShared();
+  await bootstrapShared({ exportButtonId: 'metadata-export-button' });
   initMetadataFields();
 });

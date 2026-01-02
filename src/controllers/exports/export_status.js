@@ -5,7 +5,7 @@ export const createExportStatusHelper = ({
   regionId = 'page-status-banner',
   className = 'page-status-banner page-messages',
   beforeSelector = 'header.page-header',
-  buttonId = 'export-button',
+  buttonId = 'metadata-export-button',
 } = {}) => {
   const statusRegion = ensureMessageRegion(regionId, { className, beforeSelector });
   const exportButton = buttonId ? document.getElementById(buttonId) : null;
