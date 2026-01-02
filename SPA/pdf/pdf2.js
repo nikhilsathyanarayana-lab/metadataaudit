@@ -92,12 +92,15 @@ const countFieldsAcrossApps = (aggregations = (hasMetadataAggregations() && wind
 // Build a bar dataset showing how many applications include each field.
 const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const fieldCounts = countFieldsAcrossApps(aggregations);
-  const fieldKeys = Object.keys(fieldCounts || {});
+  const fieldEntries = Object.entries(fieldCounts || {})
+    .sort(([, countA], [, countB]) => Number(countB) - Number(countA))
+    .slice(0, 10);
 
-  if (!fieldKeys.length) {
+  if (!fieldEntries.length) {
     return defaultSubBarData;
   }
 
+  const fieldKeys = fieldEntries.map(([fieldKey]) => fieldKey);
   const backgrounds = fieldKeys.map((_, index) => defaultBarBackgrounds[index % defaultBarBackgrounds.length]);
   const borders = fieldKeys.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]);
 
@@ -105,7 +108,7 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
     labels: fieldKeys,
     datasets: [{
       label: 'Applications per field',
-      data: fieldKeys.map((fieldKey) => fieldCounts[fieldKey] || 0),
+      data: fieldEntries.map(([, count]) => Number(count) || 0),
       backgroundColor: backgrounds,
       borderColor: borders,
       borderWidth: 1
@@ -140,7 +143,7 @@ const renderFieldAnalysis = () => {
   }
 
   if (barTitle) {
-    barTitle.textContent = 'Applications per Field';
+    barTitle.textContent = 'Top 10 Applications per Field';
   }
 
   fieldSubBarChart?.destroy();
