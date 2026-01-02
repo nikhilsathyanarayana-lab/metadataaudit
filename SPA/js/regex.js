@@ -107,6 +107,18 @@ const bindRegexModalHandlers = () => {
         return;
       }
 
+      try {
+        // Validate the regex pattern without executing it.
+        // eslint-disable-next-line no-new
+        new RegExp(pattern);
+      } catch (error) {
+        if (feedback) {
+          feedback.textContent = 'Enter a valid regular expression.';
+        }
+
+        return;
+      }
+
       if (feedback) {
         feedback.textContent = 'Saved regex pattern.';
       }
