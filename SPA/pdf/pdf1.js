@@ -166,6 +166,9 @@ const createSubBarConfig = (data) => ({
   type: 'bar',
   data,
   options: {
+    plugins: {
+      title: { display: false }
+    },
     scales: {
       y: {
         beginAtZero: true
@@ -335,6 +338,7 @@ const renderPdfCharts = () => {
     data: subDonutData,
     options: {
       plugins: {
+        title: { display: false },
         legend: { display: false }
       }
     },
