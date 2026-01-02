@@ -431,12 +431,57 @@ h1 {
   outline-offset: 3px;
 }
 
-#export-preview-frame {
+.export-tab-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.export-tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.export-tab-button {
+  padding: 0.45rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(61, 61, 61, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  color: #3d3d3d;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.export-tab-button:hover,
+.export-tab-button:focus-visible {
+  background: #fff7fb;
+  border-color: rgba(224, 0, 108, 0.25);
+  color: var(--pendo-pink);
+  outline: none;
+}
+
+.export-tab-button.is-active {
+  background: #ffe7f4;
+  border-color: rgba(224, 0, 108, 0.45);
+  color: var(--pendo-pink);
+}
+
+#export-preview-frame,
+#excel-preview-frame {
   width: 100%;
   aspect-ratio: 8.5 / 11;
   max-height: calc(100vh - 8rem);
   border: none;
   background: #fff;
+}
+
+.export-download {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
 }
 
 .text-input {
