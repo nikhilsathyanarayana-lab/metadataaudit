@@ -191,7 +191,8 @@ const createSubBarConfig = (data) => ({
   data,
   options: {
     plugins: {
-      title: { display: false }
+      title: { display: false },
+      legend: { display: false }
     },
     scales: {
       y: {
