@@ -209,12 +209,17 @@ const subDonutCenterText = {
     const { ctx, chartArea: { left, top, width, height } } = chart;
     const count = getSubScanCount(chart?.data?.datasets?.[0]?.data);
 
+    const centerX = left + (width / 2);
+    const centerY = top + (height / 2);
+
     ctx.save();
     ctx.font = 'bold 18px sans-serif';
     ctx.fillStyle = '#333';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(count), left + (width / 2), top + (height / 2));
+    ctx.fillText(String(count), centerX, centerY - 8);
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Subscriptions', centerX, centerY + 12);
     ctx.restore();
   }
 };
