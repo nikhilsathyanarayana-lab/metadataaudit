@@ -116,6 +116,7 @@ const processAPI = () => {
       }
 
       const window7Fields = hasWindow7Data ? buildNamespaceFieldSummary([window7Bucket]) : null;
+      // 30- and 180-day views combine the processed 7- and 23-day buckets (and 150 for 180-day)
       const window30Fields = (hasWindow7Data && hasWindow23Data)
         ? buildNamespaceFieldSummary([window7Bucket, window23Bucket])
         : null;
