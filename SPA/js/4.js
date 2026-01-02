@@ -177,7 +177,7 @@ export async function initSection(sectionElement) {
 
   // Trigger a PDF export request for the current preview state.
   const triggerPdfExport = () => {
-    document.dispatchEvent(new CustomEvent('pdf-export-requested'));
+    handlePdfExportRequest();
   };
 
   // Kick off PDF export by honoring exclusions and printing the selected page.
