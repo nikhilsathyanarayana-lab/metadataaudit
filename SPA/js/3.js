@@ -231,7 +231,7 @@ const setFieldTypeSelection = (fieldName, typeKey) => {
   fieldTypeSelections[normalizedName] = nextSelection;
 };
 
-// Persist a saved regex pattern for a field while keeping any selected type.
+// Persist a saved regex pattern for a field while clearing any selected type.
 const setFieldRegexSelection = (fieldName, regexPattern) => {
   const normalizedName = normalizeFieldName(fieldName);
   const normalizedRegex = typeof regexPattern === 'string' ? regexPattern.trim() : '';
@@ -253,7 +253,6 @@ const setFieldRegexSelection = (fieldName, regexPattern) => {
   }
 
   fieldTypeSelections[normalizedName] = {
-    ...existingSelection,
     regex: normalizedRegex,
   };
 };
@@ -269,28 +268,6 @@ const findFieldTypesRow = (fieldName) => {
   return Array.from(list.querySelectorAll('.fieldtypes-row')).find(
     (row) => normalizeFieldName(row?.dataset?.fieldName) === normalizeFieldName(fieldName),
   );
-};
-
-// Update the regex button label and tooltip for a field row to reflect the saved pattern.
-const updateRegexStatus = (fieldName, regexPattern = '') => {
-  const fieldRow = findFieldTypesRow(fieldName);
-
-  if (!fieldRow) {
-    return;
-  }
-
-  const regexButton = fieldRow.querySelector('.fieldtypes-regex-btn');
-  const normalizedRegex = typeof regexPattern === 'string' ? regexPattern.trim() : '';
-  const savedRegex = normalizedRegex || getFieldTypeSelection(fieldName)?.regex || '';
-
-  if (regexButton) {
-    const hasRegex = Boolean(savedRegex);
-    regexButton.title = hasRegex ? `Saved regex: ${savedRegex}` : 'No regex saved yet';
-    regexButton.setAttribute(
-      'aria-label',
-      hasRegex ? `Edit regex for ${fieldName}` : `Add regex for ${fieldName}`,
-    );
-  }
 };
 
 // Expose expected value selections for console inspection.
@@ -366,6 +343,57 @@ const updateFieldTypeRowState = (rowElement, activeCheckbox) => {
   rowElement.classList.toggle('fieldtypes-row--selected', hasSelection);
 };
 
+// Sync checkbox availability and row styling when a regex selection is saved.
+const syncRegexSelectionState = (fieldName, fieldRow = null) => {
+  const resolvedRow = fieldRow || findFieldTypesRow(fieldName);
+
+  if (!resolvedRow) {
+    return;
+  }
+
+  const checkboxes = resolvedRow.querySelectorAll('input[type="checkbox"]');
+  const hasRegex = Boolean(getFieldTypeSelection(fieldName)?.regex);
+
+  if (hasRegex) {
+    checkboxes.forEach((checkbox) => {
+      checkbox.checked = false;
+      checkbox.disabled = true;
+    });
+    resolvedRow.classList.add('fieldtypes-row--selected');
+    return;
+  }
+
+  checkboxes.forEach((checkbox) => {
+    checkbox.disabled = false;
+  });
+
+  updateFieldTypeRowState(resolvedRow, resolvedRow.querySelector('input[type="checkbox"]:checked'));
+};
+
+// Update the regex button label and tooltip for a field row to reflect the saved pattern.
+const updateRegexStatus = (fieldName, regexPattern = '', fieldRow = null) => {
+  const resolvedRow = fieldRow || findFieldTypesRow(fieldName);
+
+  if (!resolvedRow) {
+    return;
+  }
+
+  const regexButton = resolvedRow.querySelector('.fieldtypes-regex-btn');
+  const normalizedRegex = typeof regexPattern === 'string' ? regexPattern.trim() : '';
+  const savedRegex = normalizedRegex || getFieldTypeSelection(fieldName)?.regex || '';
+
+  if (regexButton) {
+    const hasRegex = Boolean(savedRegex);
+    regexButton.title = hasRegex ? `Saved regex: ${savedRegex}` : 'No regex saved yet';
+    regexButton.setAttribute(
+      'aria-label',
+      hasRegex ? `Edit regex for ${fieldName}` : `Add regex for ${fieldName}`,
+    );
+  }
+
+  syncRegexSelectionState(fieldName, resolvedRow);
+};
+
 // Attach change listeners to each checkbox in a field row.
 const bindFieldTypeCheckboxes = (rowElement, fieldName) => {
   const checkboxes = rowElement.querySelectorAll('input[type="checkbox"]');
@@ -428,10 +456,9 @@ const createFieldTypesRow = (fieldName) => {
 
   listItem.appendChild(regexButtonCell);
 
-  updateRegexStatus(fieldName, savedSelection?.regex || '');
+  updateRegexStatus(fieldName, savedSelection?.regex || '', listItem);
 
   bindFieldTypeCheckboxes(listItem, fieldName);
-  updateFieldTypeRowState(listItem, listItem.querySelector('input[type="checkbox"]:checked'));
 
   return listItem;
 };
