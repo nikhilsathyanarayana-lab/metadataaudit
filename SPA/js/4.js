@@ -22,7 +22,16 @@ export async function initSection(sectionElement) {
       return;
     }
 
-    previewFrame.contentWindow.postMessage({ type: 'metadataAggregations', payload: window.metadataAggregations }, '*');
+    const message = {
+      type: 'metadataAggregations',
+      payload: window.metadataAggregations,
+    };
+
+    if (window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
+      message.appCountsBySubId = window.appCountsBySubId;
+    }
+
+    previewFrame.contentWindow.postMessage(message, '*');
   };
 
   if (!previewFrame || !prevButton || !nextButton) {
@@ -38,6 +47,7 @@ export async function initSection(sectionElement) {
 
   if (typeof window !== 'undefined') {
     let metadataAggregationsCache = window.metadataAggregations;
+    let appCountsBySubIdCache = window.appCountsBySubId;
     let hasLoggedMetadataCache = false;
 
     // Log when metadata aggregations become available in the cache.
@@ -60,6 +70,21 @@ export async function initSection(sectionElement) {
         metadataAggregationsCache = value;
         logMetadataCacheAvailable();
         postMetadataToPreview();
+      },
+    });
+
+    Object.defineProperty(window, 'appCountsBySubId', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return appCountsBySubIdCache;
+      },
+      set(value) {
+        appCountsBySubIdCache = value;
+
+        if (metadataAggregationsCache) {
+          postMetadataToPreview();
+        }
       },
     });
 
