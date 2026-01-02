@@ -10,6 +10,11 @@
   <main id="metadata-summary" class="pdf-overview">
     <h1 id="metadata-summary-title" class="overview-title">Field Summary</h1>
     <p id="metadata-summary-intro" class="overview-intro">Retention counts by namespace for the past 7, 30, and 180 days.</p>
+    <section id="field-change-card" class="change-summary-card">
+      <h2 id="field-change-title" class="chart-title">Field Change Highlights</h2>
+      <p id="field-change-intro" class="field-change-intro">Recent additions or removals detected by Sub ID and app.</p>
+      <div id="field-change-summary" class="field-change-summary"></div>
+    </section>
     <div id="metadata-summary-grid" class="metadata-summary-grid">
       <section id="visitor-metadata-card" class="table-card metadata-card">
         <h2 id="visitor-metadata-title" class="chart-title">Visitor</h2>
@@ -18,7 +23,6 @@
             <tr id="visitor-metadata-header-row" class="metadata-header-row">
               <th id="visitor-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
               <th id="visitor-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
-              <th id="visitor-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
               <th id="visitor-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
               <th id="visitor-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
               <th id="visitor-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
@@ -34,7 +38,6 @@
             <tr id="account-metadata-header-row" class="metadata-header-row">
               <th id="account-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
               <th id="account-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
-              <th id="account-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
               <th id="account-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
               <th id="account-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
               <th id="account-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
@@ -50,7 +53,6 @@
             <tr id="custom-metadata-header-row" class="metadata-header-row">
               <th id="custom-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
               <th id="custom-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
-              <th id="custom-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
               <th id="custom-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
               <th id="custom-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
               <th id="custom-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
@@ -66,7 +68,6 @@
             <tr id="salesforce-metadata-header-row" class="metadata-header-row">
               <th id="salesforce-header-subid" class="metadata-header-cell" scope="col">Sub ID</th>
               <th id="salesforce-header-app-name" class="metadata-header-cell" scope="col">App Name</th>
-              <th id="salesforce-header-app-id" class="metadata-header-cell" scope="col">App ID</th>
               <th id="salesforce-header-window-7" class="metadata-header-cell" scope="col">7 days</th>
               <th id="salesforce-header-window-30" class="metadata-header-cell" scope="col">30 days</th>
               <th id="salesforce-header-window-180" class="metadata-header-cell" scope="col">180 days</th>
@@ -76,11 +77,6 @@
         </table>
       </section>
     </div>
-    <section id="field-change-card" class="change-summary-card">
-      <h2 id="field-change-title" class="chart-title">Field Change Highlights</h2>
-      <p id="field-change-intro" class="field-change-intro">Recent additions or removals detected by Sub ID and app.</p>
-      <div id="field-change-summary" class="field-change-summary"></div>
-    </section>
   </main>
   <script type="module" src="pdf3.js"></script>
 </body>
