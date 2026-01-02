@@ -1,5 +1,10 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 const OPTIONAL_NAMESPACE_CARDS = ['custom', 'salesforce'];
+const FIELD_COMPARISON_DISPLAY_OPTIONS = [
+  'Matrix view: rows as fields, columns as tables, with cell badges indicating match or mismatch and tooltips for differences.',
+  'Aggregated diff view: group fields by status (all match, partial mismatch, missing) with expandable details.',
+  'Timeline or stacked view: per-field cards showing each table value with highlights for deviations and source-of-truth markers.',
+];
 
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -140,58 +145,103 @@ const buildFieldSetsByApp = (rowsByNamespace = {}) => {
   return fieldSets;
 };
 
-// Build detailed change entries across retention windows for each app.
-const buildFieldChangeEntries = (rowsByNamespace = {}) => {
-  const fieldSets = buildFieldSetsByApp(rowsByNamespace);
-  const changeEntries = [];
+// Compare aligned metadata rows by field across tables.
+const buildFieldSummaryComparison = (rowsByTable = {}) => {
+  const tableEntries = Object.entries(rowsByTable || {});
+  const fieldNames = new Set();
 
-  fieldSets.forEach((entry) => {
-    const hasAllWindows = entry.window7Fields && entry.window30Fields && entry.window180Fields;
-
-    if (!hasAllWindows) {
-      return;
+  tableEntries.forEach(([, tableRows]) => {
+    if (tableRows && typeof tableRows === 'object') {
+      Object.keys(tableRows).forEach((fieldName) => fieldNames.add(fieldName));
     }
+  });
 
-    const newFields = [...entry.window7Fields].filter((field) => !entry.window30Fields.has(field)
-      && !entry.window180Fields.has(field));
-    const missingFields = [...entry.window180Fields].filter((field) => !entry.window7Fields.has(field)
-      && !entry.window30Fields.has(field));
+  return [...fieldNames].sort((first, second) => first.localeCompare(second)).map((fieldName) => {
+    const valuesByTable = {};
+    const presentValues = new Set();
+    let hasMissingValue = false;
 
-    if (!newFields.length && !missingFields.length) {
-      return;
-    }
+    tableEntries.forEach(([tableName, tableRows]) => {
+      const value = tableRows?.[fieldName] ?? null;
+      valuesByTable[tableName] = value;
 
-    changeEntries.push({
-      subId: entry.subId,
-      appName: entry.appName,
-      namespace: entry.namespace,
-      newFields,
-      missingFields,
+      if (value === null || value === undefined) {
+        hasMissingValue = true;
+        return;
+      }
+
+      presentValues.add(String(value));
     });
-  });
 
-  changeEntries.sort((first, second) => first.subId.localeCompare(second.subId)
-    || first.appName.localeCompare(second.appName)
-    || first.namespace.localeCompare(second.namespace));
+    let status = 'match';
 
-  return changeEntries;
-};
+    if (presentValues.size > 1) {
+      status = 'delta';
+    } else if (hasMissingValue) {
+      status = 'missing';
+    }
 
-// Identify new or missing fields across retention windows.
-const buildFieldChangeSentences = (rowsOrEntries = {}) => {
-  const changeEntries = Array.isArray(rowsOrEntries)
-    ? rowsOrEntries
-    : buildFieldChangeEntries(rowsOrEntries);
-
-  return changeEntries.flatMap((entry) => {
-    const newMessages = entry.newFields.map((fieldName) => `New Field: "${fieldName}" detected for ${entry.appName} (Sub ID ${entry.subId}) in the ${entry.namespace} namespace.`);
-    const missingMessages = entry.missingFields.map((fieldName) => `No Longer Present: "${fieldName}" previously found for ${entry.appName} (Sub ID ${entry.subId}) is absent from the past 7 and 30 days in the ${entry.namespace} namespace.`);
-    return [...newMessages, ...missingMessages];
+    return {
+      field: fieldName,
+      valuesByTable,
+      status,
+    };
   });
 };
 
-// Render field change sentences into the PDF view.
-const renderFieldChangeSummary = (sentences = []) => {
+// Map field arrays into keyed comparison rows per window.
+const buildRowsByTableForEntry = (entry) => ({
+  '7 days': (entry.window7Fields
+    ? Object.fromEntries([...entry.window7Fields].map((fieldName) => [fieldName, 'present']))
+    : {}),
+  '30 days': (entry.window30Fields
+    ? Object.fromEntries([...entry.window30Fields].map((fieldName) => [fieldName, 'present']))
+    : {}),
+  '180 days': (entry.window180Fields
+    ? Object.fromEntries([...entry.window180Fields].map((fieldName) => [fieldName, 'present']))
+    : {}),
+});
+
+// Build comparison entries for every app and namespace combination.
+const buildFieldComparisonEntries = (rowsByNamespace = {}) => {
+  const fieldSets = buildFieldSetsByApp(rowsByNamespace);
+
+  return fieldSets.map((entry) => {
+    const rowsByTable = buildRowsByTableForEntry(entry);
+    const comparisons = buildFieldSummaryComparison(rowsByTable);
+
+    return {
+      ...entry,
+      rowsByTable,
+      comparisons,
+    };
+  }).filter((entry) => entry.comparisons.length);
+};
+
+// Build per-field sentences for the comparison summary.
+const buildFieldComparisonSentences = (comparisonEntries = []) => comparisonEntries.flatMap((entry) => {
+  const matchingFields = entry.comparisons.filter((item) => item.status === 'match').map((item) => item.field);
+  const missingFields = entry.comparisons.filter((item) => item.status === 'missing').map((item) => item.field);
+  const conflictingFields = entry.comparisons.filter((item) => item.status === 'delta').map((item) => item.field);
+  const sentences = [];
+
+  if (conflictingFields.length) {
+    sentences.push(`Conflicting values for ${conflictingFields.join(', ')} in ${entry.namespace} (${entry.appName}, Sub ID ${entry.subId}).`);
+  }
+
+  if (missingFields.length) {
+    sentences.push(`Missing fields ${missingFields.join(', ')} in at least one table for ${entry.namespace} (${entry.appName}, Sub ID ${entry.subId}).`);
+  }
+
+  if (matchingFields.length) {
+    sentences.push(`All tables agree on ${matchingFields.join(', ')} for ${entry.namespace} (${entry.appName}, Sub ID ${entry.subId}).`);
+  }
+
+  return sentences;
+});
+
+// Render field comparison sentences and display options.
+const renderFieldChangeSummary = (sentences = [], displayOptions = []) => {
   const summaryContainer = document.getElementById('field-change-summary');
 
   if (!summaryContainer) {
@@ -204,91 +254,44 @@ const renderFieldChangeSummary = (sentences = []) => {
     const emptyMessage = document.createElement('p');
     emptyMessage.id = 'field-change-empty-message';
     emptyMessage.className = 'field-change-text field-change-text--empty';
-    emptyMessage.textContent = 'No field changes detected yet.';
+    emptyMessage.textContent = 'No field comparisons available yet.';
     summaryContainer.appendChild(emptyMessage);
-    return;
+  } else {
+    const sentenceList = document.createElement('ul');
+    sentenceList.id = 'field-change-list';
+    sentenceList.className = 'field-change-list';
+
+    sentences.forEach((sentence, index) => {
+      const listItem = document.createElement('li');
+      listItem.id = `field-change-item-${String(index + 1).padStart(2, '0')}`;
+      listItem.className = 'field-change-text';
+      listItem.textContent = sentence;
+      sentenceList.appendChild(listItem);
+    });
+
+    summaryContainer.appendChild(sentenceList);
   }
 
-  const sentenceList = document.createElement('ul');
-  sentenceList.id = 'field-change-list';
-  sentenceList.className = 'field-change-list';
+  if (displayOptions.length) {
+    const optionsTitle = document.createElement('h3');
+    optionsTitle.id = 'field-comparison-options-title';
+    optionsTitle.className = 'field-comparison-options-title';
+    optionsTitle.textContent = 'Display Options to Explore';
 
-  sentences.forEach((sentence, index) => {
-    const listItem = document.createElement('li');
-    listItem.id = `field-change-item-${String(index + 1).padStart(2, '0')}`;
-    listItem.className = 'field-change-text';
-    listItem.textContent = sentence;
-    sentenceList.appendChild(listItem);
-  });
+    const optionsList = document.createElement('ol');
+    optionsList.id = 'field-comparison-options';
+    optionsList.className = 'field-comparison-options';
 
-  summaryContainer.appendChild(sentenceList);
-};
+    displayOptions.forEach((optionText, index) => {
+      const optionItem = document.createElement('li');
+      optionItem.id = `field-comparison-option-${String(index + 1).padStart(2, '0')}`;
+      optionItem.className = 'field-comparison-option';
+      optionItem.textContent = optionText;
+      optionsList.appendChild(optionItem);
+    });
 
-// Render field change highlights into the summary table.
-const renderFieldSummaryTable = (changeEntries = []) => {
-  const tableBody = document.getElementById('field-summary-body');
-
-  if (!tableBody) {
-    return;
+    summaryContainer.append(optionsTitle, optionsList);
   }
-
-  tableBody.innerHTML = '';
-
-  if (!changeEntries.length) {
-    const emptyRow = document.createElement('tr');
-    emptyRow.id = 'field-summary-empty-row';
-    emptyRow.className = 'subscription-row subscription-row--empty';
-
-    const emptyCell = document.createElement('td');
-    emptyCell.id = 'field-summary-empty-cell';
-    emptyCell.className = 'subscription-count-cell subscription-count-cell--empty';
-    emptyCell.colSpan = 4;
-    emptyCell.textContent = 'No field changes detected yet.';
-
-    emptyRow.appendChild(emptyCell);
-    tableBody.appendChild(emptyRow);
-    return;
-  }
-
-  changeEntries.forEach((entry, index) => {
-    const rowNumber = String(index + 1).padStart(2, '0');
-    const summaryRow = document.createElement('tr');
-    summaryRow.id = `field-summary-row-${rowNumber}`;
-    summaryRow.className = 'subscription-row';
-
-    const subIdCell = document.createElement('td');
-    subIdCell.id = `field-summary-subid-${rowNumber}`;
-    subIdCell.className = 'subscription-label-cell';
-    subIdCell.textContent = entry.subId || '';
-
-    const appNameCell = document.createElement('td');
-    appNameCell.id = `field-summary-app-${rowNumber}`;
-    appNameCell.className = 'subscription-count-cell';
-    appNameCell.textContent = entry.appName || '';
-
-    const namespaceCell = document.createElement('td');
-    namespaceCell.id = `field-summary-namespace-${rowNumber}`;
-    namespaceCell.className = 'subscription-count-cell';
-    namespaceCell.textContent = entry.namespace || '';
-
-    const changeCell = document.createElement('td');
-    changeCell.id = `field-summary-change-${rowNumber}`;
-    changeCell.className = 'subscription-count-cell';
-    const changeParts = [];
-
-    if (entry.newFields?.length) {
-      changeParts.push(`New: ${entry.newFields.join(', ')}`);
-    }
-
-    if (entry.missingFields?.length) {
-      changeParts.push(`Missing: ${entry.missingFields.join(', ')}`);
-    }
-
-    changeCell.textContent = changeParts.join(' | ');
-
-    summaryRow.append(subIdCell, appNameCell, namespaceCell, changeCell);
-    tableBody.appendChild(summaryRow);
-  });
 };
 
 // Convert a field list into a printable string.
@@ -393,7 +396,8 @@ const toggleNamespaceCardVisibility = (namespace, rows = []) => {
 // Render all namespace tables from cached metadata aggregations.
 const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const rowsByNamespace = mapAggregationsToRows(aggregations);
-  const changeEntries = buildFieldChangeEntries(rowsByNamespace);
+  const comparisonEntries = buildFieldComparisonEntries(rowsByNamespace);
+  const comparisonSentences = buildFieldComparisonSentences(comparisonEntries);
   METADATA_NAMESPACES.forEach((namespace) => {
     const namespaceRows = rowsByNamespace[namespace];
     const shouldRenderCard = OPTIONAL_NAMESPACE_CARDS.includes(namespace)
@@ -404,8 +408,7 @@ const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && wind
       renderTableRows(namespace, namespaceRows);
     }
   });
-  renderFieldSummaryTable(changeEntries);
-  renderFieldChangeSummary(buildFieldChangeSentences(changeEntries));
+  renderFieldChangeSummary(comparisonSentences, FIELD_COMPARISON_DISPLAY_OPTIONS);
 };
 
 // Process incoming metadata messages from the parent window.
@@ -431,10 +434,17 @@ const initMetadataSummary = () => {
   }
 };
 
-window.addEventListener('message', handleMetadataMessage);
+if (typeof window !== 'undefined') {
+  window.addEventListener('message', handleMetadataMessage);
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initMetadataSummary);
-} else {
-  initMetadataSummary();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMetadataSummary);
+  } else {
+    initMetadataSummary();
+  }
 }
+
+export {
+  buildFieldSummaryComparison,
+  buildFieldComparisonEntries,
+};
