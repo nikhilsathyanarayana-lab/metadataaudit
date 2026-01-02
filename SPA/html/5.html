@@ -1,12 +1,15 @@
 <div class="page-view" id="placeholder-view-five" data-page-section="5">
   <section class="card page-section" id="page-five-card">
-    <h2 class="section-title" id="page-five-title">Excel Exports</h2>
-    <p class="section-hint" id="page-five-hint">Review workbook previews and cycle through sample sheets.</p>
-    <div class="export-preview" id="excel-export-preview">
-      <div class="export-preview-controls" aria-label="Excel preview navigation">
-        <button class="export-preview-button" type="button" id="excel-nav-prev" aria-label="Previous Excel export">&#8592;</button>
-        <button class="export-preview-button" type="button" id="excel-nav-next" aria-label="Next Excel export">&#8594;</button>
+    <div class="card-header" id="excel-export-card-header">
+      <div class="form-intro" id="excel-export-form-intro">
+        <h2 class="section-title" id="excel-export-section-title">XLSX Export</h2>
       </div>
+      <div class="card-actions export-tab-actions" id="excel-export-actions" aria-label="Excel export tab controls">
+        <div class="export-tab-strip" id="excel-tab-strip" role="tablist" aria-label="Workbook sheet tabs"></div>
+        <button class="secondary-btn" type="button" id="excel-exclude-tabs-button">Exclude Tabs</button>
+      </div>
+    </div>
+    <div class="export-preview" id="excel-export-preview">
       <iframe
         id="excel-preview-frame"
         class="export-preview-frame"
@@ -16,6 +19,9 @@
         loading="lazy"
         allowfullscreen
       ></iframe>
+    </div>
+    <div class="export-download" id="excel-export-download">
+      <button class="primary-btn" type="button" id="excel-download-button">Download XLSX</button>
     </div>
   </section>
 </div>
