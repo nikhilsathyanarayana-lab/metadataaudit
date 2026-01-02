@@ -163,6 +163,10 @@ export async function app_names(entries) {
 
   recordAppCounts(credentialResults);
 
+  if (typeof window !== 'undefined') {
+    window.appCountsBySubId = getAppCountBySubId();
+  }
+
   return credentialResults;
 }
 
@@ -177,4 +181,6 @@ export const getDistinctAppCountForSub = (subId) => {
 };
 
 // Snapshot all tracked app totals for debugging or UI summaries.
-export const getAppCountBySubId = () => Object.fromEntries(appCountsBySubId);
+export function getAppCountBySubId() {
+  return Object.fromEntries(appCountsBySubId);
+}
