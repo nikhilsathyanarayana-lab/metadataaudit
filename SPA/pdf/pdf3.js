@@ -103,6 +103,120 @@ const mapAggregationsToRows = (aggregations = (hasMetadataAggregations() && wind
   return rowsByNamespace;
 };
 
+// Build per-app, per-namespace field sets from mapped rows.
+const buildFieldSetsByApp = (rowsByNamespace = {}) => {
+  const fieldSets = [];
+
+  METADATA_NAMESPACES.forEach((namespace) => {
+    const namespaceRows = rowsByNamespace[namespace] || [];
+
+    namespaceRows.forEach((row) => {
+      const window7Fields = Array.isArray(row.window7) ? new Set(row.window7) : null;
+      const window30Fields = Array.isArray(row.window30) ? new Set(row.window30) : null;
+      const window180Fields = Array.isArray(row.window180) ? new Set(row.window180) : null;
+
+      if (!window7Fields && !window30Fields && !window180Fields) {
+        return;
+      }
+
+      fieldSets.push({
+        subId: row.subId || '',
+        appName: row.appName || '',
+        appId: row.appId || '',
+        namespace,
+        window7Fields,
+        window30Fields,
+        window180Fields,
+      });
+    });
+  });
+
+  fieldSets.sort((first, second) => first.subId.localeCompare(second.subId)
+    || first.appName.localeCompare(second.appName)
+    || first.appId.localeCompare(second.appId)
+    || first.namespace.localeCompare(second.namespace));
+
+  return fieldSets;
+};
+
+// Identify new or missing fields across retention windows.
+const buildFieldChangeSentences = (rowsByNamespace = {}) => {
+  const fieldSets = buildFieldSetsByApp(rowsByNamespace);
+  const messages = [];
+
+  fieldSets.forEach((entry) => {
+    const hasAllWindows = entry.window7Fields && entry.window30Fields && entry.window180Fields;
+
+    if (!hasAllWindows) {
+      return;
+    }
+
+    const newFields = [...entry.window7Fields].filter((field) => !entry.window30Fields.has(field)
+      && !entry.window180Fields.has(field));
+    const missingFields = [...entry.window180Fields].filter((field) => !entry.window7Fields.has(field)
+      && !entry.window30Fields.has(field));
+
+    newFields.forEach((fieldName) => {
+      messages.push({
+        subId: entry.subId,
+        appName: entry.appName,
+        namespace: entry.namespace,
+        text: `New Field: "${fieldName}" detected for ${entry.appName} (Sub ID ${entry.subId}) in the ${entry.namespace} namespace.`,
+      });
+    });
+
+    missingFields.forEach((fieldName) => {
+      messages.push({
+        subId: entry.subId,
+        appName: entry.appName,
+        namespace: entry.namespace,
+        text: `No Longer Present: "${fieldName}" previously found for ${entry.appName} (Sub ID ${entry.subId}) is absent from the past 7 and 30 days in the ${entry.namespace} namespace.`,
+      });
+    });
+  });
+
+  messages.sort((first, second) => first.subId.localeCompare(second.subId)
+    || first.appName.localeCompare(second.appName)
+    || first.namespace.localeCompare(second.namespace)
+    || first.text.localeCompare(second.text));
+
+  return messages.map((entry) => entry.text);
+};
+
+// Render field change sentences into the PDF view.
+const renderFieldChangeSummary = (sentences = []) => {
+  const summaryContainer = document.getElementById('field-change-summary');
+
+  if (!summaryContainer) {
+    return;
+  }
+
+  summaryContainer.innerHTML = '';
+
+  if (!sentences.length) {
+    const emptyMessage = document.createElement('p');
+    emptyMessage.id = 'field-change-empty-message';
+    emptyMessage.className = 'field-change-text field-change-text--empty';
+    emptyMessage.textContent = 'No field changes detected yet.';
+    summaryContainer.appendChild(emptyMessage);
+    return;
+  }
+
+  const sentenceList = document.createElement('ul');
+  sentenceList.id = 'field-change-list';
+  sentenceList.className = 'field-change-list';
+
+  sentences.forEach((sentence, index) => {
+    const listItem = document.createElement('li');
+    listItem.id = `field-change-item-${String(index + 1).padStart(2, '0')}`;
+    listItem.className = 'field-change-text';
+    listItem.textContent = sentence;
+    sentenceList.appendChild(listItem);
+  });
+
+  summaryContainer.appendChild(sentenceList);
+};
+
 // Convert a field list into a printable string.
 const formatFieldList = (fields) => {
   if (!fields) {
@@ -191,6 +305,7 @@ const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && wind
   METADATA_NAMESPACES.forEach((namespace) => {
     renderTableRows(namespace, rowsByNamespace[namespace]);
   });
+  renderFieldChangeSummary(buildFieldChangeSentences(rowsByNamespace));
 };
 
 // Process incoming metadata messages from the parent window.
