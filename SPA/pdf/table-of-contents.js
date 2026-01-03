@@ -1,8 +1,6 @@
 /*jslint browser: true */
 /*jslint es6: true */
 
-const defaultSubscriptionIds = Array.from({ length: 5 }, (_, index) => `Sub ${String(index + 1).padStart(2, '0')}`);
-
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
   typeof window !== 'undefined'
@@ -10,16 +8,16 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
-// Collect SubIDs from the metadata cache or return sample identifiers.
+// Collect SubIDs from the metadata cache or return an empty collection when unavailable.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
-    return defaultSubscriptionIds;
+    return [];
   }
 
   const ids = Object.keys(aggregations || {}).filter(Boolean);
 
   if (!ids.length) {
-    return defaultSubscriptionIds;
+    return [];
   }
 
   return ids.sort((first, second) => first.localeCompare(second));
@@ -52,6 +50,50 @@ const buildSubscriptionEntry = (template, subId, index) => {
   return clone;
 };
 
+// Process metadata updates from the parent window and refresh the TOC links.
+const handleMetadataMessage = (event) => {
+  const message = event?.data;
+
+  if (!message || message.type !== 'metadataAggregations') {
+    return;
+  }
+
+  const payload = message.payload || {};
+  const nextAggregations = payload.metadataAggregations || payload;
+  window.metadataAggregations = nextAggregations;
+  renderSubscriptionEntries(window.metadataAggregations);
+};
+
+// Toggle an error message when the table of contents cannot be populated.
+const toggleLoadError = (isVisible) => {
+  const tocEntries = document.getElementById('toc-entries');
+  const tocList = document.getElementById('toc-list');
+
+  if (!tocEntries || !tocList) {
+    return;
+  }
+
+  let errorMessage = document.getElementById('toc-load-error');
+
+  if (!errorMessage && isVisible) {
+    errorMessage = document.createElement('p');
+    errorMessage.id = 'toc-load-error';
+    errorMessage.className = 'toc-load-error';
+    errorMessage.textContent = 'Table of contents could not be loaded.';
+    tocEntries.appendChild(errorMessage);
+  }
+
+  if (errorMessage) {
+    errorMessage.hidden = !isVisible;
+  }
+
+  if (isVisible) {
+    tocList.setAttribute('hidden', 'hidden');
+  } else {
+    tocList.removeAttribute('hidden');
+  }
+};
+
 // Render subscription detail links inside the table of contents.
 const renderSubscriptionEntries = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const tocList = document.getElementById('toc-list');
@@ -65,6 +107,13 @@ const renderSubscriptionEntries = (aggregations = (hasMetadataAggregations() && 
 
   const subIds = getSubscriptionIds(aggregations);
 
+  if (!subIds.length) {
+    toggleLoadError(true);
+    return;
+  }
+
+  toggleLoadError(false);
+
   subIds.forEach((subId, index) => {
     const entry = buildSubscriptionEntry(template, subId, index);
 
@@ -72,20 +121,6 @@ const renderSubscriptionEntries = (aggregations = (hasMetadataAggregations() && 
       tocList.appendChild(entry);
     }
   });
-};
-
-// Process metadata updates from the parent window and refresh the TOC links.
-const handleMetadataMessage = (event) => {
-  const message = event?.data;
-
-  if (!message || message.type !== 'metadataAggregations') {
-    return;
-  }
-
-  const payload = message.payload || {};
-  const nextAggregations = payload.metadataAggregations || payload;
-  window.metadataAggregations = nextAggregations;
-  renderSubscriptionEntries(window.metadataAggregations);
 };
 
 // Initialize the table of contents with subscription detail links.
