@@ -39,6 +39,14 @@ const buildMetadataMessage = () => {
     payload: typeof window !== 'undefined' ? (window.metadataAggregations || {}) : {},
   };
 
+  if (typeof window !== 'undefined') {
+    const fieldTypeSelections = window.fieldTypeSelections
+      || window.FIELDTYPES?.fieldTypeSelections
+      || {};
+
+    message.fieldTypeSelections = fieldTypeSelections;
+  }
+
   if (typeof window !== 'undefined' && window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
     message.appCountsBySubId = window.appCountsBySubId;
   }
@@ -55,6 +63,10 @@ const postMetadataToFrame = (frame) => {
   }
 
   frame.contentWindow.metadataAggregations = message.payload;
+
+  if (message.fieldTypeSelections) {
+    frame.contentWindow.fieldTypeSelections = message.fieldTypeSelections;
+  }
 
   if (message.appCountsBySubId) {
     frame.contentWindow.appCountsBySubId = message.appCountsBySubId;
@@ -227,6 +239,9 @@ export async function initSection(sectionElement) {
     const message = {
       type: 'metadataAggregations',
       payload: window.metadataAggregations,
+      fieldTypeSelections: window.fieldTypeSelections
+        || window.FIELDTYPES?.fieldTypeSelections
+        || {},
     };
 
     if (window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
