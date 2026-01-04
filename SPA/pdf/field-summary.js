@@ -43,7 +43,7 @@ const buildNamespaceFieldSummary = (windowBuckets = []) => METADATA_NAMESPACES.r
 // Collect 7/30/180-day field lists for a single app bucket.
 const buildWindowSummaries = (appBucket) => {
   const window7Bucket = getWindowBucket(appBucket, 7);
-  const window23Bucket = getWindowBucket(appBucket, 23);
+  const window23Bucket = getWindowBucket(appBucket, 23); // 23-day buckets only feed 30/180 rollups and are not rendered directly
   const window150Bucket = getWindowBucket(appBucket, 150);
   const hasWindow7Data = Boolean(window7Bucket?.isProcessed);
   const hasWindow23Data = Boolean(window23Bucket?.isProcessed);
