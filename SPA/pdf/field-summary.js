@@ -1,10 +1,5 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 const OPTIONAL_NAMESPACE_CARDS = ['custom', 'salesforce'];
-const FIELD_COMPARISON_DISPLAY_OPTIONS = [
-  'Matrix view: rows as fields, columns as tables, with cell badges indicating match or mismatch and tooltips for differences.',
-  'Aggregated diff view: group fields by status (all match, partial mismatch, missing) with expandable details.',
-  'Timeline or stacked view: per-field cards showing each table value with highlights for deviations and source-of-truth markers.',
-];
 
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -351,7 +346,7 @@ const buildFieldChangeFindings = () => {
 };
 
 // Render field change findings after the tables finish rendering.
-const renderFieldChangeSummary = (displayOptions = []) => {
+const renderFieldChangeSummary = () => {
   const renderFindings = () => {
     const summaryContainer = document.getElementById('field-change-summary');
 
@@ -384,26 +379,6 @@ const renderFieldChangeSummary = (displayOptions = []) => {
       summaryContainer.appendChild(sentenceList);
     }
 
-    if (displayOptions.length) {
-      const optionsTitle = document.createElement('h3');
-      optionsTitle.id = 'field-comparison-options-title';
-      optionsTitle.className = 'field-comparison-options-title';
-      optionsTitle.textContent = 'Display Options to Explore';
-
-      const optionsList = document.createElement('ol');
-      optionsList.id = 'field-comparison-options';
-      optionsList.className = 'field-comparison-options';
-
-      displayOptions.forEach((optionText, index) => {
-        const optionItem = document.createElement('li');
-        optionItem.id = `field-comparison-option-${String(index + 1).padStart(2, '0')}`;
-        optionItem.className = 'field-comparison-option';
-        optionItem.textContent = optionText;
-        optionsList.appendChild(optionItem);
-      });
-
-      summaryContainer.append(optionsTitle, optionsList);
-    }
   };
 
   if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
@@ -532,7 +507,7 @@ const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && wind
       renderTableRows(namespace, namespaceRows);
     }
   });
-  renderFieldChangeSummary(FIELD_COMPARISON_DISPLAY_OPTIONS);
+  renderFieldChangeSummary();
 };
 
 // Process incoming metadata messages from the parent window.
