@@ -324,6 +324,7 @@ if (typeof document !== 'undefined') {
       return;
     }
 
+    window.fieldTypeSelections = message.fieldTypeSelections || {};
     updateFromMetadataAggregations(message.payload || {});
   };
 
