@@ -360,6 +360,7 @@ if (typeof document !== 'undefined') {
     }
 
     const payload = message.payload || {};
+    window.fieldTypeSelections = message.fieldTypeSelections || {};
     const aggregations = payload.metadataAggregations || (payload.appCountsBySubId ? {} : payload) || {};
     const incomingAppCounts = payload.appCountsBySubId || message.appCountsBySubId;
 

@@ -422,6 +422,7 @@ const handleMetadataMessage = (event) => {
   const payload = message.payload || {};
   const nextAggregations = payload.metadataAggregations || (payload.appCountsBySubId ? {} : payload) || {};
   window.metadataAggregations = nextAggregations;
+  window.fieldTypeSelections = message.fieldTypeSelections || {};
   renderMetadataSummary(window.metadataAggregations);
 };
 
