@@ -188,6 +188,44 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.namespace-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f0e6ed;
+}
+
+.namespace-summary__item {
+  background: #fff7fb;
+  border: 1px solid rgba(224, 0, 108, 0.12);
+  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.namespace-summary__item:nth-child(even) {
+  background: #f4f4f6;
+  border-color: rgba(61, 61, 61, 0.15);
+}
+
+.namespace-summary__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  color: var(--pendo-charcoal);
+}
+
+.namespace-summary__count {
+  margin: 0;
+  font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+  font-weight: 800;
+  color: var(--pendo-pink);
+}
+
 .metadata-summary-grid {
   display: flex;
   flex-direction: column;
