@@ -150,24 +150,28 @@ const renderPrintableDocument = (pages) => {
   stylesheet.href = 'SPA/pdf/pdf.css';
   printDocument.head.appendChild(stylesheet);
 
-  const pageStyles = printDocument.createElement('style');
-  pageStyles.textContent = `
-    body { margin: 0; background: #fff; }
-    .pdf-export-page { margin: 0; }
-    @media print {
-      .pdf-export-page { page-break-after: always; }
-      .pdf-export-page:last-of-type { page-break-after: auto; }
-    }
-  `;
-  printDocument.head.appendChild(pageStyles);
+  if (printDocument.body) {
+    printDocument.body.id = 'pdf-export-body';
+    printDocument.body.className = 'pdf-export-body';
+  }
 
-  pages.forEach(({ source, body }) => {
+  pages.forEach(({ source, body }, index) => {
+    const pageNumber = index + 1;
     const wrapper = printDocument.createElement('section');
     const adoptedBody = printDocument.importNode(body, true);
 
     wrapper.className = 'pdf-export-page';
+    wrapper.id = `pdf-export-page-${pageNumber}`;
     wrapper.setAttribute('data-export-source', source);
     wrapper.appendChild(adoptedBody);
+
+    const pageNumberLabel = printDocument.createElement('span');
+
+    pageNumberLabel.className = 'pdf-page-number';
+    pageNumberLabel.id = `pdf-page-number-${pageNumber}`;
+    pageNumberLabel.textContent = `Page ${pageNumber}`;
+
+    wrapper.appendChild(pageNumberLabel);
     printDocument.body.appendChild(wrapper);
   });
 

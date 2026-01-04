@@ -2,7 +2,8 @@
 /*jslint es6: true */
 
 const defaultSubscriptionIds = Array.from({ length: 5 }, (_, index) => `Sub ${String(index + 1).padStart(2, '0')}`);
-const firstContentPage = 2;
+const tableOfContentsStartPage = 1;
+const firstContentPage = tableOfContentsStartPage + 1;
 const staticTableOfContentsEntries = [
   {
     entryId: 'toc-entry-overview',

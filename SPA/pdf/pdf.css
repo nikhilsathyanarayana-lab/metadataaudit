@@ -27,6 +27,13 @@ body {
   line-height: 1.6;
 }
 
+.pdf-export-body {
+  margin: 0;
+  padding: var(--page-margin);
+  display: block;
+  background: #fff;
+}
+
 main {
   width: min(960px, 100%, calc(var(--page-width) - (var(--page-margin) * 2)));
   min-height: calc(var(--page-height) - (var(--page-margin) * 2));
@@ -43,11 +50,40 @@ main {
     background: #fff;
   }
 
+  .pdf-export-body {
+    padding: var(--page-margin);
+  }
+
   main {
     width: 100%;
     min-height: calc(var(--page-height) - (var(--page-margin) * 2));
     border: none;
     box-shadow: none;
+  }
+}
+
+.pdf-export-page {
+  position: relative;
+  margin: 0 auto;
+  min-height: calc(var(--page-height) - (var(--page-margin) * 2));
+}
+
+.pdf-page-number {
+  position: absolute;
+  right: var(--page-margin);
+  bottom: var(--page-margin);
+  font-weight: 600;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+@media print {
+  .pdf-export-page {
+    page-break-after: always;
+  }
+
+  .pdf-export-page:last-of-type {
+    page-break-after: auto;
   }
 }
 
