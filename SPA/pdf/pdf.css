@@ -208,20 +208,21 @@ a:hover {
   gap: 0.5rem;
 }
 
+.namespace-summary__item:nth-child(even) {
+  background: #f4f4f6;
+  border-color: rgba(61, 61, 61, 0.15);
+}
+
 .namespace-summary__title {
   margin: 0;
   font-size: clamp(1.25rem, 2vw, 1.6rem);
   color: var(--pendo-charcoal);
 }
 
-.namespace-summary__placeholder {
+.namespace-summary__count {
   margin: 0;
-  font-size: 1.1rem;
-  color: #555;
-}
-
-.namespace-summary__value {
-  font-weight: 700;
+  font-size: clamp(1.4rem, 2.6vw, 1.8rem);
+  font-weight: 800;
   color: var(--pendo-pink);
 }
 
