@@ -1,21 +1,7 @@
 import { app_names } from '../API/app_names.js';
 
-let appSelections = [];
-
-// Persist the latest app selection snapshot for reuse across SPA views.
-export const setAppSelections = (entries = []) => {
-  appSelections = entries
-    .filter((entry) => entry && (entry.subId || entry.appId || entry.appName))
-    .map((entry) => ({
-      subId: entry.subId || '',
-      appId: entry.appId || '',
-      appName: entry.appName || '',
-      isSelected: Boolean(entry.isSelected),
-    }));
-};
-
-// Retrieve a copy of the stored app selections.
-export const getAppSelections = () => [...appSelections];
+// Share the latest app selection snapshot between SPA views.
+export const appSelectionState = { entries: [] };
 
 // Build a single row summarizing status or errors across columns.
 const createStatusRow = (message, columnCount = 4, subId = '') => {
@@ -220,7 +206,7 @@ const enableSelectionControls = (
 
   if (continueButton) {
     continueButton.onclick = () => {
-      setAppSelections(buildSelectionSnapshot(tableCheckboxes));
+      appSelectionState.entries = buildSelectionSnapshot(tableCheckboxes);
       pageThreeButton?.click();
     };
   }
@@ -235,7 +221,7 @@ const renderAppPreview = async (sectionRoot) => {
   const headerToggle = sectionRoot?.querySelector('#app-selection-toggle-all-preview');
   const continueButton = sectionRoot?.querySelector('#app-selection-continue-btn');
   const pageThreeButton = document.querySelector('#page-switcher-btn-3');
-  const savedSelections = getAppSelections();
+  const savedSelections = appSelectionState.entries;
 
   if (!sectionRoot || !tableBody) {
     return;
