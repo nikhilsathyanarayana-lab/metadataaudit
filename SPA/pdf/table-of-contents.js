@@ -2,6 +2,29 @@
 /*jslint es6: true */
 
 const defaultSubscriptionIds = Array.from({ length: 5 }, (_, index) => `Sub ${String(index + 1).padStart(2, '0')}`);
+const firstContentPage = 2;
+const staticTableOfContentsEntries = [
+  {
+    entryId: 'toc-entry-overview',
+    description: 'Snapshot of subscriptions, scanned applications, and coverage.',
+  },
+  {
+    entryId: 'toc-entry-field-analysis',
+    description: 'Field-level completeness analysis across the scanned subscriptions.',
+  },
+  {
+    entryId: 'toc-entry-field-summary',
+    description: 'Quick field summary with high-level coverage and readiness signals.',
+  },
+  {
+    entryId: 'toc-entry-subscription-details',
+    description: 'Aggregated subscription details with metadata coverage highlights.',
+  },
+  {
+    entryId: 'toc-entry-application-details',
+    description: 'Application-level metadata with readiness cues for each subscription.',
+  },
+];
 
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -25,8 +48,36 @@ const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.
   return ids.sort((first, second) => first.localeCompare(second));
 };
 
+// Populate page numbers and descriptions for the static TOC entries.
+const applyStaticEntryMetadata = () => {
+  staticTableOfContentsEntries.forEach((entry, index) => {
+    const entryElement = document.getElementById(entry.entryId);
+    const pageNumber = firstContentPage + index;
+
+    applyEntryDetails(entryElement, pageNumber, entry.description);
+  });
+};
+
+// Apply page number and description to a table of contents entry.
+const applyEntryDetails = (entryElement, pageNumber, description) => {
+  if (!entryElement) {
+    return;
+  }
+
+  const pageNumberSlot = entryElement.querySelector('[data-slot="page-number"]');
+  const descriptionSlot = entryElement.querySelector('[data-slot="page-description"]');
+
+  if (pageNumberSlot) {
+    pageNumberSlot.textContent = `Page ${pageNumber}`;
+  }
+
+  if (descriptionSlot) {
+    descriptionSlot.textContent = description;
+  }
+};
+
 // Create a subscription entry from the template and apply identifiers.
-const buildSubscriptionEntry = (template, subId, index) => {
+const buildSubscriptionEntry = (template, subId, index, pageNumber) => {
   const clone = template?.content?.firstElementChild?.cloneNode(true);
 
   if (!clone) {
@@ -39,6 +90,8 @@ const buildSubscriptionEntry = (template, subId, index) => {
   const safeSubId = subId || 'Unknown SubID';
   const anchorTarget = encodeURIComponent(safeSubId);
   const link = clone.querySelector('[data-slot="subscription-link"]');
+  const pageNumberElement = clone.querySelector('[data-slot="page-number"]');
+  const descriptionElement = clone.querySelector('[data-slot="page-description"]');
 
   clone.id = listItemId;
   clone.setAttribute('data-subscription-id', safeSubId);
@@ -48,6 +101,17 @@ const buildSubscriptionEntry = (template, subId, index) => {
     link.textContent = `Subscription details - ${safeSubId}`;
     link.href = `subscription-details.html#subscription-card-${anchorTarget}`;
   }
+
+  if (pageNumberElement) {
+    pageNumberElement.id = `toc-number-subscription-${listIndex}`;
+  }
+
+  if (descriptionElement) {
+    descriptionElement.id = `toc-description-subscription-${listIndex}`;
+    descriptionElement.textContent = `Subscription-level metadata details and coverage for ${safeSubId}.`;
+  }
+
+  applyEntryDetails(clone, pageNumber, descriptionElement?.textContent || '');
 
   return clone;
 };
@@ -64,9 +128,11 @@ const renderSubscriptionEntries = (aggregations = (hasMetadataAggregations() && 
   tocList.querySelectorAll('[data-subscription-entry]').forEach((entry) => entry.remove());
 
   const subIds = getSubscriptionIds(aggregations);
+  const pageNumberOffset = firstContentPage + staticTableOfContentsEntries.length;
 
   subIds.forEach((subId, index) => {
-    const entry = buildSubscriptionEntry(template, subId, index);
+    const pageNumber = pageNumberOffset + index;
+    const entry = buildSubscriptionEntry(template, subId, index, pageNumber);
 
     if (entry) {
       tocList.appendChild(entry);
@@ -90,6 +156,8 @@ const handleMetadataMessage = (event) => {
 
 // Initialize the table of contents with subscription detail links.
 const initTableOfContents = () => {
+  applyStaticEntryMetadata();
+
   if (hasMetadataAggregations()) {
     renderSubscriptionEntries(window.metadataAggregations);
   } else {

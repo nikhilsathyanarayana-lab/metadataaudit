@@ -227,6 +227,9 @@ a:hover {
   border: 1px solid rgba(224, 0, 108, 0.12);
   border-radius: 12px;
   background: #fff7fb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .toc-entry-heading {
@@ -242,6 +245,17 @@ a:hover {
   text-decoration: none;
 }
 
+.toc-entry-number {
+  margin: 0;
+  padding: 0.25rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: #fff;
+  color: #333;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .toc-entry-link:hover {
   text-decoration: underline;
 }
@@ -254,6 +268,12 @@ a:hover {
   color: var(--pendo-pink);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.toc-entry-description {
+  margin: 0;
+  color: #444;
+  line-height: 1.5;
 }
 
 .toc-entry-summary {
