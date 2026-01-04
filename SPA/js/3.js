@@ -6,7 +6,7 @@ import {
   processAggregation,
   runMetadataQueue,
 } from '../API/metadata.js';
-import { getAppSelections } from './2.js';
+import { appSelectionState } from './2.js';
 import { openRegexModal } from './regex.js';
 
 // Provide a shared SPA environment object for cached selections.
@@ -55,7 +55,7 @@ const normalizeAppSelections = (selections = []) => selections
 // Build a stable signature string for the current app selections.
 const buildSelectionSignature = (selections = []) => JSON.stringify(normalizeAppSelections(selections));
 
-let lastSelectionSignature = buildSelectionSignature(getAppSelections());
+let lastSelectionSignature = buildSelectionSignature(appSelectionState.entries);
 
 // Return the window bucket for a specific lookback.
 const getWindowBucket = (appBucket, lookbackWindow) => {
@@ -166,7 +166,7 @@ const processAPI = () => {
 const populateTables = () => {
   tableData.length = 0;
 
-  const cachedSelections = getAppSelections();
+  const cachedSelections = appSelectionState.entries || [];
   const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
 
   if (selectedApps.length) {
@@ -750,7 +750,7 @@ const renderMetadataTables = async (tableConfigs) => {
   };
 
   try {
-    const cachedSelections = getAppSelections();
+    const cachedSelections = appSelectionState.entries || [];
     const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
     let appsForMetadata = [];
 
@@ -859,7 +859,7 @@ export async function initSection(sectionRoot) {
     expectedValuesButton.addEventListener('click', () => openFieldTypesModal());
   }
 
-  lastSelectionSignature = buildSelectionSignature(getAppSelections());
+  lastSelectionSignature = buildSelectionSignature(appSelectionState.entries);
   await renderMetadataTables(tableConfigs);
 }
 
@@ -871,7 +871,7 @@ export async function onShow(sectionRoot) {
     return;
   }
 
-  const currentSelectionSignature = buildSelectionSignature(getAppSelections());
+  const currentSelectionSignature = buildSelectionSignature(appSelectionState.entries);
 
   if (currentSelectionSignature === lastSelectionSignature) {
     return;
