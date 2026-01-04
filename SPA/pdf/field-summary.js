@@ -218,80 +218,200 @@ const buildFieldComparisonEntries = (rowsByNamespace = {}) => {
   }).filter((entry) => entry.comparisons.length);
 };
 
-// Build per-field sentences for the comparison summary.
-const buildFieldComparisonSentences = (comparisonEntries = []) => comparisonEntries.flatMap((entry) => {
-  const matchingFields = entry.comparisons.filter((item) => item.status === 'match').map((item) => item.field);
-  const missingFields = entry.comparisons.filter((item) => item.status === 'missing').map((item) => item.field);
-  const conflictingFields = entry.comparisons.filter((item) => item.status === 'delta').map((item) => item.field);
-  const sentences = [];
+const WINDOW_LABELS = [
+  { key: 'window7', label: '7 days' },
+  { key: 'window30', label: '30 days' },
+  { key: 'window180', label: '180 days' },
+];
 
-  if (conflictingFields.length) {
-    sentences.push(`Conflicting values for ${conflictingFields.join(', ')} in ${entry.namespace} (${entry.appName}, Sub ID ${entry.subId}).`);
+// Convert a namespace key into a display label.
+const formatNamespaceTitle = (namespace) => (namespace
+  ? `${namespace.charAt(0).toUpperCase()}${namespace.slice(1)}`
+  : '');
+
+// Build a readable list for window labels.
+const formatWindowLabelList = (windows = []) => {
+  if (!windows.length) {
+    return '';
   }
 
-  if (missingFields.length) {
-    sentences.push(`Missing fields ${missingFields.join(', ')} in at least one table for ${entry.namespace} (${entry.appName}, Sub ID ${entry.subId}).`);
+  if (windows.length === 1) {
+    return windows[0];
   }
 
-  if (matchingFields.length) {
-    sentences.push(`All tables agree on ${matchingFields.join(', ')} for ${entry.namespace} (${entry.appName}, Sub ID ${entry.subId}).`);
+  if (windows.length === 2) {
+    return `${windows[0]} and ${windows[1]}`;
   }
 
-  return sentences;
-});
+  return `${windows.slice(0, -1).join(', ')}, and ${windows[windows.length - 1]}`;
+};
 
-// Render field comparison sentences and display options.
-const renderFieldChangeSummary = (sentences = [], displayOptions = []) => {
-  const summaryContainer = document.getElementById('field-change-summary');
+// Parse a field list stored in the DOM dataset.
+const parseFieldsFromDataset = (rawValue) => {
+  if (!rawValue) {
+    return null;
+  }
 
-  if (!summaryContainer) {
+  try {
+    const parsedValue = JSON.parse(rawValue);
+    return Array.isArray(parsedValue) ? parsedValue : null;
+  } catch (error) {
+    console.error('Unable to parse field dataset value', error);
+    return null;
+  }
+};
+
+// Normalize a field array for comparison purposes.
+const normalizeFieldArray = (fields) => (Array.isArray(fields)
+  ? [...new Set(fields)].sort((first, second) => first.localeCompare(second))
+  : []);
+
+// Read namespace table rows after rendering to drive comparisons.
+const readNamespaceTableRows = (namespace) => {
+  const tableBody = document.getElementById(`${namespace}-metadata-body`);
+
+  if (!tableBody) {
+    return [];
+  }
+
+  const tableRows = [...tableBody.querySelectorAll('.metadata-row')]
+    .filter((row) => !row.classList.contains('metadata-row--empty'));
+
+  return tableRows.map((row) => ({
+    namespace,
+    subId: row.dataset.subId || '',
+    appName: row.dataset.appName || '',
+    appId: row.dataset.appId || '',
+    window7: normalizeFieldArray(parseFieldsFromDataset(row.dataset.window7)),
+    window30: normalizeFieldArray(parseFieldsFromDataset(row.dataset.window30)),
+    window180: normalizeFieldArray(parseFieldsFromDataset(row.dataset.window180)),
+  }));
+};
+
+// Confirm that a row has identical fields across all windows.
+const rowHasMatchingWindows = (row) => {
+  const serializedWindows = WINDOW_LABELS.map(({ key }) => JSON.stringify(row[key] || []));
+  return new Set(serializedWindows).size === 1;
+};
+
+// Build per-field findings for a single row.
+const buildRowFieldFindings = (row) => {
+  const allFields = new Set([...row.window7, ...row.window30, ...row.window180]);
+  const findings = [];
+
+  allFields.forEach((fieldName) => {
+    const presentWindows = WINDOW_LABELS.filter(({ key }) => row[key].includes(fieldName)).map(({ label }) => label);
+
+    if (presentWindows.length === WINDOW_LABELS.length) {
+      return;
+    }
+
+    const missingWindows = WINDOW_LABELS.filter(({ key }) => !row[key].includes(fieldName)).map(({ label }) => label);
+    const presentText = formatWindowLabelList(presentWindows);
+    const missingText = formatWindowLabelList(missingWindows);
+    const namespaceLabel = formatNamespaceTitle(row.namespace);
+    const appLabel = row.appName || 'Unknown app';
+    const subLabel = row.subId || 'Unknown SubID';
+
+    findings.push(`${fieldName} is present in ${presentText} but not ${missingText} in ${appLabel} (${subLabel}) for ${namespaceLabel}.`);
+  });
+
+  return findings;
+};
+
+// Build all field change findings from rendered tables.
+const buildFieldChangeFindings = () => {
+  const namespaceRows = METADATA_NAMESPACES.map((namespace) => ({
+    namespace,
+    rows: readNamespaceTableRows(namespace),
+  }));
+
+  const findings = [];
+
+  namespaceRows.forEach((entry) => {
+    if (!entry.rows.length) {
+      findings.push(`No ${formatNamespaceTitle(entry.namespace)} data received by any scanned applications in the last 180 days.`);
+    }
+  });
+
+  namespaceRows.filter((entry) => entry.rows.length).forEach((entry) => {
+    const hasStableRows = entry.rows.every((row) => rowHasMatchingWindows(row));
+
+    if (hasStableRows) {
+      findings.push(`${formatNamespaceTitle(entry.namespace)} has had no change to fields received in the last 180 days.`);
+      return;
+    }
+
+    entry.rows.forEach((row) => {
+      findings.push(...buildRowFieldFindings(row));
+    });
+  });
+
+  return findings;
+};
+
+// Render field change findings after the tables finish rendering.
+const renderFieldChangeSummary = (displayOptions = []) => {
+  const renderFindings = () => {
+    const summaryContainer = document.getElementById('field-change-summary');
+
+    if (!summaryContainer) {
+      return;
+    }
+
+    const findings = buildFieldChangeFindings();
+    summaryContainer.innerHTML = '';
+
+    if (!findings.length) {
+      const emptyMessage = document.createElement('p');
+      emptyMessage.id = 'field-change-empty-message';
+      emptyMessage.className = 'field-change-text field-change-text--empty';
+      emptyMessage.textContent = 'No field comparisons available yet.';
+      summaryContainer.appendChild(emptyMessage);
+    } else {
+      const sentenceList = document.createElement('ul');
+      sentenceList.id = 'field-change-list';
+      sentenceList.className = 'field-change-list';
+
+      findings.forEach((sentence, index) => {
+        const listItem = document.createElement('li');
+        listItem.id = `field-change-item-${String(index + 1).padStart(2, '0')}`;
+        listItem.className = 'field-change-text';
+        listItem.textContent = sentence;
+        sentenceList.appendChild(listItem);
+      });
+
+      summaryContainer.appendChild(sentenceList);
+    }
+
+    if (displayOptions.length) {
+      const optionsTitle = document.createElement('h3');
+      optionsTitle.id = 'field-comparison-options-title';
+      optionsTitle.className = 'field-comparison-options-title';
+      optionsTitle.textContent = 'Display Options to Explore';
+
+      const optionsList = document.createElement('ol');
+      optionsList.id = 'field-comparison-options';
+      optionsList.className = 'field-comparison-options';
+
+      displayOptions.forEach((optionText, index) => {
+        const optionItem = document.createElement('li');
+        optionItem.id = `field-comparison-option-${String(index + 1).padStart(2, '0')}`;
+        optionItem.className = 'field-comparison-option';
+        optionItem.textContent = optionText;
+        optionsList.appendChild(optionItem);
+      });
+
+      summaryContainer.append(optionsTitle, optionsList);
+    }
+  };
+
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(renderFindings);
     return;
   }
 
-  summaryContainer.innerHTML = '';
-
-  if (!sentences.length) {
-    const emptyMessage = document.createElement('p');
-    emptyMessage.id = 'field-change-empty-message';
-    emptyMessage.className = 'field-change-text field-change-text--empty';
-    emptyMessage.textContent = 'No field comparisons available yet.';
-    summaryContainer.appendChild(emptyMessage);
-  } else {
-    const sentenceList = document.createElement('ul');
-    sentenceList.id = 'field-change-list';
-    sentenceList.className = 'field-change-list';
-
-    sentences.forEach((sentence, index) => {
-      const listItem = document.createElement('li');
-      listItem.id = `field-change-item-${String(index + 1).padStart(2, '0')}`;
-      listItem.className = 'field-change-text';
-      listItem.textContent = sentence;
-      sentenceList.appendChild(listItem);
-    });
-
-    summaryContainer.appendChild(sentenceList);
-  }
-
-  if (displayOptions.length) {
-    const optionsTitle = document.createElement('h3');
-    optionsTitle.id = 'field-comparison-options-title';
-    optionsTitle.className = 'field-comparison-options-title';
-    optionsTitle.textContent = 'Display Options to Explore';
-
-    const optionsList = document.createElement('ol');
-    optionsList.id = 'field-comparison-options';
-    optionsList.className = 'field-comparison-options';
-
-    displayOptions.forEach((optionText, index) => {
-      const optionItem = document.createElement('li');
-      optionItem.id = `field-comparison-option-${String(index + 1).padStart(2, '0')}`;
-      optionItem.className = 'field-comparison-option';
-      optionItem.textContent = optionText;
-      optionsList.appendChild(optionItem);
-    });
-
-    summaryContainer.append(optionsTitle, optionsList);
-  }
+  renderFindings();
 };
 
 // Convert a field list into a printable string.
@@ -340,6 +460,12 @@ const renderTableRows = (namespace, rows = []) => {
     const tableRow = document.createElement('tr');
     tableRow.id = `${namespace}-metadata-row-${rowNumber}`;
     tableRow.className = 'metadata-row';
+    tableRow.dataset.subId = row.subId || '';
+    tableRow.dataset.appName = row.appName || '';
+    tableRow.dataset.appId = row.appId || '';
+    tableRow.dataset.window7 = JSON.stringify(row.window7 ?? null);
+    tableRow.dataset.window30 = JSON.stringify(row.window30 ?? null);
+    tableRow.dataset.window180 = JSON.stringify(row.window180 ?? null);
 
     const subCell = document.createElement('td');
     subCell.id = `${namespace}-cell-sub-${rowNumber}`;
@@ -396,8 +522,6 @@ const toggleNamespaceCardVisibility = (namespace, rows = []) => {
 // Render all namespace tables from cached metadata aggregations.
 const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const rowsByNamespace = mapAggregationsToRows(aggregations);
-  const comparisonEntries = buildFieldComparisonEntries(rowsByNamespace);
-  const comparisonSentences = buildFieldComparisonSentences(comparisonEntries);
   METADATA_NAMESPACES.forEach((namespace) => {
     const namespaceRows = rowsByNamespace[namespace];
     const shouldRenderCard = OPTIONAL_NAMESPACE_CARDS.includes(namespace)
@@ -408,7 +532,7 @@ const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && wind
       renderTableRows(namespace, namespaceRows);
     }
   });
-  renderFieldChangeSummary(comparisonSentences, FIELD_COMPARISON_DISPLAY_OPTIONS);
+  renderFieldChangeSummary(FIELD_COMPARISON_DISPLAY_OPTIONS);
 };
 
 // Process incoming metadata messages from the parent window.
