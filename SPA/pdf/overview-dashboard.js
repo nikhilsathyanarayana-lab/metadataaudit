@@ -49,6 +49,13 @@ const defaultSubBarData = {
 };
 
 let subBarData = defaultSubBarData;
+const namespaceKeys = ['visitor', 'account', 'custom', 'salesforce'];
+const namespaceSummaryTargets = {
+  visitor: 'namespace-visitor-count',
+  account: 'namespace-subscription-count',
+  custom: 'namespace-custom-count',
+  salesforce: 'namespace-salesforce-count'
+};
 
 // Confirm whether cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -178,6 +185,52 @@ const createSubBarConfig = (data) => ({
   }
 });
 
+// Return zeroed namespace totals for the summary view.
+const createNamespaceTotals = () => namespaceKeys.reduce((totals, namespaceKey) => ({
+  ...totals,
+  [namespaceKey]: 0
+}), {});
+
+// Choose the processed window with the widest available lookback for an app bucket.
+const resolvePreferredWindowBucket = (appBucket) => {
+  const windows = appBucket?.windows;
+
+  if (!windows || typeof windows !== 'object') {
+    return null;
+  }
+
+  const windowBuckets = Object.values(windows)
+    .sort((first, second) => (Number(second?.lookbackWindow) || 0) - (Number(first?.lookbackWindow) || 0));
+
+  return windowBuckets.find((bucket) => bucket?.isProcessed) || windowBuckets[0] || null;
+};
+
+// Aggregate non-null namespace totals across processed app windows.
+const collectNamespaceTotals = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return createNamespaceTotals();
+  }
+
+  return Object.values(aggregations).reduce((totals, subBucket) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return totals;
+    }
+
+    Object.values(apps).forEach((appBucket) => {
+      const preferredWindow = resolvePreferredWindowBucket(appBucket);
+
+      namespaceKeys.forEach((namespaceKey) => {
+        const namespaceIncrement = Number(preferredWindow?.nonNullRecordsByNamespace?.[namespaceKey]) || 0;
+        totals[namespaceKey] += namespaceIncrement;
+      });
+    });
+
+    return totals;
+  }, createNamespaceTotals());
+};
+
 // Collect SubIDs from the cached metadata aggregations.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -225,6 +278,21 @@ const renderSubscriptionTable = () => {
 
     row.append(labelCell, countCell);
     tableBody.appendChild(row);
+  });
+};
+
+// Populate the namespace summary counts using cached non-null totals.
+const renderNamespaceSummaryCounts = () => {
+  const totals = collectNamespaceTotals();
+
+  Object.entries(namespaceSummaryTargets).forEach(([namespaceKey, elementId]) => {
+    const countElement = document.getElementById(elementId);
+
+    if (!countElement) {
+      return;
+    }
+
+    countElement.textContent = totals[namespaceKey] ?? 0;
   });
 };
 
@@ -375,6 +443,7 @@ if (typeof document !== 'undefined') {
     window.subDonutData = subDonutData;
 
     renderSubscriptionTable();
+    renderNamespaceSummaryCounts();
     renderPdfCharts();
   };
 
@@ -384,6 +453,7 @@ if (typeof document !== 'undefined') {
       subBarData = buildSubBarData(window.metadataAggregations);
       window.subDonutData = subDonutData;
       renderSubscriptionTable();
+      renderNamespaceSummaryCounts();
     }
 
     renderPdfCharts();
