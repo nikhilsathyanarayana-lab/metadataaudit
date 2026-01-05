@@ -49,6 +49,13 @@ const defaultSubBarData = {
 };
 
 let subBarData = defaultSubBarData;
+const namespaceKeys = ['visitor', 'account', 'custom', 'salesforce'];
+const namespaceSummaryTargets = {
+  visitor: 'namespace-visitor-count',
+  account: 'namespace-subscription-count',
+  custom: 'namespace-custom-count',
+  salesforce: 'namespace-salesforce-count'
+};
 
 // Confirm whether cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -178,6 +185,96 @@ const createSubBarConfig = (data) => ({
   }
 });
 
+// Return zeroed namespace totals for the summary view.
+const createNamespaceTotals = () => namespaceKeys.reduce((totals, namespaceKey) => ({
+  ...totals,
+  [namespaceKey]: 0
+}), {});
+
+// Choose a processed window, preferring the 7-day lookback for aligned-field checks.
+const resolveSevenDayWindow = (appBucket) => {
+  const windows = appBucket?.windows;
+
+  if (!windows || typeof windows !== 'object') {
+    return null;
+  }
+
+  if (windows[7]?.isProcessed) {
+    return windows[7];
+  }
+
+  const processedBuckets = Object.values(windows)
+    .filter((bucket) => bucket?.isProcessed)
+    .sort((first, second) => (Number(first?.lookbackWindow) || 0) - (Number(second?.lookbackWindow) || 0));
+
+  return processedBuckets[0] || null;
+};
+
+// Count aligned fields (present in every app) per namespace from the last seven days.
+const collectAlignedNamespaceTotals = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return createNamespaceTotals();
+  }
+
+  const fieldPresence = namespaceKeys.reduce((accumulator, namespaceKey) => ({
+    ...accumulator,
+    [namespaceKey]: {},
+  }), {});
+
+  let processedAppCount = 0;
+
+  Object.values(aggregations).forEach((subBucket) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return;
+    }
+
+    Object.values(apps).forEach((appBucket) => {
+      const preferredWindow = resolveSevenDayWindow(appBucket);
+
+      if (!preferredWindow?.isProcessed) {
+        return;
+      }
+
+      processedAppCount += 1;
+
+      namespaceKeys.forEach((namespaceKey) => {
+        const namespaceFields = preferredWindow?.namespaces?.[namespaceKey];
+
+        if (!namespaceFields || typeof namespaceFields !== 'object') {
+          return;
+        }
+
+        Object.keys(namespaceFields).forEach((fieldName) => {
+          if (!fieldName) {
+            return;
+          }
+
+          const namespacePresence = fieldPresence[namespaceKey];
+          namespacePresence[fieldName] = (namespacePresence[fieldName] || 0) + 1;
+        });
+      });
+    });
+  });
+
+  if (processedAppCount === 0) {
+    return createNamespaceTotals();
+  }
+
+  return namespaceKeys.reduce((totals, namespaceKey) => {
+    const namespacePresence = fieldPresence[namespaceKey];
+    const alignedCount = Object.values(namespacePresence)
+      .filter((occurrences) => occurrences === processedAppCount)
+      .length;
+
+    return {
+      ...totals,
+      [namespaceKey]: alignedCount,
+    };
+  }, createNamespaceTotals());
+};
+
 // Collect SubIDs from the cached metadata aggregations.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -225,6 +322,21 @@ const renderSubscriptionTable = () => {
 
     row.append(labelCell, countCell);
     tableBody.appendChild(row);
+  });
+};
+
+// Populate the namespace summary counts using aligned field totals.
+const renderNamespaceSummaryCounts = () => {
+  const totals = collectAlignedNamespaceTotals();
+
+  Object.entries(namespaceSummaryTargets).forEach(([namespaceKey, elementId]) => {
+    const countElement = document.getElementById(elementId);
+
+    if (!countElement) {
+      return;
+    }
+
+    countElement.textContent = totals[namespaceKey] ?? 0;
   });
 };
 
@@ -375,6 +487,7 @@ if (typeof document !== 'undefined') {
     window.subDonutData = subDonutData;
 
     renderSubscriptionTable();
+    renderNamespaceSummaryCounts();
     renderPdfCharts();
   };
 
@@ -384,6 +497,7 @@ if (typeof document !== 'undefined') {
       subBarData = buildSubBarData(window.metadataAggregations);
       window.subDonutData = subDonutData;
       renderSubscriptionTable();
+      renderNamespaceSummaryCounts();
     }
 
     renderPdfCharts();
