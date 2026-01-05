@@ -6,6 +6,14 @@ export const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
 const metadataAggregations = {};
+// Return a namespace counter seeded with zero counts for each known namespace.
+const buildNamespaceCounter = () => METADATA_NAMESPACES.reduce(
+  (accumulator, namespaceKey) => ({
+    ...accumulator,
+    [namespaceKey]: 0,
+  }),
+  {},
+);
 const METADATA_WINDOW_PLAN = [
   { lookbackWindow: 7, first: 'now()' },
   { lookbackWindow: 23, first: 'dateAdd(now(), -7, "days")' },
@@ -61,7 +69,14 @@ export const getMetadataFields = (subId, appId, namespace, lookbackWindow = 180)
 // Ensure a namespace bucket exists for a SubID + App ID combination.
 const getAppAggregationBucket = (subId, appId, appName) => {
   if (!metadataAggregations[subId]) {
-    metadataAggregations[subId] = { apps: {}, recordsScanned: 0 };
+    metadataAggregations[subId] = {
+      apps: {},
+      recordsScanned: 0,
+      nonNullRecordsByNamespace: buildNamespaceCounter(),
+    };
+  } else {
+    metadataAggregations[subId].nonNullRecordsByNamespace = metadataAggregations[subId].nonNullRecordsByNamespace
+      || buildNamespaceCounter();
   }
 
   const appBuckets = metadataAggregations[subId].apps;
@@ -74,7 +89,11 @@ const getAppAggregationBucket = (subId, appId, appName) => {
       lookbackWindow: DEFAULT_LOOKBACK_WINDOW,
       windows: {},
       recordsScanned: 0,
+      nonNullRecordsByNamespace: buildNamespaceCounter(),
     };
+  } else {
+    appBuckets[appId].nonNullRecordsByNamespace = appBuckets[appId].nonNullRecordsByNamespace
+      || buildNamespaceCounter();
   }
 
   return appBuckets[appId];
@@ -95,7 +114,11 @@ const getWindowNamespaceBucket = (appBucket, lookbackWindow) => {
       timeseriesStart: null,
       isProcessed: false,
       recordsScanned: 0,
+      nonNullRecordsByNamespace: buildNamespaceCounter(),
     };
+  } else {
+    appBucket.windows[windowKey].nonNullRecordsByNamespace = appBucket.windows[windowKey].nonNullRecordsByNamespace
+      || buildNamespaceCounter();
   }
 
   return appBucket.windows[windowKey];
@@ -109,6 +132,45 @@ const incrementRecordsScanned = (bucket, incrementBy = 0) => {
 
   const currentTotal = Number(bucket.recordsScanned) || 0;
   bucket.recordsScanned = currentTotal + Number(incrementBy);
+};
+
+// Ensure the non-null namespace counter exists on the supplied bucket.
+const ensureNamespaceCounter = (bucket) => {
+  if (!bucket) {
+    return null;
+  }
+
+  if (!bucket.nonNullRecordsByNamespace || typeof bucket.nonNullRecordsByNamespace !== 'object') {
+    bucket.nonNullRecordsByNamespace = buildNamespaceCounter();
+  }
+
+  return bucket.nonNullRecordsByNamespace;
+};
+
+// Increment the non-null record counter for a specific namespace within the bucket.
+const incrementNamespaceNonNullCount = (bucket, namespaceKey, incrementBy = 0) => {
+  if (!bucket || !namespaceKey || !Number.isFinite(Number(incrementBy))) {
+    return;
+  }
+
+  const namespaceCounter = ensureNamespaceCounter(bucket);
+  const currentTotal = Number(namespaceCounter[namespaceKey]) || 0;
+  namespaceCounter[namespaceKey] = currentTotal + Number(incrementBy);
+};
+
+// Count how many namespace fields contain non-null values.
+const countNonNullNamespaceFields = (namespaceData) => {
+  if (!namespaceData || typeof namespaceData !== 'object') {
+    return 0;
+  }
+
+  return Object.values(namespaceData).reduce((total, value) => {
+    if (value === null || typeof value === 'undefined') {
+      return total;
+    }
+
+    return total + 1;
+  }, 0);
 };
 
 // Normalize a metadata value to an array of string tokens for counting.
@@ -386,6 +448,17 @@ export const processAggregation = ({ app, lookbackWindow, response }) => {
   incrementRecordsScanned(windowBucket, recordsScanned);
 
   aggregationResults.forEach((result) => {
+    METADATA_NAMESPACES.forEach((namespaceKey) => {
+      const namespaceData = result?.[namespaceKey];
+      const nonNullFields = countNonNullNamespaceFields(namespaceData);
+
+      if (nonNullFields > 0) {
+        incrementNamespaceNonNullCount(metadataAggregations[subId], namespaceKey, nonNullFields);
+        incrementNamespaceNonNullCount(appBucket, namespaceKey, nonNullFields);
+        incrementNamespaceNonNullCount(windowBucket, namespaceKey, nonNullFields);
+      }
+    });
+
     tallyAggregationResult(windowBucket.namespaces, result, METADATA_NAMESPACES);
   });
 
