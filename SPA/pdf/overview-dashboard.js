@@ -191,43 +191,87 @@ const createNamespaceTotals = () => namespaceKeys.reduce((totals, namespaceKey) 
   [namespaceKey]: 0
 }), {});
 
-// Choose the processed window with the widest available lookback for an app bucket.
-const resolvePreferredWindowBucket = (appBucket) => {
+// Choose a processed window, preferring the 7-day lookback for aligned-field checks.
+const resolveSevenDayWindow = (appBucket) => {
   const windows = appBucket?.windows;
 
   if (!windows || typeof windows !== 'object') {
     return null;
   }
 
-  const windowBuckets = Object.values(windows)
-    .sort((first, second) => (Number(second?.lookbackWindow) || 0) - (Number(first?.lookbackWindow) || 0));
+  if (windows[7]?.isProcessed) {
+    return windows[7];
+  }
 
-  return windowBuckets.find((bucket) => bucket?.isProcessed) || windowBuckets[0] || null;
+  const processedBuckets = Object.values(windows)
+    .filter((bucket) => bucket?.isProcessed)
+    .sort((first, second) => (Number(first?.lookbackWindow) || 0) - (Number(second?.lookbackWindow) || 0));
+
+  return processedBuckets[0] || null;
 };
 
-// Aggregate non-null namespace totals across processed app windows.
-const collectNamespaceTotals = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+// Count aligned fields (present in every app) per namespace from the last seven days.
+const collectAlignedNamespaceTotals = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
     return createNamespaceTotals();
   }
 
-  return Object.values(aggregations).reduce((totals, subBucket) => {
+  const fieldPresence = namespaceKeys.reduce((accumulator, namespaceKey) => ({
+    ...accumulator,
+    [namespaceKey]: {},
+  }), {});
+
+  let processedAppCount = 0;
+
+  Object.values(aggregations).forEach((subBucket) => {
     const apps = subBucket?.apps;
 
     if (!apps || typeof apps !== 'object') {
-      return totals;
+      return;
     }
 
     Object.values(apps).forEach((appBucket) => {
-      const preferredWindow = resolvePreferredWindowBucket(appBucket);
+      const preferredWindow = resolveSevenDayWindow(appBucket);
+
+      if (!preferredWindow?.isProcessed) {
+        return;
+      }
+
+      processedAppCount += 1;
 
       namespaceKeys.forEach((namespaceKey) => {
-        const namespaceIncrement = Number(preferredWindow?.nonNullRecordsByNamespace?.[namespaceKey]) || 0;
-        totals[namespaceKey] += namespaceIncrement;
+        const namespaceFields = preferredWindow?.namespaces?.[namespaceKey];
+
+        if (!namespaceFields || typeof namespaceFields !== 'object') {
+          return;
+        }
+
+        Object.keys(namespaceFields).forEach((fieldName) => {
+          if (!fieldName) {
+            return;
+          }
+
+          const namespacePresence = fieldPresence[namespaceKey];
+          namespacePresence[fieldName] = (namespacePresence[fieldName] || 0) + 1;
+        });
       });
     });
+  });
 
-    return totals;
+  if (processedAppCount === 0) {
+    return createNamespaceTotals();
+  }
+
+  return namespaceKeys.reduce((totals, namespaceKey) => {
+    const namespacePresence = fieldPresence[namespaceKey];
+    const alignedCount = Object.values(namespacePresence)
+      .filter((occurrences) => occurrences === processedAppCount)
+      .length;
+
+    return {
+      ...totals,
+      [namespaceKey]: alignedCount,
+    };
   }, createNamespaceTotals());
 };
 
@@ -281,9 +325,9 @@ const renderSubscriptionTable = () => {
   });
 };
 
-// Populate the namespace summary counts using cached non-null totals.
+// Populate the namespace summary counts using aligned field totals.
 const renderNamespaceSummaryCounts = () => {
-  const totals = collectNamespaceTotals();
+  const totals = collectAlignedNamespaceTotals();
 
   Object.entries(namespaceSummaryTargets).forEach(([namespaceKey, elementId]) => {
     const countElement = document.getElementById(elementId);
