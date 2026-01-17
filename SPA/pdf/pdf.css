@@ -25,6 +25,7 @@ body {
   color: var(--pendo-charcoal);
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   line-height: 1.6;
+  position: relative;
 }
 
 .pdf-export-body {
@@ -68,13 +69,22 @@ main {
   min-height: calc(var(--page-height) - (var(--page-margin) * 2));
 }
 
-.pdf-page-number {
+.pdf-page-footer {
   position: absolute;
+  left: var(--page-margin);
   right: var(--page-margin);
   bottom: var(--page-margin);
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  justify-content: flex-end;
   font-weight: 600;
   color: #555;
   font-size: 0.9rem;
+}
+
+.pdf-page-number {
+  margin-left: auto;
 }
 
 @media print {

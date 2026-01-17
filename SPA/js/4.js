@@ -5,11 +5,45 @@ const exportSources = ['SPA/pdf/table-of-contents.html','SPA/pdf/overview-dashbo
 let currentSourceIndex = 0;
 const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.meta.url);
 const renderDelayMs = 350;
+const footerClassName = 'pdf-page-footer';
 
 // Wait briefly to let iframe content finish rendering.
 const delay = (duration) => new Promise((resolve) => {
   setTimeout(resolve, duration);
 });
+
+// Build a shared footer containing the page number label.
+const buildPageFooter = (doc, pageNumber) => {
+  const footer = doc?.createElement('footer');
+  const label = doc?.createElement('span');
+
+  if (!footer || !label) {
+    return null;
+  }
+
+  footer.className = footerClassName;
+  label.className = 'pdf-page-number';
+  label.textContent = `Page ${pageNumber}`;
+
+  footer.appendChild(label);
+
+  return footer;
+};
+
+// Attach or replace the footer on a given export page container.
+const applyPageFooter = (pageElement, doc, pageNumber) => {
+  if (!pageElement || !doc) {
+    return;
+  }
+
+  pageElement.querySelectorAll(`.${footerClassName}`).forEach((footer) => footer.remove());
+
+  const footer = buildPageFooter(doc, pageNumber);
+
+  if (footer) {
+    pageElement.appendChild(footer);
+  }
+};
 
 // Toggle busy state on the export button while preparing pages.
 const setExportButtonBusyState = (button, isBusy) => {
@@ -165,13 +199,7 @@ const renderPrintableDocument = (pages) => {
     wrapper.setAttribute('data-export-source', source);
     wrapper.appendChild(adoptedBody);
 
-    const pageNumberLabel = printDocument.createElement('span');
-
-    pageNumberLabel.className = 'pdf-page-number';
-    pageNumberLabel.id = `pdf-page-number-${pageNumber}`;
-    pageNumberLabel.textContent = `Page ${pageNumber}`;
-
-    wrapper.appendChild(pageNumberLabel);
+    applyPageFooter(wrapper, printDocument, pageNumber);
     printDocument.body.appendChild(wrapper);
   });
 
@@ -280,6 +308,10 @@ export async function initSection(sectionElement) {
     let appCountsBySubIdCache = window.appCountsBySubId;
     let hasLoggedMetadataCache = false;
 
+    const updatePreviewFooter = () => {
+      applyPageFooter(previewFrame?.contentDocument?.body, previewFrame?.contentDocument, currentSourceIndex + 1);
+    };
+
     // Log when metadata aggregations become available in the cache.
     const logMetadataCacheAvailable = () => {
       if (hasLoggedMetadataCache || !metadataAggregationsCache) {
@@ -320,9 +352,15 @@ export async function initSection(sectionElement) {
 
     logMetadataCacheAvailable();
     postMetadataToPreview();
+    updatePreviewFooter();
   }
 
-  previewFrame.addEventListener('load', postMetadataToPreview);
+  const handlePreviewLoad = () => {
+    postMetadataToPreview();
+    applyPageFooter(previewFrame?.contentDocument?.body, previewFrame?.contentDocument, currentSourceIndex + 1);
+  };
+
+  previewFrame.addEventListener('load', handlePreviewLoad);
 
   prevButton.addEventListener('click', () => {
     setExportPreviewSource(previewFrame, currentSourceIndex - 1);
