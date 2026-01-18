@@ -130,8 +130,9 @@ function initPageSwitcher() {
   };
 
   // Swap visible sections and invoke any page-specific initializer.
-  const renderPage = async (pageId) => {
-    if (pageId === activePageId) {
+  const renderPage = async (pageId, options = {}) => {
+    const { forceRefresh = false } = options;
+    if (pageId === activePageId && !forceRefresh) {
       return;
     }
 
@@ -189,6 +190,17 @@ function initPageSwitcher() {
       renderPage(button.dataset.pageBtn);
     });
   });
+
+  // Refresh the active view when test data is loaded.
+  const handleTestDataLoaded = () => {
+    if (!activePageId) {
+      return;
+    }
+
+    renderPage(activePageId, { forceRefresh: true });
+  };
+
+  document.addEventListener('test-data-loaded', handleTestDataLoaded);
 
   renderPage(defaultPageId).then(bindShortcutUnlockers);
 }

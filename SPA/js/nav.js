@@ -1,3 +1,5 @@
+import { loadTestDataset } from './testDataLoader.js';
+
 const NAV_TEMPLATE_PATH = 'SPA/html/nav.html';
 const DEBUG_FLAG = 'DEBUG_LOGGING';
 const LEGACY_DEBUG_FLAG = 'DEBUG_DEEP_DIVE';
@@ -59,6 +61,15 @@ const setDebugModeEnabled = (enabled, toggleControl, statusTarget, testDataButto
   updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
 };
 
+// Load the default test dataset and signal listeners to refresh.
+const handleTestDataLoad = () => {
+  loadTestDataset();
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('test-data-loaded'));
+  }
+};
+
 // Initialize the debug toggle and test data button in the SPA navigation.
 const initSpaDebugToggle = (navElement) => {
   const toggle = navElement?.querySelector('#debug-toggle');
@@ -90,6 +101,10 @@ const initSpaDebugToggle = (navElement) => {
       toggle.checked = enabled;
       updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
     });
+  }
+
+  if (testDataButton) {
+    testDataButton.addEventListener('click', handleTestDataLoad);
   }
 };
 
