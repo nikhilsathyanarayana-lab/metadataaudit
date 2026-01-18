@@ -184,3 +184,25 @@ export const getDistinctAppCountForSub = (subId) => {
 export function getAppCountBySubId() {
   return Object.fromEntries(appCountsBySubId);
 }
+
+// Seed the app count cache with a precomputed summary.
+export const setAppCountsBySubId = (counts = {}) => {
+  appCountsBySubId.clear();
+
+  if (counts && typeof counts === 'object') {
+    Object.entries(counts).forEach(([subId, count]) => {
+      if (!subId || !count || typeof count !== 'object') {
+        return;
+      }
+
+      appCountsBySubId.set(String(subId), {
+        total: Number(count.total) || 0,
+        distinct: Number(count.distinct) || 0,
+      });
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.appCountsBySubId = getAppCountBySubId();
+  }
+};
