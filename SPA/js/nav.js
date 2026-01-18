@@ -28,6 +28,23 @@ const setActiveLink = (navElement, activePage) => {
   }
 };
 
+// Check if SPA test data mode is enabled.
+const isTestDataEnabled = () => typeof window !== 'undefined' && window.spaTestDataEnabled === true;
+
+// Update the test data button label and styling for loaded state.
+const updateTestDataButtonState = (button, isLoaded) => {
+  if (!button) {
+    return;
+  }
+
+  if (!button.dataset.defaultLabel) {
+    button.dataset.defaultLabel = button.textContent?.trim() || 'Test data';
+  }
+
+  button.classList.toggle('is-loaded', isLoaded);
+  button.textContent = isLoaded ? 'Test data loaded' : button.dataset.defaultLabel;
+};
+
 // Show or hide the test data button based on debug mode.
 const updateTestDataVisibility = (button, enabled) => {
   if (!button) {
@@ -35,6 +52,7 @@ const updateTestDataVisibility = (button, enabled) => {
   }
 
   button.hidden = !enabled;
+  updateTestDataButtonState(button, isTestDataEnabled());
 };
 
 // Update debug toggle visuals without changing global state.
@@ -61,12 +79,21 @@ const setDebugModeEnabled = (enabled, toggleControl, statusTarget, testDataButto
   updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
 };
 
-// Load the default test dataset and signal listeners to refresh.
-const handleTestDataLoad = () => {
-  loadTestDataset();
+// Load the JSON test dataset and signal listeners to refresh.
+const handleTestDataLoad = async (button) => {
+  try {
+    await loadTestDataset();
+    updateTestDataButtonState(button, true);
 
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('test-data-loaded'));
+    // eslint-disable-next-line no-console
+    console.log('[debug] SPA test data loaded.');
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('test-data-loaded'));
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[debug] Failed to load SPA test data.', error);
   }
 };
 
@@ -104,7 +131,8 @@ const initSpaDebugToggle = (navElement) => {
   }
 
   if (testDataButton) {
-    testDataButton.addEventListener('click', handleTestDataLoad);
+    updateTestDataButtonState(testDataButton, isTestDataEnabled());
+    testDataButton.addEventListener('click', () => handleTestDataLoad(testDataButton));
   }
 };
 
