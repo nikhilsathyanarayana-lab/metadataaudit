@@ -1,9 +1,5 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
 import { setAppCredentials } from '../API/app_names.js';
-import { getTestDataset, normalizeTestCredentials } from './testDataLoader.js';
-
-// Check if the SPA test data button has been activated.
-const isTestDataEnabled = () => typeof window !== 'undefined' && window.spaTestDataEnabled === true;
 
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
@@ -207,10 +203,7 @@ export const initSubIdForm = () => {
   }
 
   const controller = new SubIdFormController(elements);
-  const testDataset = getTestDataset();
-  const credentialEntries = isTestDataEnabled()
-    ? normalizeTestCredentials(testDataset?.credentials || [])
-    : (typeof window !== 'undefined' ? window.appCredentials : null);
+  const credentialEntries = typeof window !== 'undefined' ? window.appCredentials : null;
 
   if (Array.isArray(credentialEntries) && credentialEntries.length) {
     controller.hydrateFromCredentials(credentialEntries);
