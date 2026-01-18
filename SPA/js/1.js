@@ -1,6 +1,9 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
 import { setAppCredentials } from '../API/app_names.js';
 
+// Return the in-memory test dataset when one is loaded.
+const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
+
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
   const fieldsContainer = document.getElementById('subid-fields');
@@ -24,6 +27,24 @@ class SubIdFormController {
     this.removeSubIdField = this.removeSubIdField.bind(this);
 
     this.addSubIdField();
+  }
+
+  // Replace SubID rows with the supplied credential list.
+  hydrateFromCredentials(entries = []) {
+    if (!Array.isArray(entries) || !entries.length) {
+      return;
+    }
+
+    this.fieldsContainer.innerHTML = '';
+    this.subIdCount = 0;
+
+    entries.forEach((entry) => {
+      this.addSubIdField({
+        subId: entry?.subId || '',
+        domain: entry?.domain || '',
+        integrationKey: entry?.integrationKey || '',
+      });
+    });
   }
 
   // Keep SubID labels/ids in sequence after add/remove actions.
@@ -184,7 +205,17 @@ export const initSubIdForm = () => {
     return;
   }
 
-  return new SubIdFormController(elements);
+  const controller = new SubIdFormController(elements);
+  const testDataset = getTestDataset();
+  const credentialEntries = Array.isArray(testDataset?.appCredentials)
+    ? testDataset.appCredentials
+    : (typeof window !== 'undefined' ? window.appCredentials : null);
+
+  if (Array.isArray(credentialEntries) && credentialEntries.length) {
+    controller.hydrateFromCredentials(credentialEntries);
+  }
+
+  return controller;
 };
 
 // Entry point for SPA section initialization on page load.
