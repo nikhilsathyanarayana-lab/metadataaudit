@@ -13,7 +13,7 @@
 - When adding or updating markup, use clear, concise IDs that reflect the element purpose and align with existing naming patterns.
 - Require every new HTML element to include both a meaningful `id` and a descriptive `class` to support maintainable styling and scripting.
 - Temporary features may be added during the build; ensure they are easy to remove cleanly.
-- Clear/delete `localStorage` and any residual data after runs complete.
+- Ensure all customer data is deleted when the browser tab(s) is/are closed out.
 - SPA storage rule: keep SPA state in memory (for example, module-level variables) and avoid adding new `sessionStorage` or `localStorage` dependencies.
 - Never expose API keys or secrets in exports or code.
 - Favor open-source client libraries; avoid proprietary SDKs without explicit human approval.
