@@ -529,3 +529,19 @@ export const runMetadataQueue = async (
   return responses;
 };
 
+// Replace the current metadata aggregation cache with a supplied snapshot.
+export const setMetadataAggregations = (aggregations = {}) => {
+  const nextAggregations = (aggregations && typeof aggregations === 'object') ? aggregations : {};
+
+  Object.keys(metadataAggregations).forEach((key) => {
+    delete metadataAggregations[key];
+  });
+
+  Object.entries(nextAggregations).forEach(([subId, bucket]) => {
+    metadataAggregations[subId] = bucket;
+  });
+
+  if (typeof window !== 'undefined') {
+    window.metadataAggregations = metadataAggregations;
+  }
+};
