@@ -1,8 +1,31 @@
 <nav class="global-nav" aria-label="Primary">
-  <div class="nav-inner">
-    <div class="nav-links">
-      <a class="nav-link" href="index.html" data-nav-id="integration">Integration API</a>
-      <a class="nav-link" href="SPA/html/SPA.html" data-nav-id="spa">SPA</a>
+  <div class="nav-inner" id="nav-inner">
+    <div class="nav-links" id="nav-links">
+      <a class="nav-link" id="nav-link-integration" href="index.html" data-nav-id="integration">Integration API</a>
+      <a class="nav-link" id="nav-link-spa" href="SPA/html/SPA.html" data-nav-id="spa">SPA</a>
+    </div>
+    <div class="nav-actions" id="nav-actions">
+      <label class="debug-toggle" id="debug-toggle-label" for="debug-toggle">
+        <span class="debug-toggle-text" id="debug-toggle-text">Debug</span>
+        <span class="debug-toggle-control" id="debug-toggle-control">
+          <input
+            type="checkbox"
+            class="debug-toggle-input"
+            id="debug-toggle"
+            aria-label="Toggle deep dive debug logging"
+          />
+          <span class="debug-toggle-slider" id="debug-toggle-slider" aria-hidden="true"></span>
+        </span>
+        <span class="debug-toggle-status" id="debug-toggle-status">Off</span>
+      </label>
+      <button
+        type="button"
+        class="debug-test-data-button"
+        id="debug-test-data-button"
+        hidden
+      >
+        Test data
+      </button>
     </div>
   </div>
 </nav>

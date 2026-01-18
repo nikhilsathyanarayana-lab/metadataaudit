@@ -66,6 +66,14 @@ body {
   flex-wrap: wrap;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
 .nav-link {
   color: var(--pendo-charcoal);
   text-decoration: none;
@@ -151,6 +159,27 @@ body {
   min-width: 1.75rem;
   text-align: center;
   color: var(--pendo-pink);
+}
+
+.debug-test-data-button {
+  border: 1px solid rgba(224, 0, 108, 0.35);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: #fff0f5;
+  color: var(--pendo-pink);
+  font-weight: 700;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.debug-test-data-button:hover {
+  box-shadow: 0 6px 18px rgba(224, 0, 108, 0.18);
+  transform: translateY(-1px);
+}
+
+.debug-test-data-button:focus-visible {
+  outline: 2px solid rgba(224, 0, 108, 0.45);
+  outline-offset: 2px;
 }
 
 .page-messages,
