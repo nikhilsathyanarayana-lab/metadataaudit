@@ -191,16 +191,5 @@ function initPageSwitcher() {
     });
   });
 
-  // Refresh the active view when test data is loaded.
-  const handleTestDataLoaded = () => {
-    if (!activePageId) {
-      return;
-    }
-
-    renderPage(activePageId, { forceRefresh: true });
-  };
-
-  document.addEventListener('test-data-loaded', handleTestDataLoaded);
-
   renderPage(defaultPageId).then(bindShortcutUnlockers);
 }

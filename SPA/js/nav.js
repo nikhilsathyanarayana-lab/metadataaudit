@@ -1,5 +1,3 @@
-import { loadTestDataset } from './testDataLoader.js';
-
 const NAV_TEMPLATE_PATH = 'SPA/html/nav.html';
 const DEBUG_FLAG = 'DEBUG_LOGGING';
 const LEGACY_DEBUG_FLAG = 'DEBUG_DEEP_DIVE';
@@ -28,35 +26,8 @@ const setActiveLink = (navElement, activePage) => {
   }
 };
 
-// Check if SPA test data mode is enabled.
-const isTestDataEnabled = () => typeof window !== 'undefined' && window.spaTestDataEnabled === true;
-
-// Update the test data button label and styling for loaded state.
-const updateTestDataButtonState = (button, isLoaded) => {
-  if (!button) {
-    return;
-  }
-
-  if (!button.dataset.defaultLabel) {
-    button.dataset.defaultLabel = button.textContent?.trim() || 'Test data';
-  }
-
-  button.classList.toggle('is-loaded', isLoaded);
-  button.textContent = isLoaded ? 'Test data loaded' : button.dataset.defaultLabel;
-};
-
-// Show or hide the test data button based on debug mode.
-const updateTestDataVisibility = (button, enabled) => {
-  if (!button) {
-    return;
-  }
-
-  button.hidden = !enabled;
-  updateTestDataButtonState(button, isTestDataEnabled());
-};
-
 // Update debug toggle visuals without changing global state.
-const updateDebugToggleUi = (enabled, toggleControl, statusTarget, testDataButton) => {
+const updateDebugToggleUi = (enabled, toggleControl, statusTarget) => {
   if (toggleControl) {
     toggleControl.classList.toggle('is-enabled', enabled);
   }
@@ -64,45 +35,24 @@ const updateDebugToggleUi = (enabled, toggleControl, statusTarget, testDataButto
   if (statusTarget) {
     statusTarget.textContent = enabled ? 'On' : 'Off';
   }
-
-  updateTestDataVisibility(testDataButton, enabled);
 };
 
 // Apply debug mode and synchronize UI state.
-const setDebugModeEnabled = (enabled, toggleControl, statusTarget, testDataButton) => {
+const setDebugModeEnabled = (enabled, toggleControl, statusTarget) => {
   if (typeof window !== 'undefined') {
     window[DEBUG_FLAG] = enabled;
     window[LEGACY_DEBUG_FLAG] = enabled;
     window.dispatchEvent(new CustomEvent('debug-mode-changed', { detail: { enabled } }));
   }
 
-  updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
+  updateDebugToggleUi(enabled, toggleControl, statusTarget);
 };
 
-// Load the JSON test dataset and signal listeners to refresh.
-const handleTestDataLoad = async (button) => {
-  try {
-    await loadTestDataset();
-    updateTestDataButtonState(button, true);
-
-    // eslint-disable-next-line no-console
-    console.log('[debug] SPA test data loaded.');
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('test-data-loaded'));
-    }
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('[debug] Failed to load SPA test data.', error);
-  }
-};
-
-// Initialize the debug toggle and test data button in the SPA navigation.
+// Initialize the debug toggle in the SPA navigation.
 const initSpaDebugToggle = (navElement) => {
   const toggle = navElement?.querySelector('#debug-toggle');
   const toggleControl = navElement?.querySelector('#debug-toggle-control');
   const statusTarget = navElement?.querySelector('#debug-toggle-status');
-  const testDataButton = navElement?.querySelector('#debug-test-data-button');
 
   if (!toggle) {
     return;
@@ -113,26 +63,21 @@ const initSpaDebugToggle = (navElement) => {
       ? Boolean(window[DEBUG_FLAG])
       : typeof window !== 'undefined' && typeof window[LEGACY_DEBUG_FLAG] === 'boolean'
         ? Boolean(window[LEGACY_DEBUG_FLAG])
-        : false;
+      : false;
 
   toggle.checked = initialState;
-  updateDebugToggleUi(initialState, toggleControl, statusTarget, testDataButton);
+  updateDebugToggleUi(initialState, toggleControl, statusTarget);
 
   toggle.addEventListener('change', (event) => {
-    setDebugModeEnabled(Boolean(event.target.checked), toggleControl, statusTarget, testDataButton);
+    setDebugModeEnabled(Boolean(event.target.checked), toggleControl, statusTarget);
   });
 
   if (typeof window !== 'undefined') {
     window.addEventListener('debug-mode-changed', (event) => {
       const enabled = Boolean(event?.detail?.enabled);
       toggle.checked = enabled;
-      updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
+      updateDebugToggleUi(enabled, toggleControl, statusTarget);
     });
-  }
-
-  if (testDataButton) {
-    updateTestDataButtonState(testDataButton, isTestDataEnabled());
-    testDataButton.addEventListener('click', () => handleTestDataLoad(testDataButton));
   }
 };
 
