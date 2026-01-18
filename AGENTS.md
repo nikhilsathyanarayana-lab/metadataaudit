@@ -2,8 +2,9 @@
 
 ## Project overview
 - Front-end stack: HTML, CSS, and vanilla JavaScript. CDN dependencies include `exceljs` and `file-saver`.
-- Both the Integration API flow and the SPA rebuild deliver similar capabilities but should be treated as distinct apps when documenting or hosting updates, and anything associated with the SPA should stay under `root/SPA/`.
-- Current focus: we are working exclusively on the SPA, and all SPA-related changes live under `root/SPA/` for now.
+- Both the Integration API flow and the SPA rebuild deliver similar capabilities but should be treated as distinct apps when documenting or hosting updates, and anything associated with the SPA should stay under `SPA/`.
+- Current focus: we are working exclusively on the SPA, and all SPA-related changes live under `SPA/` for now.
+- Keep SPA-related changes inside `SPA/`, and direct non-SPA updates to their appropriate locations outside that directory.
 - One of our core principles is simplicity: write code as plainly as possible and aim for the smallest amount of code needed to meet the goals.
 
 ## Repository conventions
