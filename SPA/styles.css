@@ -172,6 +172,12 @@ body {
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
+.debug-test-data-button.is-loaded {
+  background: var(--pendo-pink);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(224, 0, 108, 0.3);
+}
+
 .debug-test-data-button:hover {
   box-shadow: 0 6px 18px rgba(224, 0, 108, 0.18);
   transform: translateY(-1px);

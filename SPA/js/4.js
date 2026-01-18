@@ -7,9 +7,6 @@ const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.
 const renderDelayMs = 350;
 const footerClassName = 'pdf-page-footer';
 
-// Return the in-memory test dataset when one is loaded.
-const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
-
 // Wait briefly to let iframe content finish rendering.
 const delay = (duration) => new Promise((resolve) => {
   setTimeout(resolve, duration);
@@ -71,11 +68,10 @@ const setExportButtonBusyState = (button, isBusy) => {
 
 // Build the metadata payload forwarded into export frames.
 const buildMetadataMessage = () => {
-  const testDataset = getTestDataset();
   const message = {
     type: 'metadataAggregations',
     payload: typeof window !== 'undefined'
-      ? (window.metadataAggregations || testDataset?.metadataAggregations || {})
+      ? (window.metadataAggregations || {})
       : {},
   };
 
@@ -88,8 +84,7 @@ const buildMetadataMessage = () => {
   }
 
   if (typeof window !== 'undefined') {
-    const appCountsSnapshot = window.appCountsBySubId
-      || testDataset?.appCountsBySubId;
+    const appCountsSnapshot = window.appCountsBySubId;
 
     if (appCountsSnapshot && typeof appCountsSnapshot === 'object') {
       message.appCountsBySubId = appCountsSnapshot;
@@ -279,8 +274,7 @@ export async function initSection(sectionElement) {
       return;
     }
 
-    const testDataset = getTestDataset();
-    const aggregations = window.metadataAggregations || testDataset?.metadataAggregations;
+    const aggregations = window.metadataAggregations;
 
     if (!aggregations) {
       return;
@@ -296,8 +290,6 @@ export async function initSection(sectionElement) {
 
     if (window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
       message.appCountsBySubId = window.appCountsBySubId;
-    } else if (testDataset?.appCountsBySubId && typeof testDataset.appCountsBySubId === 'object') {
-      message.appCountsBySubId = testDataset.appCountsBySubId;
     }
 
     previewFrame.contentWindow.postMessage(message, '*');

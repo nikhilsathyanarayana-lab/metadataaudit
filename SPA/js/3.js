@@ -9,9 +9,6 @@ import {
 import { appSelectionState } from './2.js';
 import { openRegexModal } from './regex.js';
 
-// Return the in-memory test dataset when one is loaded.
-const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
-
 // Provide a shared SPA environment object for cached selections.
 
 const getFieldtypesContainer = () => {
@@ -756,8 +753,6 @@ const renderMetadataTables = async (tableConfigs) => {
   try {
     const cachedSelections = appSelectionState.entries || [];
     const selectedApps = cachedSelections.filter((entry) => entry?.isSelected);
-    const testDataset = getTestDataset();
-    const useTestData = Boolean(testDataset);
     let appsForMetadata = [];
 
     if (selectedApps.length) {
@@ -773,11 +768,6 @@ const renderMetadataTables = async (tableConfigs) => {
       });
       renderTablesFromData();
 
-      if (useTestData) {
-        processAPI();
-        return;
-      }
-
       appsForMetadata = selectedApps;
       await runMetadataScansWithStatus(appsForMetadata, handleAggregation);
       return;
@@ -789,9 +779,7 @@ const renderMetadataTables = async (tableConfigs) => {
       return;
     }
 
-    const credentialResults = useTestData && Array.isArray(testDataset?.appListingResults)
-      ? testDataset.appListingResults
-      : await app_names();
+    const credentialResults = await app_names();
 
     if (!credentialResults.length) {
       addStatusRowForAllTables('No credentials available for app discovery.');
@@ -831,11 +819,6 @@ const renderMetadataTables = async (tableConfigs) => {
     });
 
     renderTablesFromData();
-
-    if (useTestData) {
-      processAPI();
-      return;
-    }
 
     if (appsForMetadata.length) {
       await runMetadataScansWithStatus(appsForMetadata, handleAggregation);

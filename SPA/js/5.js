@@ -10,9 +10,6 @@ let defaultWorkbookName = '';
 let excludedSheetNames = new Set();
 let activeSheetName = '';
 
-// Return the in-memory test dataset when one is loaded.
-const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
-
 // Escapes HTML characters for safe preview rendering.
 const escapeHtml = (value) => {
   return String(value ?? '')
@@ -298,16 +295,6 @@ export async function initSection(sectionElement) {
   }
 
   renderSheetPreview(previewFrame, null);
-
-  const testDataset = getTestDataset();
-
-  if (
-    testDataset?.metadataAggregations
-    && typeof window !== 'undefined'
-    && !window.metadataAggregations
-  ) {
-    window.metadataAggregations = testDataset.metadataAggregations;
-  }
 
   try {
     const workbookResult = await buildMetadataWorkbook();
