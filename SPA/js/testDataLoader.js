@@ -71,6 +71,7 @@ export const loadTestDataset = (dataset = TEST_DATASET) => {
   setAppCredentials(credentials);
 
   if (typeof window !== 'undefined') {
+    window.spaTestDataset = dataset;
     window.appCredentials = credentials;
   }
 

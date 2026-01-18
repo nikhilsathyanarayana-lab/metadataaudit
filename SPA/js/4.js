@@ -7,6 +7,9 @@ const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.
 const renderDelayMs = 350;
 const footerClassName = 'pdf-page-footer';
 
+// Return the in-memory test dataset when one is loaded.
+const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
+
 // Wait briefly to let iframe content finish rendering.
 const delay = (duration) => new Promise((resolve) => {
   setTimeout(resolve, duration);
@@ -68,9 +71,12 @@ const setExportButtonBusyState = (button, isBusy) => {
 
 // Build the metadata payload forwarded into export frames.
 const buildMetadataMessage = () => {
+  const testDataset = getTestDataset();
   const message = {
     type: 'metadataAggregations',
-    payload: typeof window !== 'undefined' ? (window.metadataAggregations || {}) : {},
+    payload: typeof window !== 'undefined'
+      ? (window.metadataAggregations || testDataset?.metadataAggregations || {})
+      : {},
   };
 
   if (typeof window !== 'undefined') {
@@ -81,8 +87,13 @@ const buildMetadataMessage = () => {
     message.fieldTypeSelections = fieldTypeSelections;
   }
 
-  if (typeof window !== 'undefined' && window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
-    message.appCountsBySubId = window.appCountsBySubId;
+  if (typeof window !== 'undefined') {
+    const appCountsSnapshot = window.appCountsBySubId
+      || testDataset?.appCountsBySubId;
+
+    if (appCountsSnapshot && typeof appCountsSnapshot === 'object') {
+      message.appCountsBySubId = appCountsSnapshot;
+    }
   }
 
   return message;
@@ -264,13 +275,20 @@ export async function initSection(sectionElement) {
   let exclusionCloseButtons = null;
   // Send updated metadata aggregations to the export preview iframe.
   const postMetadataToPreview = () => {
-    if (!previewFrame?.contentWindow || typeof window === 'undefined' || !window.metadataAggregations) {
+    if (!previewFrame?.contentWindow || typeof window === 'undefined') {
+      return;
+    }
+
+    const testDataset = getTestDataset();
+    const aggregations = window.metadataAggregations || testDataset?.metadataAggregations;
+
+    if (!aggregations) {
       return;
     }
 
     const message = {
       type: 'metadataAggregations',
-      payload: window.metadataAggregations,
+      payload: aggregations,
       fieldTypeSelections: window.fieldTypeSelections
         || window.FIELDTYPES?.fieldTypeSelections
         || {},
@@ -278,6 +296,8 @@ export async function initSection(sectionElement) {
 
     if (window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
       message.appCountsBySubId = window.appCountsBySubId;
+    } else if (testDataset?.appCountsBySubId && typeof testDataset.appCountsBySubId === 'object') {
+      message.appCountsBySubId = testDataset.appCountsBySubId;
     }
 
     previewFrame.contentWindow.postMessage(message, '*');
