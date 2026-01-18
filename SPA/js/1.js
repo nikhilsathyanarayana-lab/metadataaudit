@@ -1,8 +1,9 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
 import { setAppCredentials } from '../API/app_names.js';
+import { getTestDataset, normalizeTestCredentials } from './testDataLoader.js';
 
-// Return the in-memory test dataset when one is loaded.
-const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
+// Check if the SPA test data button has been activated.
+const isTestDataEnabled = () => typeof window !== 'undefined' && window.spaTestDataEnabled === true;
 
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
@@ -169,6 +170,23 @@ class SubIdFormController {
   }
 }
 
+let activeSubIdController = null;
+let testDataListenerBound = false;
+
+// Apply test credentials to the SubID form when test mode is enabled.
+const applyTestDataCredentials = (controller) => {
+  if (!controller || !isTestDataEnabled()) {
+    return;
+  }
+
+  const testDataset = getTestDataset();
+  const credentialEntries = normalizeTestCredentials(testDataset?.credentials || []);
+
+  if (credentialEntries.length) {
+    controller.hydrateFromCredentials(credentialEntries);
+  }
+};
+
 // Wire SubID card actions to the SPA page switcher.
 const initShortcutButtons = (sectionRoot, subIdFormController) => {
   const shortcutButtons = sectionRoot.querySelectorAll('[data-target-page]');
@@ -206,13 +224,20 @@ export const initSubIdForm = () => {
   }
 
   const controller = new SubIdFormController(elements);
-  const testDataset = getTestDataset();
-  const credentialEntries = Array.isArray(testDataset?.appCredentials)
-    ? testDataset.appCredentials
-    : (typeof window !== 'undefined' ? window.appCredentials : null);
+  activeSubIdController = controller;
 
-  if (Array.isArray(credentialEntries) && credentialEntries.length) {
-    controller.hydrateFromCredentials(credentialEntries);
+  if (isTestDataEnabled()) {
+    applyTestDataCredentials(controller);
+  } else {
+    const credentialEntries = typeof window !== 'undefined' ? window.appCredentials : null;
+    if (Array.isArray(credentialEntries) && credentialEntries.length) {
+      controller.hydrateFromCredentials(credentialEntries);
+    }
+  }
+
+  if (!testDataListenerBound && typeof window !== 'undefined') {
+    testDataListenerBound = true;
+    window.addEventListener('test-data-loaded', () => applyTestDataCredentials(activeSubIdController));
   }
 
   return controller;
@@ -226,4 +251,9 @@ export async function initSection(sectionRoot) {
 
   const subIdFormController = initSubIdForm();
   initShortcutButtons(sectionRoot, subIdFormController);
+}
+
+// Refresh the SubID form when returning to the page with test mode enabled.
+export async function onShow() {
+  applyTestDataCredentials(activeSubIdController);
 }

@@ -3,17 +3,8 @@ import { app_names } from '../API/app_names.js';
 // Share the latest app selection snapshot between SPA views.
 export const appSelectionState = { entries: [] };
 
-// Return the in-memory test dataset when one is loaded.
-const getTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
-
-// Resolve app listing results from test data or live requests.
+// Resolve app listing results from the API layer.
 const resolveAppListingResults = async () => {
-  const testDataset = getTestDataset();
-
-  if (testDataset?.appListingResults?.length) {
-    return testDataset.appListingResults;
-  }
-
   return app_names();
 };
 

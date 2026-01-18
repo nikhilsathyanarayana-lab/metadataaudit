@@ -65,6 +65,63 @@ const normalizeFallbackWindows = (windowDays) => {
   return windows;
 };
 
+// Check if the SPA test data mode is enabled.
+const isSpaTestDataEnabled = () => typeof window !== 'undefined' && window.spaTestDataEnabled === true;
+
+// Read the active SPA test dataset payload.
+const getSpaTestDataset = () => (typeof window !== 'undefined' ? window.spaTestDataset : null);
+
+// Extract the lookback window from a requestId string.
+const parseRequestLookbackWindow = (requestId) => {
+  const match = /-(\d+)d$/.exec(requestId || '');
+  return match ? Number(match[1]) : null;
+};
+
+// Determine if the payload targets the app listing pipeline.
+const isAppListingPayload = (payload) => {
+  const pipeline = payload?.request?.pipeline;
+  if (!Array.isArray(pipeline)) {
+    return false;
+  }
+
+  return pipeline.some((stage) => stage?.source?.apps);
+};
+
+// Resolve a mock response from the SPA test dataset, if available.
+const resolveSpaTestResponse = (entry, payload) => {
+  if (!isSpaTestDataEnabled()) {
+    return null;
+  }
+
+  const dataset = getSpaTestDataset();
+  if (!dataset || typeof dataset !== 'object') {
+    return null;
+  }
+
+  const subId = entry?.subId || '';
+
+  if (isAppListingPayload(payload)) {
+    const match = dataset.appListingResponses?.find((record) => record?.subId === subId);
+    return match?.response || null;
+  }
+
+  const appId = entry?.appId || '';
+  const lookbackWindow = parseRequestLookbackWindow(payload?.request?.requestId);
+  const match = dataset.metadataResponses?.find((record) => {
+    if (record?.subId !== subId || record?.appId !== appId) {
+      return false;
+    }
+
+    if (!Number.isFinite(Number(record?.lookbackWindow))) {
+      return true;
+    }
+
+    return Number(record.lookbackWindow) === Number(lookbackWindow);
+  });
+
+  return match?.response || null;
+};
+
 export const buildAggregationUrl = (envUrls, envValue, subId) => {
   const endpointTemplate = envUrls?.[envValue];
   return endpointTemplate?.replace('{sub_id}', encodeURIComponent(subId));
@@ -404,6 +461,19 @@ const hydrateAggregationEntry = (entry) => {
 };
 
 export const postAggregationWithIntegrationKey = async (entry, payload, fetchImpl = fetch) => {
+  const testResponse = resolveSpaTestResponse(entry, payload);
+
+  if (testResponse) {
+    return testResponse;
+  }
+
+  if (isSpaTestDataEnabled()) {
+    return {
+      errorType: 'testDataMissing',
+      errorHint: 'No matching test data response found.',
+    };
+  }
+
   const { domain, integrationKey, appId } = hydrateAggregationEntry(entry);
 
   if (!domain || !integrationKey) {
@@ -479,4 +549,3 @@ export const postAggregationWithIntegrationKey = async (entry, payload, fetchImp
     throw createAggregationError('Aggregation response was not valid JSON.', response?.status, rawBody);
   }
 };
-
