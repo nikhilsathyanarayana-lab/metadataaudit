@@ -1,4 +1,6 @@
 const NAV_TEMPLATE_PATH = 'SPA/html/nav.html';
+const DEBUG_FLAG = 'DEBUG_LOGGING';
+const LEGACY_DEBUG_FLAG = 'DEBUG_DEEP_DIVE';
 
 // Fetch the SPA navigation markup from the HTML partial.
 const fetchNavMarkup = async () => {
@@ -24,6 +26,73 @@ const setActiveLink = (navElement, activePage) => {
   }
 };
 
+// Show or hide the test data button based on debug mode.
+const updateTestDataVisibility = (button, enabled) => {
+  if (!button) {
+    return;
+  }
+
+  button.hidden = !enabled;
+};
+
+// Update debug toggle visuals without changing global state.
+const updateDebugToggleUi = (enabled, toggleControl, statusTarget, testDataButton) => {
+  if (toggleControl) {
+    toggleControl.classList.toggle('is-enabled', enabled);
+  }
+
+  if (statusTarget) {
+    statusTarget.textContent = enabled ? 'On' : 'Off';
+  }
+
+  updateTestDataVisibility(testDataButton, enabled);
+};
+
+// Apply debug mode and synchronize UI state.
+const setDebugModeEnabled = (enabled, toggleControl, statusTarget, testDataButton) => {
+  if (typeof window !== 'undefined') {
+    window[DEBUG_FLAG] = enabled;
+    window[LEGACY_DEBUG_FLAG] = enabled;
+    window.dispatchEvent(new CustomEvent('debug-mode-changed', { detail: { enabled } }));
+  }
+
+  updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
+};
+
+// Initialize the debug toggle and test data button in the SPA navigation.
+const initSpaDebugToggle = (navElement) => {
+  const toggle = navElement?.querySelector('#debug-toggle');
+  const toggleControl = navElement?.querySelector('#debug-toggle-control');
+  const statusTarget = navElement?.querySelector('#debug-toggle-status');
+  const testDataButton = navElement?.querySelector('#debug-test-data-button');
+
+  if (!toggle) {
+    return;
+  }
+
+  const initialState =
+    typeof window !== 'undefined' && typeof window[DEBUG_FLAG] === 'boolean'
+      ? Boolean(window[DEBUG_FLAG])
+      : typeof window !== 'undefined' && typeof window[LEGACY_DEBUG_FLAG] === 'boolean'
+        ? Boolean(window[LEGACY_DEBUG_FLAG])
+        : false;
+
+  toggle.checked = initialState;
+  updateDebugToggleUi(initialState, toggleControl, statusTarget, testDataButton);
+
+  toggle.addEventListener('change', (event) => {
+    setDebugModeEnabled(Boolean(event.target.checked), toggleControl, statusTarget, testDataButton);
+  });
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('debug-mode-changed', (event) => {
+      const enabled = Boolean(event?.detail?.enabled);
+      toggle.checked = enabled;
+      updateDebugToggleUi(enabled, toggleControl, statusTarget, testDataButton);
+    });
+  }
+};
+
 // Render the SPA navigation bar into the target element.
 export const renderSpaNavigation = async (targetSelector = '#nav-root', options = {}) => {
   const target = document.querySelector(targetSelector);
@@ -44,5 +113,6 @@ export const renderSpaNavigation = async (targetSelector = '#nav-root', options 
   }
 
   setActiveLink(navElement, activePage);
+  initSpaDebugToggle(navElement);
   target.replaceChildren(navElement);
 };
