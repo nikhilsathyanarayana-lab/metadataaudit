@@ -1,4 +1,4 @@
-import { postAggregationWithIntegrationKey } from '../../src/services/requests/network.js';
+import { runAggregationWithFallbackWindows } from '../../src/services/requests/network.js';
 import { app_names } from './app_names.js';
 
 export const DEFAULT_LOOKBACK_WINDOW = 7;
@@ -230,6 +230,13 @@ export const timeseriesWindow = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW, first
   period: 'dayRange',
 });
 
+// Build the time-series window for a chunked metadata request.
+const buildChunkedTimeSeriesWindow = (baseFirst, startOffset, chunkDays) => ({
+  first: `dateAdd(${baseFirst}, -${startOffset + chunkDays}, "days")`,
+  count: -chunkDays,
+  period: 'dayRange',
+});
+
 // Build the aggregation payload to pull metadata events for an app within a lookback window.
 const buildMetadataPayload = (
   { appId, appName },
@@ -268,6 +275,42 @@ const buildMetadataPayload = (
     ],
   },
 });
+
+// Build chunked metadata payloads for a specific lookback window.
+const buildChunkedMetadataPayloads = (appEntry, windowDays, chunkSize = 30, baseFirst = 'now()') => {
+  const normalizedWindow = Number(windowDays);
+
+  if (!Number.isFinite(normalizedWindow) || normalizedWindow <= 0 || chunkSize <= 0) {
+    return [];
+  }
+
+  const payloads = [];
+  let remaining = normalizedWindow;
+  let chunkIndex = 1;
+
+  while (remaining > 0) {
+    const startOffset = normalizedWindow - remaining;
+    const chunkDays = Math.min(chunkSize, remaining);
+    remaining -= chunkDays;
+
+    const payload = buildMetadataPayload(appEntry, { lookbackWindow: chunkDays, first: baseFirst });
+    const timeSeries = payload?.request?.pipeline?.[0]?.source?.timeSeries;
+
+    if (timeSeries) {
+      Object.assign(timeSeries, buildChunkedTimeSeriesWindow(baseFirst, startOffset, chunkDays));
+    }
+
+    if (payload?.request) {
+      const baseId = payload.request.requestId || payload.request.name || 'metadata-audit';
+      payload.request.requestId = `${baseId}-chunk-${chunkIndex}`;
+    }
+
+    payloads.push(payload);
+    chunkIndex += 1;
+  }
+
+  return payloads;
+};
 
 // Normalize app entries to the fields required for downstream requests.
 const normalizeAppEntries = (entries = []) =>
@@ -387,7 +430,41 @@ export const executeMetadataCallPlan = async (
       : lookbackWindow;
 
     try {
-      const response = await postAggregationWithIntegrationKey(nextCall.credential, nextCall.payload);
+      let lastStartTime = null;
+      const aggregationSummary = await runAggregationWithFallbackWindows({
+        entry: nextCall.credential,
+        totalWindowDays: targetWindow,
+        buildBasePayload: (windowSize) =>
+          buildMetadataPayload(nextCall.app, { lookbackWindow: windowSize, first: nextCall.timeseriesFirst }),
+        buildChunkedPayloads: (windowSize, chunkSize) =>
+          buildChunkedMetadataPayloads(nextCall.app, windowSize, chunkSize, nextCall.timeseriesFirst),
+        aggregateResults: (collector, response) => {
+          if (Array.isArray(response?.results)) {
+            collector.push(...response.results);
+          }
+
+          lastStartTime = response?.startTime || lastStartTime;
+        },
+        onBeforeRequest: (_payload, context = {}) => {
+          const { requestId, windowSize, chunkSizeUsed } = context;
+
+          // eslint-disable-next-line no-console
+          console.log('[executeMetadataCallPlan] Dispatching metadata request.', {
+            requestId,
+            windowSize,
+            chunkSizeUsed,
+            appId: nextCall?.app?.appId || nextCall?.credential?.appId || '',
+            subId: nextCall?.credential?.subId || '',
+          });
+        },
+      });
+      const aggregatedResults = aggregationSummary?.aggregatedResults;
+      const response = Array.isArray(aggregatedResults)
+        ? { results: aggregatedResults, startTime: lastStartTime }
+        : {
+          errorType: 'failed',
+          errorHint: aggregationSummary?.lastError?.message || 'Aggregation request failed.',
+        };
 
       if (response?.errorType || response?.response?.errorType) {
         // eslint-disable-next-line no-console
