@@ -4,10 +4,18 @@ const requestLogger = createLogger('Requests', {
   debugFlag: ['DEBUG_LOGGING', 'DEBUG_DEEP_DIVE'],
 });
 
+// Build a time-series window in day ranges.
 const buildWindowTimeSeries = (startOffset, chunkDays) => ({
   first: `dateAdd(now(), -${startOffset + chunkDays}, "days")`,
   count: -chunkDays,
   period: 'dayRange',
+});
+
+// Build a time-series window in hour ranges.
+const buildHourWindowTimeSeries = (startOffsetHours, chunkHours) => ({
+  first: `dateAdd(now(), -${startOffsetHours + chunkHours}, "hours")`,
+  count: -chunkHours,
+  period: 'hourRange',
 });
 
 const applyPrimaryTimeSeriesWindow = (payload, window) => {
@@ -54,12 +62,20 @@ export const createChunkedPayloadBuilder = ({
   applyTimeSeriesUpdates,
   applyRequestIdSuffix,
 }) => (...args) => {
-  const { windowDays, chunkSize = 30, ...context } = typeof parseArgs === 'function'
-    ? parseArgs(args)
-    : {};
-  const normalizedWindow = Number(windowDays);
+  const parsedArgs = typeof parseArgs === 'function' ? parseArgs(args) : {};
+  const {
+    windowDays,
+    windowHours,
+    chunkSize = 30,
+    chunkHours,
+    windowUnit,
+    ...context
+  } = parsedArgs || {};
+  const resolvedWindowUnit = windowUnit || (Number.isFinite(Number(windowHours)) ? 'hours' : 'days');
+  const normalizedWindow = Number(resolvedWindowUnit === 'hours' ? windowHours : windowDays);
+  const normalizedChunkSize = Number(resolvedWindowUnit === 'hours' ? (chunkHours ?? chunkSize) : chunkSize);
 
-  if (!normalizedWindow || chunkSize <= 0) {
+  if (!normalizedWindow || normalizedChunkSize <= 0) {
     return [];
   }
 
@@ -69,25 +85,35 @@ export const createChunkedPayloadBuilder = ({
 
   while (chunkRemaining > 0) {
     const startOffset = normalizedWindow - chunkRemaining;
-    const chunkDays = Math.min(chunkSize, chunkRemaining);
-    chunkRemaining -= chunkDays;
+    const chunkValue = Math.min(normalizedChunkSize, chunkRemaining);
+    chunkRemaining -= chunkValue;
+
+    const chunkContext = {
+      ...context,
+      windowUnit: resolvedWindowUnit,
+      windowSize: normalizedWindow,
+      chunkSize: chunkValue,
+      startOffset,
+      chunkIndex,
+      windowDays: resolvedWindowUnit === 'days' ? normalizedWindow : undefined,
+      windowHours: resolvedWindowUnit === 'hours' ? normalizedWindow : undefined,
+      chunkDays: resolvedWindowUnit === 'days' ? chunkValue : undefined,
+      chunkHours: resolvedWindowUnit === 'hours' ? chunkValue : undefined,
+      startOffsetDays: resolvedWindowUnit === 'days' ? startOffset : undefined,
+      startOffsetHours: resolvedWindowUnit === 'hours' ? startOffset : undefined,
+    };
 
     const payload = typeof buildBasePayload === 'function'
-      ? buildBasePayload({ ...context, windowDays: normalizedWindow, chunkDays, chunkIndex })
+      ? buildBasePayload(chunkContext)
       : null;
 
     if (!payload) {
       continue;
     }
 
-    applyTimeSeriesUpdates?.(payload, {
-      ...context,
-      chunkDays,
-      startOffset,
-      windowDays: normalizedWindow,
-    });
+    applyTimeSeriesUpdates?.(payload, chunkContext);
 
-    applyRequestIdSuffix?.(payload, { ...context, chunkDays, chunkIndex });
+    applyRequestIdSuffix?.(payload, chunkContext);
 
     payloads.push(payload);
 
@@ -97,7 +123,7 @@ export const createChunkedPayloadBuilder = ({
   return payloads;
 };
 
-export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appIds) => {
+export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appIds, windowUnit = 'day') => {
   const label = contextLabel || 'Aggregation';
   const normalizedWindow = Number(windowDays);
   const normalizedPayloadCount = Number(payloadCount);
@@ -108,7 +134,7 @@ export const logAggregationSplit = (contextLabel, windowDays, payloadCount, appI
   }
 
   const windowLabel = Number.isFinite(normalizedWindow) && normalizedWindow > 0
-    ? `${normalizedWindow}-day`
+    ? `${normalizedWindow}-${windowUnit}`
     : 'unknown-window';
 
   const appIdLabel = normalizedAppIds
@@ -180,6 +206,45 @@ export const buildChunkedMetaEventsPayloads = (appId, windowDays, chunkSize = 30
   requestLogger.debug('Built chunked meta-events payloads', {
     appId,
     windowDays,
+    chunkSize,
+    payloadCount: payloads?.length || 0,
+  });
+
+  return payloads;
+};
+
+// Configure the hourly chunked meta-events payload builder.
+const buildChunkedMetaEventsPayloadsByHourBase = createChunkedPayloadBuilder({
+  parseArgs: ([appId, windowHours, chunkSize = 6]) => ({
+    appId,
+    windowHours,
+    chunkSize,
+    windowUnit: 'hours',
+  }),
+  buildBasePayload: ({ appId, chunkHours }) => (appId ? buildMetaEventsPayload(appId, chunkHours) : null),
+  applyTimeSeriesUpdates: (payload, { chunkHours, startOffsetHours }) => {
+    applyPrimaryTimeSeriesWindow(payload, buildHourWindowTimeSeries(startOffsetHours, chunkHours));
+  },
+  applyRequestIdSuffix: (payload, { appId, chunkHours, chunkIndex }) => {
+    if (!payload?.request) {
+      return;
+    }
+
+    const chunkLabel = Number.isFinite(chunkHours) ? `${chunkHours}h` : 'chunk';
+    const baseRequestId = appId ? `meta-events-${appId}-${chunkLabel}` : `meta-events-${chunkLabel}`;
+
+    payload.request.requestId = `${baseRequestId}-chunk-${chunkIndex}`;
+  },
+});
+
+// Build hourly chunked payloads for meta-events.
+export const buildChunkedMetaEventsPayloadsByHour = (appId, windowHours, chunkSize = 6) => {
+  const payloads = buildChunkedMetaEventsPayloadsByHourBase(appId, windowHours, chunkSize);
+
+  logAggregationSplit('Meta-events', windowHours, payloads?.length || 0, appId, 'hour');
+  requestLogger.debug('Built hourly chunked meta-events payloads', {
+    appId,
+    windowHours,
     chunkSize,
     payloadCount: payloads?.length || 0,
   });
