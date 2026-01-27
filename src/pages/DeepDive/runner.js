@@ -1,5 +1,9 @@
 // Executes the deep dive workflow: queue setup, request scheduling, response handling, and cleanup.
-import { buildChunkedMetaEventsPayloads, buildMetaEventsPayload } from '../../services/payloads/index.js';
+import {
+  buildChunkedMetaEventsPayloads,
+  buildChunkedMetaEventsPayloadsByHour,
+  buildMetaEventsPayload,
+} from '../../services/payloads/index.js';
 import { runAggregationWithFallbackWindows } from '../../services/requests/network.js';
 import {
   clearDeepDiveCollections,
@@ -206,17 +210,19 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
       syncProcessingProgress();
     };
     try {
-      const onWindowSplit = (windowSize, payloadCount) => {
+      const onWindowSplit = (windowSize, payloadCount, windowUnit = 'day') => {
+        const windowLabel = `${windowSize}-${windowUnit}`;
         logDeepDive('info', 'Splitting deep dive request into smaller windows', {
           appId: entry.appId,
           windowSize,
+          windowUnit,
           payloadCount,
         });
         updateDeepDiveCallPlanStatus(entry, 'Split', `Split into ${payloadCount} windows.`);
         syncPendingQueue(payloadCount, windowSize, 'split');
         scheduleDomUpdate(() => {
           setApiStatus?.(
-            `Splitting ${windowSize}-day deep dive into ${payloadCount} request${payloadCount === 1 ? '' : 's'}…`,
+            `Splitting ${windowLabel} deep dive into ${payloadCount} request${payloadCount === 1 ? '' : 's'}…`,
           );
         });
       };
@@ -227,6 +233,8 @@ const runDeepDiveScan = async (entries, lookback, progressHandlers, rows, onSucc
         buildBasePayload: (windowSize) => buildMetaEventsPayload(entry.appId, windowSize),
         buildChunkedPayloads: (windowSize, chunkSize) =>
           buildChunkedMetaEventsPayloads(entry.appId, windowSize, chunkSize),
+        buildChunkedPayloadsByHour: (windowHours, chunkSizeHours) =>
+          buildChunkedMetaEventsPayloadsByHour(entry.appId, windowHours, chunkSizeHours),
         aggregateResults: (collector, response) => collector.push(response),
         onWindowSplit,
         onRequestsPlanned: syncPendingQueue,

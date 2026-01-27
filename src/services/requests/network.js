@@ -73,7 +73,7 @@ const getSpaTestDataset = () => (typeof window !== 'undefined' ? window.spaTestD
 
 // Extract the lookback window from a requestId string.
 const parseRequestLookbackWindow = (requestId) => {
-  const match = /-(\d+)d$/.exec(requestId || '');
+  const match = /-(\d+)([dh])(?:$|-chunk-)/.exec(requestId || '');
   return match ? Number(match[1]) : null;
 };
 
@@ -132,6 +132,7 @@ export const runAggregationWithFallbackWindows = async ({
   totalWindowDays,
   buildBasePayload,
   buildChunkedPayloads,
+  buildChunkedPayloadsByHour,
   aggregateResults,
   fetchImpl = fetch,
   onWindowSplit,
@@ -141,6 +142,7 @@ export const runAggregationWithFallbackWindows = async ({
   onRequestsPlanned,
   onRequestsSettled,
   updatePendingQueue,
+  hourChunkSize = 6,
 }) => {
   const fallbackWindows = normalizeFallbackWindows(totalWindowDays);
   const logger = entry?.appId ? createLogger(`Request-${entry.appId}`) : requestLogger;
@@ -188,30 +190,38 @@ export const runAggregationWithFallbackWindows = async ({
       continue;
     }
 
-    const runAttempt = async ({ payloads, chunkSizeUsed }) => {
+    const runAttempt = async ({ payloads, chunkSizeUsed, windowSizeOverride, windowUnit = 'day' }) => {
       if (!Array.isArray(payloads) || !payloads.length) {
         return null;
       }
 
+      const resolvedWindowSize = windowSizeOverride ?? windowSize;
+
       if (typeof onWindowSplit === 'function' && payloads.length > 1) {
-        onWindowSplit(windowSize, payloads.length);
-        updatePendingQueueCount(payloads.length, windowSize, 'split');
+        onWindowSplit(resolvedWindowSize, payloads.length, windowUnit);
+        updatePendingQueueCount(payloads.length, resolvedWindowSize, 'split');
       }
 
       const aggregatedResults = [];
       const plannedRequestCount = payloads.length;
-      updatePendingQueueCount(plannedRequestCount, windowSize);
+      updatePendingQueueCount(plannedRequestCount, resolvedWindowSize);
 
       try {
         const scheduleAggregationRequest = (payload, index) =>
           new Promise((resolve, reject) => {
-            const requestId = payload?.request?.requestId || `window-${windowSize}-${index + 1}`;
+            const requestId = payload?.request?.requestId || `window-${resolvedWindowSize}-${index + 1}`;
             const payloadLength = typeof payload === 'string' ? payload.length : JSON.stringify(payload || {}).length;
             const startTime = Date.now();
 
             if (typeof onBeforeRequest === 'function') {
               try {
-                onBeforeRequest(payload, { windowSize, chunkSizeUsed, requestId, entry });
+                onBeforeRequest(payload, {
+                  windowSize: resolvedWindowSize,
+                  windowUnit,
+                  chunkSizeUsed,
+                  requestId,
+                  entry,
+                });
               } catch (hookError) {
                 requestLogger.warn('onBeforeRequest hook failed.', hookError);
               }
@@ -220,7 +230,8 @@ export const runAggregationWithFallbackWindows = async ({
             setTimeout(() => {
               requestLogger.debug('Dispatching aggregation request.', {
                 requestId,
-                windowSize,
+                windowSize: resolvedWindowSize,
+                windowUnit,
                 chunkSize: chunkSizeUsed,
                 payloadLength,
               });
@@ -230,7 +241,8 @@ export const runAggregationWithFallbackWindows = async ({
                   const durationMs = Date.now() - startTime;
                   requestLogger.debug('Aggregation response received.', {
                     requestId,
-                    windowSize,
+                    windowSize: resolvedWindowSize,
+                    windowUnit,
                     durationMs,
                     response,
                   });
@@ -240,7 +252,8 @@ export const runAggregationWithFallbackWindows = async ({
                   const durationMs = Date.now() - startTime;
                   requestLogger.debug('Aggregation request failed.', {
                     requestId,
-                    windowSize,
+                    windowSize: resolvedWindowSize,
+                    windowUnit,
                     durationMs,
                     error,
                   });
@@ -258,7 +271,7 @@ export const runAggregationWithFallbackWindows = async ({
 
         responses
           .sort((a, b) => a.index - b.index)
-          .forEach(({ response }) => aggregate(aggregatedResults, response, windowSize));
+          .forEach(({ response }) => aggregate(aggregatedResults, response, resolvedWindowSize));
 
         onRequestsSettled?.(plannedRequestCount, windowSize);
 
@@ -311,6 +324,33 @@ export const runAggregationWithFallbackWindows = async ({
           payloadCount: chunkedPayloads.length,
         });
         return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
+      }
+    }
+
+    if (windowSize === 1 && typeof buildChunkedPayloadsByHour === 'function') {
+      const windowHours = 24;
+      const resolvedHourChunkSize = Number(hourChunkSize) > 0 ? Number(hourChunkSize) : 6;
+      const hourlyPayloads = buildChunkedPayloadsByHour(windowHours, resolvedHourChunkSize);
+
+      if (Array.isArray(hourlyPayloads) && hourlyPayloads.length) {
+        const result = await runAttempt({
+          payloads: hourlyPayloads,
+          chunkSizeUsed: `${resolvedHourChunkSize}h`,
+          windowSizeOverride: windowHours,
+          windowUnit: 'hour',
+        });
+
+        if (result) {
+          const { aggregatedResults, chunkSizeUsed } = result;
+          logger.debug('Aggregation succeeded with hourly chunking', {
+            appId: entry?.appId,
+            windowSize,
+            requestCount,
+            chunkSizeUsed,
+            payloadCount: hourlyPayloads.length,
+          });
+          return { aggregatedResults, appliedWindow: windowSize, requestCount, chunkSizeUsed };
+        }
       }
     }
   }
