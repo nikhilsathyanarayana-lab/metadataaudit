@@ -89,13 +89,6 @@ const buildNamespaceFieldSummary = (windowBuckets = []) => {
   }, {});
 };
 
-// Build a consistent lookup key for app-level comparisons.
-const buildAppLookupKey = (subId, appId, appName) => {
-  const normalizedSubId = String(subId || '');
-  const normalizedAppId = String(appId || '') || String(appName || '');
-  return `${normalizedSubId}::${normalizedAppId}`;
-};
-
 // Hydrate cached table data with namespace field names as metadata calls finish.
 const processAPI = () => {
   const aggregations = getMetadataAggregations();
