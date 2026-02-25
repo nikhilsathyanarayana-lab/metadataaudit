@@ -241,6 +241,23 @@ const formatWindowLabelList = (windows = []) => {
   return `${windows.slice(0, -1).join(', ')}, and ${windows[windows.length - 1]}`;
 };
 
+// Build a readable list for field names.
+const formatFieldNameList = (fieldNames = []) => {
+  if (!fieldNames.length) {
+    return '';
+  }
+
+  if (fieldNames.length === 1) {
+    return fieldNames[0];
+  }
+
+  if (fieldNames.length === 2) {
+    return `${fieldNames[0]} and ${fieldNames[1]}`;
+  }
+
+  return `${fieldNames.slice(0, -1).join(', ')}, and ${fieldNames[fieldNames.length - 1]}`;
+};
+
 // Parse a field list stored in the DOM dataset.
 const parseFieldsFromDataset = (rawValue) => {
   if (!rawValue) {
@@ -292,7 +309,7 @@ const rowHasMatchingWindows = (row) => {
 // Build per-field findings for a single row.
 const buildRowFieldFindings = (row) => {
   const allFields = new Set([...row.window7, ...row.window30, ...row.window180]);
-  const findings = [];
+  const groupedFieldFindings = new Map();
 
   allFields.forEach((fieldName) => {
     const presentWindows = WINDOW_LABELS.filter(({ key }) => row[key].includes(fieldName)).map(({ label }) => label);
@@ -302,16 +319,34 @@ const buildRowFieldFindings = (row) => {
     }
 
     const missingWindows = WINDOW_LABELS.filter(({ key }) => !row[key].includes(fieldName)).map(({ label }) => label);
-    const presentText = formatWindowLabelList(presentWindows);
-    const missingText = formatWindowLabelList(missingWindows);
-    const namespaceLabel = formatNamespaceTitle(row.namespace);
-    const appLabel = row.appName || 'Unknown app';
-    const subLabel = row.subId || 'Unknown SubID';
+    const groupingKey = JSON.stringify({ presentWindows, missingWindows });
 
-    findings.push(`${fieldName} is present in ${presentText} but not ${missingText} in ${appLabel} (${subLabel}) for ${namespaceLabel}.`);
+    if (!groupedFieldFindings.has(groupingKey)) {
+      groupedFieldFindings.set(groupingKey, {
+        presentWindows,
+        missingWindows,
+        fieldNames: [],
+      });
+    }
+
+    groupedFieldFindings.get(groupingKey).fieldNames.push(fieldName);
   });
 
-  return findings;
+  const namespaceLabel = formatNamespaceTitle(row.namespace);
+  const appLabel = row.appName || 'Unknown app';
+  const subLabel = row.subId || 'Unknown SubID';
+
+  return [...groupedFieldFindings.values()]
+    .map((findingGroup) => {
+      const sortedFieldNames = [...new Set(findingGroup.fieldNames)]
+        .sort((first, second) => first.localeCompare(second));
+      const fieldText = formatFieldNameList(sortedFieldNames);
+      const presentText = formatWindowLabelList(findingGroup.presentWindows);
+      const missingText = formatWindowLabelList(findingGroup.missingWindows);
+      const verb = sortedFieldNames.length > 1 ? 'are' : 'is';
+
+      return `${fieldText} ${verb} present in ${presentText} but not ${missingText} in ${appLabel} (${subLabel}) for ${namespaceLabel}.`;
+    });
 };
 
 // Build all field change findings from rendered tables.
