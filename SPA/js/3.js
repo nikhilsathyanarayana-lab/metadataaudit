@@ -25,6 +25,9 @@ const getFieldtypesContainer = () => {
 
 const FIELDTYPES = getFieldtypesContainer();
 const METADATA_TABLE_WINDOWS = ['window7', 'window30', 'window180'];
+const METADATA_STATUS_PENDING = 'Pending...';
+const METADATA_STATUS_SENT = 'Call sent';
+const METADATA_STATUS_FAILED = 'Failed (cannot split smaller)';
 export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
@@ -87,6 +90,71 @@ const buildNamespaceFieldSummary = (windowBuckets = []) => {
     summary[namespace] = uniqueFields.length ? uniqueFields : null;
     return summary;
   }, {});
+};
+
+// Translate lookback windows into table window keys.
+const getTableWindowKey = (lookbackWindow) => {
+  const normalizedWindow = Number(lookbackWindow);
+
+  if (normalizedWindow === 7) {
+    return 'window7';
+  }
+
+  if (normalizedWindow === 23 || normalizedWindow === 30) {
+    return 'window30';
+  }
+
+  if (normalizedWindow === 150 || normalizedWindow === 180) {
+    return 'window180';
+  }
+
+  return '';
+};
+
+// Build the status property name for a table window key.
+const getWindowStatusKey = (windowKey) => {
+  if (!windowKey) {
+    return '';
+  }
+
+  return `${windowKey}Status`;
+};
+
+// Return an ordered list of status labels for one table cell.
+const getWindowStatusLabels = (entry, windowKey) => {
+  const statusKey = getWindowStatusKey(windowKey);
+  const labels = Array.isArray(entry?.[statusKey]) ? entry[statusKey] : [];
+
+  if (!labels.length) {
+    return [METADATA_STATUS_PENDING];
+  }
+
+  return labels;
+};
+
+// Add a unique status label to all table rows for a SubID, app, and window.
+const addWindowStatusLabel = ({ subId, appId, windowKey, label }) => {
+  if (!windowKey || !label) {
+    return;
+  }
+
+  const statusKey = getWindowStatusKey(windowKey);
+
+  tableData.forEach((entry) => {
+    const matchesSubId = String(entry?.subId || '') === String(subId || '');
+    const matchesAppId = String(entry?.appId || '') === String(appId || '');
+
+    if (!matchesSubId || !matchesAppId) {
+      return;
+    }
+
+    const existingLabels = Array.isArray(entry[statusKey]) ? entry[statusKey] : [METADATA_STATUS_PENDING];
+    const withoutPending = existingLabels.filter((statusLabel) => statusLabel !== METADATA_STATUS_PENDING);
+
+    if (!withoutPending.includes(label)) {
+      entry[statusKey] = [...withoutPending, label];
+    }
+  });
 };
 
 // Hydrate cached table data with namespace field names as metadata calls finish.
@@ -171,9 +239,12 @@ const populateTables = () => {
           appName: app?.appName || app?.appId || 'Unknown app',
           appId: app?.appId || '',
           namespace,
-          window7: 'Pending...',
-          window30: 'Pending...',
-          window180: 'Pending...',
+          window7: METADATA_STATUS_PENDING,
+          window30: METADATA_STATUS_PENDING,
+          window180: METADATA_STATUS_PENDING,
+          window7Status: [METADATA_STATUS_PENDING],
+          window30Status: [METADATA_STATUS_PENDING],
+          window180Status: [METADATA_STATUS_PENDING],
         });
       });
     });
@@ -591,7 +662,6 @@ const updateFieldTypesModal = () => {
 
 // Convert table cell values from cached table data into readable text.
 const formatTableDataValue = (value) => {
-  const pendingText = 'Pending...';
   const noDataText = 'No Data';
 
   if (Array.isArray(value)) {
@@ -602,7 +672,25 @@ const formatTableDataValue = (value) => {
     return noDataText;
   }
 
-  return value || pendingText;
+  return value || METADATA_STATUS_PENDING;
+};
+
+
+// Build a readable table cell summary with status and metadata values.
+const formatMetadataWindowCell = (rowData, windowKey) => {
+  const value = rowData?.[windowKey];
+  const labels = getWindowStatusLabels(rowData, windowKey);
+  const valueText = formatTableDataValue(value);
+
+  if (labels.includes(METADATA_STATUS_PENDING) && valueText === METADATA_STATUS_PENDING) {
+    return METADATA_STATUS_PENDING;
+  }
+
+  if (valueText === METADATA_STATUS_PENDING) {
+    return labels.join(' | ');
+  }
+
+  return `${labels.join(' | ')} | ${valueText}`;
 };
 
 // Emit metadata scan lifecycle events for navigation gating.
@@ -628,15 +716,12 @@ const getMetadataAggregations = () => {
 };
 
 // Build a metadata row string showing SubID, app details, and lookback values.
-const buildMetadataRowMarkup = ({ subId, appId, appName, window7, window30, window180 }) => {
-  const valueLookup = {
-    window7,
-    window30,
-    window180,
-  };
+const buildMetadataRowMarkup = (rowData) => {
+  const { subId, appId, appName } = rowData || {};
+  const valueLookup = rowData || {};
 
   const lookbackCells = METADATA_TABLE_WINDOWS
-    .map((key) => `<td>${formatTableDataValue(valueLookup[key])}</td>`)
+    .map((key) => `<td>${formatMetadataWindowCell(valueLookup, key)}</td>`)
     .join('');
 
   return [
@@ -693,7 +778,7 @@ const renderTablesFromData = () => {
 };
 
 // Run metadata scans while broadcasting status updates for navigation controls.
-const runMetadataScansWithStatus = async (appsForMetadata, onAggregation) => {
+const runMetadataScansWithStatus = async (appsForMetadata, onAggregation, statusHooks = {}) => {
   if (!Array.isArray(appsForMetadata) || !appsForMetadata.length || typeof onAggregation !== 'function') {
     return;
   }
@@ -703,7 +788,7 @@ const runMetadataScansWithStatus = async (appsForMetadata, onAggregation) => {
 
   try {
     await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-    await runMetadataQueue(onAggregation, DEFAULT_LOOKBACK_WINDOW);
+    await runMetadataQueue(onAggregation, DEFAULT_LOOKBACK_WINDOW, undefined, statusHooks);
     hasCompleted = true;
     notifyMetadataScanCompleted();
   } finally {
@@ -727,6 +812,17 @@ const renderMetadataTables = async (tableConfigs) => {
   activeTableConfigs = tableConfigs;
 
   const handleAggregation = (payload) => {
+    if (payload?.response?.errorType) {
+      const windowKey = getTableWindowKey(payload.lookbackWindow);
+
+      addWindowStatusLabel({
+        subId: payload?.app?.subId,
+        appId: payload?.app?.appId,
+        windowKey,
+        label: METADATA_STATUS_FAILED,
+      });
+    }
+
     processAggregation(payload);
     processAPI();
   };
@@ -737,10 +833,39 @@ const renderMetadataTables = async (tableConfigs) => {
       appName: appName || appId || 'Unknown app',
       appId: appId || '',
       namespace: namespace || '',
-      window7: 'Pending...',
-      window30: 'Pending...',
-      window180: 'Pending...',
+      window7: METADATA_STATUS_PENDING,
+      window30: METADATA_STATUS_PENDING,
+      window180: METADATA_STATUS_PENDING,
+      window7Status: [METADATA_STATUS_PENDING],
+      window30Status: [METADATA_STATUS_PENDING],
+      window180Status: [METADATA_STATUS_PENDING],
     });
+  };
+
+
+  const metadataStatusHooks = {
+    onCallSent: ({ app, lookbackWindow }) => {
+      const windowKey = getTableWindowKey(lookbackWindow);
+
+      addWindowStatusLabel({
+        subId: app?.subId,
+        appId: app?.appId,
+        windowKey,
+        label: METADATA_STATUS_SENT,
+      });
+      renderTablesFromData();
+    },
+    onCallSplit: ({ app, lookbackWindow, payloadCount }) => {
+      const windowKey = getTableWindowKey(lookbackWindow);
+
+      addWindowStatusLabel({
+        subId: app?.subId,
+        appId: app?.appId,
+        windowKey,
+        label: `Split into ${payloadCount} calls`,
+      });
+      renderTablesFromData();
+    },
   };
 
   try {
@@ -762,7 +887,7 @@ const renderMetadataTables = async (tableConfigs) => {
       renderTablesFromData();
 
       appsForMetadata = selectedApps;
-      await runMetadataScansWithStatus(appsForMetadata, handleAggregation);
+      await runMetadataScansWithStatus(appsForMetadata, handleAggregation, metadataStatusHooks);
       return;
     }
 
@@ -814,7 +939,7 @@ const renderMetadataTables = async (tableConfigs) => {
     renderTablesFromData();
 
     if (appsForMetadata.length) {
-      await runMetadataScansWithStatus(appsForMetadata, handleAggregation);
+      await runMetadataScansWithStatus(appsForMetadata, handleAggregation, metadataStatusHooks);
     }
   } catch (error) {
     // eslint-disable-next-line no-console

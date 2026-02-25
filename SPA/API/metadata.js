@@ -419,6 +419,7 @@ export const executeMetadataCallPlan = async (
   limit = calls.length,
   queueOffset = 0,
   totalQueued = calls.length,
+  statusHooks = {},
 ) => {
   if (!Array.isArray(calls) || !calls.length) {
     return [];
@@ -456,8 +457,17 @@ export const executeMetadataCallPlan = async (
 
           lastStartTime = response?.startTime || lastStartTime;
         },
+        onWindowSplit: (windowSize, payloadCount, windowUnit) => {
+          statusHooks?.onCallSplit?.({
+            app: nextCall.app,
+            lookbackWindow: targetWindow,
+            windowSize,
+            payloadCount,
+            windowUnit,
+          });
+        },
         onBeforeRequest: (_payload, context = {}) => {
-          const { requestId, windowSize, chunkSizeUsed } = context;
+          const { requestId, windowSize, chunkSizeUsed, windowUnit } = context;
 
           // eslint-disable-next-line no-console
           console.log('[executeMetadataCallPlan] Dispatching metadata request.', {
@@ -466,6 +476,15 @@ export const executeMetadataCallPlan = async (
             chunkSizeUsed,
             appId: nextCall?.app?.appId || nextCall?.credential?.appId || '',
             subId: nextCall?.credential?.subId || '',
+          });
+
+          statusHooks?.onCallSent?.({
+            app: nextCall.app,
+            lookbackWindow: targetWindow,
+            requestId,
+            windowSize,
+            chunkSizeUsed,
+            windowUnit,
           });
         },
       });
@@ -484,6 +503,12 @@ export const executeMetadataCallPlan = async (
           subId: nextCall?.credential?.subId || '',
           errorType: response?.errorType || response?.response?.errorType,
           errorHint: response?.errorHint || response?.response?.errorHint,
+        });
+
+        statusHooks?.onCallFailed?.({
+          app: nextCall.app,
+          lookbackWindow: targetWindow,
+          error: response,
         });
       }
 
@@ -522,6 +547,26 @@ export const executeMetadataCallPlan = async (
           error,
         },
       );
+
+      statusHooks?.onCallFailed?.({
+        app: nextCall.app,
+        lookbackWindow: targetWindow,
+        error,
+      });
+
+      if (typeof onAggregation === 'function') {
+        onAggregation({
+          app: nextCall.app,
+          lookbackWindow: targetWindow,
+          timeseriesFirst: nextCall.timeseriesFirst,
+          response: {
+            errorType: 'failed',
+            errorHint: error?.message || 'Aggregation request failed.',
+          },
+          queueIndex: index + queueOffset,
+          totalQueued: totalQueueSize,
+        });
+      }
     }
   }
   /* eslint-enable no-await-in-loop */
@@ -584,6 +629,7 @@ export const runMetadataQueue = async (
   onAggregation,
   lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
   limit = metadataCallQueue.length,
+  statusHooks = {},
 ) => {
   if (!metadataCallQueue.length) {
     // eslint-disable-next-line no-console
@@ -621,6 +667,7 @@ export const runMetadataQueue = async (
       callsToRun.length,
       windowOffset,
       totalQueued,
+      statusHooks,
     );
 
     responses.push(...windowResponses);
