@@ -4,6 +4,7 @@
 const exportSources = ['SPA/pdf/table-of-contents.html','SPA/pdf/overview-dashboard.html', 'SPA/pdf/field-analysis.html', 'SPA/pdf/field-summary.html', 'SPA/pdf/subscription-details.html', 'SPA/pdf/application-details.html'];
 let currentSourceIndex = 0;
 const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.meta.url);
+const pdfStylesheetUrl = new URL('../pdf/pdf.css', import.meta.url).href;
 const renderDelayMs = 350;
 const footerClassName = 'pdf-page-footer';
 
@@ -187,7 +188,7 @@ const renderPrintableDocument = (pages) => {
 
   const stylesheet = printDocument.createElement('link');
   stylesheet.rel = 'stylesheet';
-  stylesheet.href = 'SPA/pdf/pdf.css';
+  stylesheet.href = pdfStylesheetUrl;
   printDocument.head.appendChild(stylesheet);
 
   if (printDocument.body) {
