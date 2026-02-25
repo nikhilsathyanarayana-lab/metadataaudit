@@ -678,12 +678,18 @@ const formatTableDataValue = (value) => {
 
 // Build a readable table cell summary with status and metadata values.
 const formatMetadataWindowCell = (rowData, windowKey) => {
+  const noDataText = 'No Data';
   const value = rowData?.[windowKey];
   const labels = getWindowStatusLabels(rowData, windowKey);
   const valueText = formatTableDataValue(value);
+  const hasFailureStatus = labels.includes(METADATA_STATUS_FAILED);
 
   if (labels.includes(METADATA_STATUS_PENDING) && valueText === METADATA_STATUS_PENDING) {
     return METADATA_STATUS_PENDING;
+  }
+
+  if (hasFailureStatus && valueText === noDataText) {
+    return `${noDataText} | ${METADATA_STATUS_FAILED}`;
   }
 
   if (valueText === METADATA_STATUS_PENDING) {
