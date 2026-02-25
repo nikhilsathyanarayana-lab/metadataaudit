@@ -1,4 +1,4 @@
-import { buildMetadataWorkbook } from '../../src/controllers/exports/metadata_xlsx.js';
+import { buildSpaMetadataWorkbook } from './export/buildSpaMetadataWorkbook.js';
 import {
   downloadWorkbook,
   openNamingModal,
@@ -297,7 +297,7 @@ export async function initSection(sectionElement) {
   renderSheetPreview(previewFrame, null);
 
   try {
-    const workbookResult = await buildMetadataWorkbook();
+    const workbookResult = await buildSpaMetadataWorkbook();
     workbookCache = workbookResult.workbook;
     defaultWorkbookName = workbookResult.defaultFileName;
     excludedSheetNames = new Set();
