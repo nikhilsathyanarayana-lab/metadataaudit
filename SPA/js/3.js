@@ -690,7 +690,7 @@ const formatMetadataWindowCell = (rowData, windowKey) => {
     return labels.join(' | ');
   }
 
-  return `${labels.join(' | ')} | ${valueText}`;
+  return valueText;
 };
 
 // Emit metadata scan lifecycle events for navigation gating.
