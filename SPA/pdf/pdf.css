@@ -305,6 +305,26 @@ a:hover {
   word-break: break-word;
 }
 
+.field-change-summary {
+  font-size: 0.9rem;
+}
+
+.field-change-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field-change-text {
+  line-height: 1.35;
+}
+
+.field-change-text--empty {
+  margin: 0;
+}
+
 .eyebrow {
   margin: 0 0 0.35rem;
   text-transform: uppercase;
