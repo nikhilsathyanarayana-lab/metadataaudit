@@ -400,6 +400,17 @@ export const getMetadataQueue = () => metadataCallQueue;
 export const rebuildMetadataQueue = async (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) =>
   buildMetadataQueue(lastDiscoveredApps, lookbackWindow);
 
+// Append aggregation results without using spread syntax to avoid stack overflows on large arrays.
+const appendAggregationResults = (collector = [], results = []) => {
+  if (!Array.isArray(collector) || !Array.isArray(results) || !results.length) {
+    return;
+  }
+
+  results.forEach((result) => {
+    collector.push(result);
+  });
+};
+
 // Execute prepared metadata requests sequentially and relay each aggregation result.
 export const executeMetadataCallPlan = async (
   calls = [],
@@ -440,7 +451,7 @@ export const executeMetadataCallPlan = async (
           buildChunkedMetadataPayloads(nextCall.app, windowSize, chunkSize, nextCall.timeseriesFirst),
         aggregateResults: (collector, response) => {
           if (Array.isArray(response?.results)) {
-            collector.push(...response.results);
+            appendAggregationResults(collector, response.results);
           }
 
           lastStartTime = response?.startTime || lastStartTime;
@@ -495,8 +506,22 @@ export const executeMetadataCallPlan = async (
         queueIndex: index + queueOffset,
       });
     } catch (error) {
+      const appId = nextCall?.app?.appId || nextCall?.credential?.appId || 'unknown-appid';
+      const appName = nextCall?.app?.appName || nextCall?.credential?.appName || appId;
+      const subId = nextCall?.credential?.subId || nextCall?.app?.subId || 'unknown-subid';
+
       // eslint-disable-next-line no-console
-      console.error('Unable to request metadata audit payload.', error);
+      console.error(
+        `[executeMetadataCallPlan] Unable to request metadata audit payload for app_name "${appName}".`,
+        {
+          appName,
+          appId,
+          subId,
+          lookbackWindow: targetWindow,
+          queueIndex: index + queueOffset,
+          error,
+        },
+      );
     }
   }
   /* eslint-enable no-await-in-loop */
