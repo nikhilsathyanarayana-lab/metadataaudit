@@ -176,8 +176,37 @@ const createStagingArea = () => {
   return container;
 };
 
+// Wait for a stylesheet to finish loading in the print document.
+const waitForPrintStylesheet = (stylesheet) => new Promise((resolve, reject) => {
+  const handleLoad = () => {
+    stylesheet.removeEventListener('load', handleLoad);
+    stylesheet.removeEventListener('error', handleError);
+    resolve();
+  };
+
+  const handleError = () => {
+    stylesheet.removeEventListener('load', handleLoad);
+    stylesheet.removeEventListener('error', handleError);
+    const error = new Error(`Unable to load print stylesheet: ${stylesheet.href}`);
+
+    // eslint-disable-next-line no-console
+    console.error('Print stylesheet failed to load.', error);
+    reject(error);
+  };
+
+  stylesheet.addEventListener('load', handleLoad, { once: true });
+  stylesheet.addEventListener('error', handleError, { once: true });
+});
+
+// Wait for a paint tick so the print layout can settle.
+const waitForPrintLayout = () => new Promise((resolve) => {
+  window.requestAnimationFrame(() => {
+    setTimeout(resolve, 50);
+  });
+});
+
 // Render all export pages into a printable window.
-const renderPrintableDocument = (pages) => {
+const renderPrintableDocument = async (pages) => {
   const printWindow = window.open('', '_blank');
 
   if (!printWindow) {
@@ -197,6 +226,8 @@ const renderPrintableDocument = (pages) => {
   stylesheet.href = pdfStylesheetUrl;
   printDocument.head.appendChild(stylesheet);
 
+  await waitForPrintStylesheet(stylesheet);
+
   if (printDocument.body) {
     printDocument.body.id = 'pdf-export-body';
     printDocument.body.className = 'pdf-export-body';
@@ -215,6 +246,12 @@ const renderPrintableDocument = (pages) => {
     applyPageFooter(wrapper, printDocument, pageNumber);
     printDocument.body.appendChild(wrapper);
   });
+
+  await waitForPrintLayout();
+
+  if (printDocument.fonts?.ready) {
+    await printDocument.fonts.ready;
+  }
 
   printWindow.focus();
   printWindow.print();
@@ -418,7 +455,7 @@ export async function initSection(sectionElement) {
         pages.push({ source, body });
       }
 
-      renderPrintableDocument(pages);
+      await renderPrintableDocument(pages);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('PDF export failed.', error);
