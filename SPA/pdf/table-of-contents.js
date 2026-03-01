@@ -34,6 +34,17 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLabels
+  && typeof window.subscriptionLabels === 'object')
+  ? window.subscriptionLabels
+  : {};
+
+// Resolve SubID display text from the label map with a raw SubID fallback.
+const resolveSubscriptionDisplay = (subId) => {
+  const key = String(subId || '');
+  return subscriptionLabels[key] || key || 'Unknown SubID';
+};
+
 // Collect SubIDs from the metadata cache or return sample identifiers.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -88,18 +99,19 @@ const buildSubscriptionEntry = (template, subId, index, pageNumber) => {
   const listIndex = String(index + 1).padStart(2, '0');
   const listItemId = `toc-entry-subscription-${listIndex}`;
   const linkId = `toc-link-subscription-${listIndex}`;
-  const safeSubId = subId || 'Unknown SubID';
-  const anchorTarget = encodeURIComponent(safeSubId);
+  const rawSubId = subId || 'Unknown SubID';
+  const subDisplay = resolveSubscriptionDisplay(rawSubId);
+  const anchorTarget = encodeURIComponent(rawSubId);
   const link = clone.querySelector('[data-slot="subscription-link"]');
   const pageNumberElement = clone.querySelector('[data-slot="page-number"]');
   const descriptionElement = clone.querySelector('[data-slot="page-description"]');
 
   clone.id = listItemId;
-  clone.setAttribute('data-subscription-id', safeSubId);
+  clone.setAttribute('data-subscription-id', rawSubId);
 
   if (link) {
     link.id = linkId;
-    link.textContent = `Subscription details - ${safeSubId}`;
+    link.textContent = `Subscription details - ${subDisplay}`;
     link.href = `subscription-details.html#subscription-card-${anchorTarget}`;
   }
 
@@ -109,7 +121,7 @@ const buildSubscriptionEntry = (template, subId, index, pageNumber) => {
 
   if (descriptionElement) {
     descriptionElement.id = `toc-description-subscription-${listIndex}`;
-    descriptionElement.textContent = `Subscription-level metadata details and coverage for ${safeSubId}.`;
+    descriptionElement.textContent = `Subscription-level metadata details and coverage for ${subDisplay}.`;
   }
 
   applyEntryDetails(clone, pageNumber, descriptionElement?.textContent || '');
@@ -153,6 +165,10 @@ const handleMetadataMessage = (event) => {
   const nextAggregations = payload.metadataAggregations || payload;
   window.metadataAggregations = nextAggregations;
   window.fieldTypeSelections = message.fieldTypeSelections || {};
+  subscriptionLabels = message.subscriptionLabels && typeof message.subscriptionLabels === 'object'
+    ? message.subscriptionLabels
+    : {};
+  window.subscriptionLabels = subscriptionLabels;
   renderSubscriptionEntries(window.metadataAggregations);
 };
 

@@ -7,6 +7,20 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+
+let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLabels
+  && typeof window.subscriptionLabels === 'object')
+  ? window.subscriptionLabels
+  : {};
+
+// Resolve SubID display text from the label map with a raw SubID fallback.
+const resolveSubscriptionDisplay = (subId) => {
+  const key = String(subId || '');
+  return subscriptionLabels[key] || key || 'Unknown SubID';
+};
+
+
+
 // Return the requested window bucket from an app aggregation bucket.
 const getWindowBucket = (appBucket, lookbackWindow) => (
   appBucket?.windows?.[lookbackWindow] || appBucket?.windows?.[String(lookbackWindow)]
@@ -87,6 +101,7 @@ const buildSubscriptionSummaries = (aggregations = (hasMetadataAggregations() &&
     });
 
     const normalizedSubId = subId || 'Unknown SubID';
+    const subDisplay = resolveSubscriptionDisplay(normalizedSubId);
     const namespaceTotals = METADATA_NAMESPACES.reduce((totals, namespace) => {
       const namespaceBuckets = namespaceCoverage[namespace];
       const windowFields = new Set([
@@ -110,6 +125,7 @@ const buildSubscriptionSummaries = (aggregations = (hasMetadataAggregations() &&
 
     summaries.push({
       subId: normalizedSubId,
+      subDisplay,
       appCount: appList.length,
       apps: appList.sort((first, second) => first.appName.localeCompare(second.appName)
         || first.appId.localeCompare(second.appId)),
@@ -210,6 +226,7 @@ const buildSubscriptionCard = (template, summary) => {
 
   applyTemplateIds(clone, summary.subId);
 
+  const subDisplay = summary.subDisplay || resolveSubscriptionDisplay(summary.subId);
   const title = clone.querySelector('[data-slot="title"]');
   const summaryText = clone.querySelector('[data-slot="summary"]');
   const appCount = clone.querySelector('[data-slot="app-count"]');
@@ -218,11 +235,11 @@ const buildSubscriptionCard = (template, summary) => {
   const namespaceBody = clone.querySelector('[data-slot="namespace-body"]');
 
   if (title) {
-    title.textContent = `Sub ID ${summary.subId}`;
+    title.textContent = `Sub ID ${subDisplay}`;
   }
 
   if (summaryText) {
-    summaryText.textContent = `Coverage for ${summary.appCount || 0} apps with ${summary.uniqueFieldCount} unique fields across namespaces.`;
+    summaryText.textContent = `Coverage for ${summary.appCount || 0} apps with ${summary.uniqueFieldCount} unique fields across namespaces in ${subDisplay}.`;
   }
 
   if (appCount) {
@@ -298,6 +315,10 @@ const handleMetadataMessage = (event) => {
   const nextAggregations = payload.metadataAggregations || payload;
   window.metadataAggregations = nextAggregations;
   window.fieldTypeSelections = message.fieldTypeSelections || {};
+  subscriptionLabels = message.subscriptionLabels && typeof message.subscriptionLabels === 'object'
+    ? message.subscriptionLabels
+    : {};
+  window.subscriptionLabels = subscriptionLabels;
   renderSubscriptionPages(window.metadataAggregations);
 };
 

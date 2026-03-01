@@ -330,12 +330,14 @@ export async function initSection(sectionElement) {
       fieldTypeSelections: window.fieldTypeSelections
         || window.FIELDTYPES?.fieldTypeSelections
         || {},
+      subscriptionLabels: exportSubscriptionLabels(),
     };
 
     if (window.appCountsBySubId && typeof window.appCountsBySubId === 'object') {
       message.appCountsBySubId = window.appCountsBySubId;
     }
 
+    previewFrame.contentWindow.subscriptionLabels = message.subscriptionLabels;
     previewFrame.contentWindow.postMessage(message, '*');
   };
 

@@ -7,6 +7,20 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+
+let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLabels
+  && typeof window.subscriptionLabels === 'object')
+  ? window.subscriptionLabels
+  : {};
+
+// Resolve SubID display text from the label map with a raw SubID fallback.
+const resolveSubscriptionDisplay = (subId) => {
+  const key = String(subId || '');
+  return subscriptionLabels[key] || key || 'Unknown SubID';
+};
+
+
+
 // Return the requested window bucket from an app aggregation bucket.
 const getWindowBucket = (appBucket, lookbackWindow) => (
   appBucket?.windows?.[lookbackWindow] || appBucket?.windows?.[String(lookbackWindow)]
@@ -92,6 +106,7 @@ const buildApplicationSummary = (subId, appId, appBucket) => {
 
   return {
     subId: subId || 'Unknown SubID',
+    subDisplay: resolveSubscriptionDisplay(subId || 'Unknown SubID'),
     appId: appId || '',
     appName: appBucket?.appName || appId || 'Unknown app',
     namespaceTotals,
@@ -254,11 +269,11 @@ const buildApplicationCard = (template, summary) => {
   }
 
   if (summaryText) {
-    summaryText.textContent = `Sub ID ${summary.subId} coverage with ${summary.uniqueFieldCount} unique fields across namespaces.`;
+    summaryText.textContent = `Sub ID ${summary.subDisplay} coverage with ${summary.uniqueFieldCount} unique fields across namespaces.`;
   }
 
   if (subIdValue) {
-    subIdValue.textContent = summary.subId;
+    subIdValue.textContent = summary.subDisplay;
   }
 
   if (appIdValue) {
@@ -302,7 +317,7 @@ const buildSubscriptionHeading = (template, subId, index) => {
   const normalizedSubId = subId || 'Unknown SubID';
   const safeSubId = normalizedSubId.replace(/\s+/g, '-').toLowerCase();
   clone.id = `application-subscription-heading-${safeSubId}-${String(index).padStart(2, '0')}`;
-  clone.textContent = `Sub ID ${normalizedSubId}`;
+  clone.textContent = `Sub ID ${resolveSubscriptionDisplay(normalizedSubId)}`;
   return clone;
 };
 
@@ -359,6 +374,10 @@ const handleMetadataMessage = (event) => {
   const nextAggregations = payload.metadataAggregations || payload;
   window.metadataAggregations = nextAggregations;
   window.fieldTypeSelections = message.fieldTypeSelections || {};
+  subscriptionLabels = message.subscriptionLabels && typeof message.subscriptionLabels === 'object'
+    ? message.subscriptionLabels
+    : {};
+  window.subscriptionLabels = subscriptionLabels;
   renderApplicationPages(window.metadataAggregations);
 };
 
