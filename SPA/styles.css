@@ -97,6 +97,22 @@ body {
   border-color: rgba(224, 0, 108, 0.35);
 }
 
+
+.nav-labels-btn {
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(224, 0, 108, 0.28);
+  background: #fff0f5;
+  color: var(--pendo-pink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nav-labels-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .debug-toggle {
   margin-left: auto;
   display: inline-flex;
@@ -909,6 +925,7 @@ h1 {
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.2s ease;
 }
 
@@ -918,6 +935,7 @@ h1 {
   display: grid;
   place-items: center;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.2s ease, transform 0.2s ease;
   transform: translateY(10px);
 }
@@ -969,6 +987,26 @@ h1 {
   margin-top: 1rem;
   display: grid;
   gap: 0.4rem;
+}
+
+
+.nav-labels-content {
+  width: min(620px, 92%);
+}
+
+.nav-labels-body {
+  max-height: 55vh;
+  overflow-y: auto;
+  gap: 0.75rem;
+}
+
+.nav-label-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.nav-label-input-label {
+  font-weight: 700;
 }
 
 .export-exclusion-list {
