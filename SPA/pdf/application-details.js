@@ -19,6 +19,18 @@ const resolveSubscriptionDisplay = (subId) => {
   return subscriptionLabels[key] || key || 'Unknown SubID';
 };
 
+// Format a visible SubID label while retaining the raw identifier for structure.
+const formatSubscriptionDisplay = (subId) => {
+  const rawSubId = String(subId || 'Unknown SubID');
+  const label = resolveSubscriptionDisplay(rawSubId);
+
+  if (label !== rawSubId) {
+    return `${label} (${rawSubId})`;
+  }
+
+  return label;
+};
+
 
 
 // Return the requested window bucket from an app aggregation bucket.
@@ -106,7 +118,7 @@ const buildApplicationSummary = (subId, appId, appBucket) => {
 
   return {
     subId: subId || 'Unknown SubID',
-    subDisplay: resolveSubscriptionDisplay(subId || 'Unknown SubID'),
+    subDisplay: formatSubscriptionDisplay(subId || 'Unknown SubID'),
     appId: appId || '',
     appName: appBucket?.appName || appId || 'Unknown app',
     namespaceTotals,
@@ -124,7 +136,8 @@ const buildApplicationGroups = (aggregations = (hasMetadataAggregations() && win
   }
 
   const sortedSubscriptions = Object.entries(aggregations)
-    .sort((first, second) => (first[0] || '').localeCompare(second[0] || ''));
+    .sort((first, second) => formatSubscriptionDisplay(first[0] || '').localeCompare(formatSubscriptionDisplay(second[0] || ''))
+      || (first[0] || '').localeCompare(second[0] || ''));
 
   sortedSubscriptions.forEach(([subId, subBucket]) => {
     const apps = subBucket?.apps || {};
@@ -163,7 +176,7 @@ const formatFieldList = (fields) => {
 
 // Ensure cloned template elements have unique IDs for accessibility.
 const applyTemplateIds = (cardElement, subId, appId) => {
-  const safeSubId = subId ? subId.replace(/\s+/g, '-').toLowerCase() : 'unknown';
+  const safeSubId = encodeURIComponent(String(subId || 'Unknown SubID'));
   const safeAppId = appId ? appId.replace(/\s+/g, '-').toLowerCase() : 'unknown-app';
   const suffix = `${safeSubId}-${safeAppId}`;
   const assignId = (selector, baseId) => {
@@ -214,7 +227,7 @@ const applyTemplateIds = (cardElement, subId, appId) => {
 const buildNamespaceRow = (namespaceKey, namespaceBucket, rowIndex, subId, appId) => {
   const rowNumber = String(rowIndex + 1).padStart(2, '0');
   const safeNamespace = namespaceKey.replace(/\s+/g, '-').toLowerCase();
-  const safeSubId = subId ? subId.replace(/\s+/g, '-').toLowerCase() : 'unknown';
+  const safeSubId = encodeURIComponent(String(subId || 'Unknown SubID'));
   const safeAppId = appId ? appId.replace(/\s+/g, '-').toLowerCase() : 'unknown-app';
   const tableRow = document.createElement('tr');
   tableRow.id = `application-namespace-row-${safeNamespace}-${safeSubId}-${safeAppId}-${rowNumber}`;
@@ -315,9 +328,9 @@ const buildSubscriptionHeading = (template, subId, index) => {
 
   const clone = template.content.firstElementChild.cloneNode(true);
   const normalizedSubId = subId || 'Unknown SubID';
-  const safeSubId = normalizedSubId.replace(/\s+/g, '-').toLowerCase();
+  const safeSubId = encodeURIComponent(normalizedSubId);
   clone.id = `application-subscription-heading-${safeSubId}-${String(index).padStart(2, '0')}`;
-  clone.textContent = `Sub ID ${resolveSubscriptionDisplay(normalizedSubId)}`;
+  clone.textContent = `Sub ID ${formatSubscriptionDisplay(normalizedSubId)}`;
   return clone;
 };
 

@@ -76,6 +76,18 @@ const resolveSubscriptionDisplay = (subId) => {
   return subscriptionLabels[key] || key || 'Unknown SubID';
 };
 
+// Format a visible SubID label while retaining the raw identifier for structure.
+const formatSubscriptionDisplay = (subId) => {
+  const rawSubId = String(subId || 'Unknown SubID');
+  const label = resolveSubscriptionDisplay(rawSubId);
+
+  if (label !== rawSubId) {
+    return `${label} (${rawSubId})`;
+  }
+
+  return label;
+};
+
 
 
 // Count distinct app IDs for each SubID directly from the metadata cache.
@@ -172,7 +184,7 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   const borders = subscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]);
 
   return {
-    labels: subscriptionIds.map((subId) => resolveSubscriptionDisplay(subId)),
+    labels: subscriptionIds.map((subId) => formatSubscriptionDisplay(subId)),
     datasets: [{
       data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
       backgroundColor: backgrounds,
@@ -233,7 +245,10 @@ const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.
   }
 
   console.log('getSubscriptionIds: collecting SubIDs');
-  return Object.keys(aggregations).filter((subId) => subId);
+  return Object.keys(aggregations)
+    .filter((subId) => subId)
+    .sort((first, second) => formatSubscriptionDisplay(first).localeCompare(formatSubscriptionDisplay(second))
+      || first.localeCompare(second));
 };
 
 // Populate the subscription summary table with discovered SubIDs.
@@ -262,7 +277,7 @@ const renderSubscriptionTable = () => {
     const labelCell = document.createElement('td');
     labelCell.id = `subscription-label-${rowNumber}`;
     labelCell.className = 'subscription-label-cell';
-    labelCell.textContent = resolveSubscriptionDisplay(subId);
+    labelCell.textContent = formatSubscriptionDisplay(subId);
 
     const countCell = document.createElement('td');
     countCell.id = `subscription-count-${rowNumber}`;
@@ -371,7 +386,7 @@ const buildSubDonutData = (aggregations = window.metadataAggregations) => {
   const palette = defaultSubDonutData?.datasets?.[0]?.backgroundColor || [];
 
   return {
-    labels: subscriptionIds,
+    labels: subscriptionIds.map((subId) => formatSubscriptionDisplay(subId)),
     datasets: [{
       label: 'SubID coverage',
       data: subscriptionIds.map(() => 1),

@@ -20,6 +20,18 @@ const resolveSubscriptionDisplay = (subId) => {
   return subscriptionLabels[key] || key || 'Unknown SubID';
 };
 
+// Format a visible SubID label while retaining the raw identifier for structure.
+const formatSubscriptionDisplay = (subId) => {
+  const rawSubId = String(subId || 'Unknown SubID');
+  const label = resolveSubscriptionDisplay(rawSubId);
+
+  if (label !== rawSubId) {
+    return `${label} (${rawSubId})`;
+  }
+
+  return label;
+};
+
 
 
 // Return the requested window bucket from an app aggregation bucket.
@@ -93,12 +105,14 @@ const mapAggregationsToRows = (aggregations = (hasMetadataAggregations() && wind
 
     Object.entries(apps).forEach(([appId, appBucket]) => {
       const windowSummaries = buildWindowSummaries(appBucket);
-      const subLabel = resolveSubscriptionDisplay(subId || 'Unknown SubID');
+      const normalizedSubId = subId || 'Unknown SubID';
+      const subDisplay = formatSubscriptionDisplay(normalizedSubId);
       const appLabel = appBucket?.appName || appId || 'Unknown app';
 
       METADATA_NAMESPACES.forEach((namespace) => {
         rowsByNamespace[namespace].push({
-          subId: subLabel,
+          subId: normalizedSubId,
+          subDisplay,
           appName: appLabel,
           appId: appId || '',
           window7: windowSummaries.window7?.[namespace] || null,
@@ -110,7 +124,8 @@ const mapAggregationsToRows = (aggregations = (hasMetadataAggregations() && wind
   });
 
   METADATA_NAMESPACES.forEach((namespace) => {
-    rowsByNamespace[namespace].sort((first, second) => first.subId.localeCompare(second.subId)
+    rowsByNamespace[namespace].sort((first, second) => first.subDisplay.localeCompare(second.subDisplay)
+      || first.subId.localeCompare(second.subId)
       || first.appName.localeCompare(second.appName)
       || first.appId.localeCompare(second.appId));
   });
@@ -136,6 +151,7 @@ const buildFieldSetsByApp = (rowsByNamespace = {}) => {
 
       fieldSets.push({
         subId: row.subId || '',
+        subDisplay: row.subDisplay || formatSubscriptionDisplay(row.subId || ''),
         appName: row.appName || '',
         appId: row.appId || '',
         namespace,
@@ -146,7 +162,8 @@ const buildFieldSetsByApp = (rowsByNamespace = {}) => {
     });
   });
 
-  fieldSets.sort((first, second) => first.subId.localeCompare(second.subId)
+  fieldSets.sort((first, second) => first.subDisplay.localeCompare(second.subDisplay)
+    || first.subId.localeCompare(second.subId)
     || first.appName.localeCompare(second.appName)
     || first.appId.localeCompare(second.appId)
     || first.namespace.localeCompare(second.namespace));
@@ -306,6 +323,7 @@ const readNamespaceTableRows = (namespace) => {
   return tableRows.map((row) => ({
     namespace,
     subId: row.dataset.subId || '',
+    subDisplay: formatSubscriptionDisplay(row.dataset.subId || ''),
     appName: row.dataset.appName || '',
     appId: row.dataset.appId || '',
     window7: normalizeFieldArray(parseFieldsFromDataset(row.dataset.window7)),
@@ -348,7 +366,7 @@ const buildRowFieldFindings = (row) => {
 
   const namespaceLabel = formatNamespaceTitle(row.namespace);
   const appLabel = row.appName || 'Unknown app';
-  const subLabel = row.subId || 'Unknown SubID';
+  const subLabel = row.subDisplay || formatSubscriptionDisplay(row.subId || 'Unknown SubID');
 
   return [...groupedFieldFindings.values()]
     .map((findingGroup) => {
@@ -494,7 +512,7 @@ const renderTableRows = (namespace, rows = []) => {
     const subCell = document.createElement('td');
     subCell.id = `${namespace}-cell-sub-${rowNumber}`;
     subCell.className = 'metadata-cell metadata-cell--subid';
-    subCell.textContent = row.subId || '';
+    subCell.textContent = row.subDisplay || formatSubscriptionDisplay(row.subId || '');
 
     const appNameCell = document.createElement('td');
     appNameCell.id = `${namespace}-cell-app-name-${rowNumber}`;

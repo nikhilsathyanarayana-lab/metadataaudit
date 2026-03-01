@@ -45,6 +45,18 @@ const resolveSubscriptionDisplay = (subId) => {
   return subscriptionLabels[key] || key || 'Unknown SubID';
 };
 
+// Format a visible SubID label while retaining the raw identifier for structure.
+const formatSubscriptionDisplay = (subId) => {
+  const rawSubId = String(subId || 'Unknown SubID');
+  const label = resolveSubscriptionDisplay(rawSubId);
+
+  if (label !== rawSubId) {
+    return `${label} (${rawSubId})`;
+  }
+
+  return label;
+};
+
 // Collect SubIDs from the metadata cache or return sample identifiers.
 const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -57,7 +69,8 @@ const getSubscriptionIds = (aggregations = (hasMetadataAggregations() && window.
     return defaultSubscriptionIds;
   }
 
-  return ids.sort((first, second) => first.localeCompare(second));
+  return ids.sort((first, second) => formatSubscriptionDisplay(first).localeCompare(formatSubscriptionDisplay(second))
+    || first.localeCompare(second));
 };
 
 // Populate page numbers and descriptions for the static TOC entries.
@@ -100,7 +113,7 @@ const buildSubscriptionEntry = (template, subId, index, pageNumber) => {
   const listItemId = `toc-entry-subscription-${listIndex}`;
   const linkId = `toc-link-subscription-${listIndex}`;
   const rawSubId = subId || 'Unknown SubID';
-  const subDisplay = resolveSubscriptionDisplay(rawSubId);
+  const subDisplay = formatSubscriptionDisplay(rawSubId);
   const anchorTarget = encodeURIComponent(rawSubId);
   const link = clone.querySelector('[data-slot="subscription-link"]');
   const pageNumberElement = clone.querySelector('[data-slot="page-number"]');
