@@ -37,3 +37,6 @@
 
 ## PDF exports
 - Static PDF-ready assets live under `SPA/pdf/`. Use `overview-dashboard.html` with `pdf/pdf.css` for a simple export shell that centers a 72pt "Overview" title at the top of the page.
+- Export assembly in `SPA/js/4.js` clones each PDF iframe body and replaces every `<canvas>` with an `<img>` snapshot (`canvas.toDataURL('image/png')`) before printing, so Chart.js output remains visible in the generated PDF.
+- Canvas safety rule for future PDF pages: every new chart section must be export-safe by either (1) relying on the centralized canvas-to-image replacement in `SPA/js/4.js` or (2) including a readable textual/table fallback in the same section for report readability.
+- Current canvas inventory under `SPA/pdf/` already follows this rule: `overview-dashboard.html` pairs charts with the subscription summary table and namespace totals text, and `field-analysis.html` pairs its chart with the "Top 10 Received Fields" table.
