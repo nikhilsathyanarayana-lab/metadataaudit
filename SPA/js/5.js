@@ -405,7 +405,7 @@ const buildWorksheetHtml = (worksheet) => {
           .preview-valign-center { vertical-align: middle; }
           .preview-valign-bottom { vertical-align: bottom; }
           .preview-wrap-text { white-space: pre-wrap; }
-          .preview-row-title th { font-size: ${PREVIEW_THEME_TOKENS.previewRowTitleFontSizePx}px; }
+          .preview-row-title th:not([class*="preview-fs-"]) { font-size: ${PREVIEW_THEME_TOKENS.previewRowTitleFontSizePx}px; }
           ${styleRegistry.rules.join('\n          ')}
         </style>
       </head>
