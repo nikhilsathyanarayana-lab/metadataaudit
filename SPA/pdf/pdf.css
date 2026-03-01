@@ -28,6 +28,12 @@ body {
   position: relative;
 }
 
+body.pdf-preview-print-mode,
+body.pdf-export-body {
+  padding: var(--page-margin);
+  background: #fff;
+}
+
 .pdf-export-body {
   margin: 0;
   padding: var(--page-margin);
@@ -47,8 +53,20 @@ main {
   flex-direction: column;
 }
 
+body.pdf-preview-print-mode main,
+body.pdf-export-body main {
+  width: 100%;
+  min-height: calc(var(--page-height) - (var(--page-margin) * 2));
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 2rem;
+}
+
 @media print {
-  body {
+  body,
+  body.pdf-preview-print-mode,
+  body.pdf-export-body {
     padding: var(--page-margin);
     background: #fff;
   }
@@ -57,11 +75,15 @@ main {
     padding: var(--page-margin);
   }
 
-  main {
+  main,
+  body.pdf-preview-print-mode main,
+  body.pdf-export-body main {
     width: 100%;
     min-height: calc(var(--page-height) - (var(--page-margin) * 2));
     border: none;
     box-shadow: none;
+    border-radius: 0;
+    padding: 2rem;
   }
 }
 
