@@ -716,11 +716,27 @@ const getMetadataAggregations = () => {
     : {};
 };
 
+// Build display-only SubID text for table rows and status messages.
+const buildSubIdText = (subId) => {
+  const rawSubId = String(subId || '');
+  const subDisplay = getSubscriptionDisplay(rawSubId);
+
+  if (!rawSubId && !subDisplay) {
+    return 'Unknown SubID';
+  }
+
+  if (subDisplay && subDisplay !== rawSubId) {
+    return `SubID: ${subDisplay} (${rawSubId})`;
+  }
+
+  return `SubID: ${subDisplay || rawSubId}`;
+};
+
 // Build a metadata row string showing SubID, app details, and lookback values.
 const buildMetadataRowMarkup = (rowData) => {
   const { subId, appId, appName } = rowData || {};
   const valueLookup = rowData || {};
-  const subDisplay = getSubscriptionDisplay(subId);
+  const subIdText = buildSubIdText(subId);
 
   const lookbackCells = METADATA_TABLE_WINDOWS
     .map((key) => `<td>${formatMetadataWindowCell(valueLookup, key)}</td>`)
@@ -728,7 +744,7 @@ const buildMetadataRowMarkup = (rowData) => {
 
   return [
     '<tr>',
-    `<td>${subDisplay || 'Unknown SubID'}</td>`,
+    `<td>${subIdText}</td>`,
     `<td>${appName || appId || 'Unknown app'}</td>`,
     `<td>${appId || ''}</td>`,
     lookbackCells,
@@ -741,8 +757,8 @@ const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
   // eslint-disable-next-line no-console
   console.log('createMetadataStatusRow');
 
-  const subDisplay = getSubscriptionDisplay(subId);
-  const statusText = subId ? `${message} (${subDisplay})` : message;
+  const subIdText = buildSubIdText(subId);
+  const statusText = subId ? `${message} (${subIdText})` : message;
   return `<tr><td colspan="${columnCount}">${statusText}</td></tr>`;
 };
 
@@ -913,7 +929,7 @@ const renderMetadataTables = async (tableConfigs) => {
 
       if (result?.errorType || !Array.isArray(result?.results)) {
         const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
-        addStatusRowForAllTables(`Unable to load apps for ${getSubscriptionDisplay(subId) || 'unknown SubID'}${errorHint}`);
+        addStatusRowForAllTables(`Unable to load apps for ${buildSubIdText(subId)}${errorHint}`);
         return;
       }
 
