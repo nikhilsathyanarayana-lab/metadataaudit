@@ -33,18 +33,20 @@ const buildPageFooter = (doc, pageNumber) => {
   return footer;
 };
 
-// Attach or replace the footer on a given export page container.
+// Attach or replace the footer on the printable area for a page.
 const applyPageFooter = (pageElement, doc, pageNumber) => {
   if (!pageElement || !doc) {
     return;
   }
 
-  pageElement.querySelectorAll(`.${footerClassName}`).forEach((footer) => footer.remove());
+  const footerHost = pageElement.querySelector('main') || pageElement;
+
+  footerHost.querySelectorAll(`.${footerClassName}`).forEach((footer) => footer.remove());
 
   const footer = buildPageFooter(doc, pageNumber);
 
   if (footer) {
-    pageElement.appendChild(footer);
+    footerHost.appendChild(footer);
   }
 };
 
