@@ -145,6 +145,24 @@ const normalizeFields = (fields) => {
   return [...new Set(validFields)].sort((first, second) => first.localeCompare(second));
 };
 
+// Return true when a table row has at least one non-empty namespace field list.
+const rowHasNamespaceFieldData = (entry) => {
+  return ['window7', 'window30', 'window180'].some((windowKey) => {
+    const windowValue = entry?.[windowKey];
+    return Array.isArray(windowValue) && windowValue.some((field) => typeof field === 'string' && field.trim());
+  });
+};
+
+// Return true when at least one row in the namespace includes real field data.
+const namespaceHasFieldData = (namespace) => {
+  const normalizedNamespace = String(namespace || '').trim().toLowerCase();
+
+  return tableData.some((entry) => {
+    return String(entry?.namespace || '').trim().toLowerCase() === normalizedNamespace
+      && rowHasNamespaceFieldData(entry);
+  });
+};
+
 // Build alignment counts for one namespace from seven-day field snapshots.
 const calculateAlignmentStats = (rows = []) => {
   const signatures = new Map();
@@ -276,7 +294,10 @@ const buildAppWindowSummary = () => {
   const summary = new Map();
 
   tableData
-    .filter((entry) => ['visitor', 'account', 'custom', 'salesforce'].includes(entry?.namespace))
+    .filter((entry) => {
+      const namespace = String(entry?.namespace || '').toLowerCase();
+      return ['visitor', 'account', 'custom', 'salesforce'].includes(namespace) && rowHasNamespaceFieldData(entry);
+    })
     .forEach((entry) => {
       const key = `${entry?.subId || ''}::${entry?.appId || ''}`;
       const existing = summary.get(key) || {
@@ -520,6 +541,15 @@ export const buildSpaMetadataWorkbook = async ({ subIdLabels } = {}) => {
   appendOverviewSheet(workbook, sheetNames, subIdLabels);
   appendNamespaceSheet(workbook, 'Visitor', sheetNames, appNameLookup, subIdLabels);
   appendNamespaceSheet(workbook, 'Account', sheetNames, appNameLookup, subIdLabels);
+
+  if (namespaceHasFieldData('salesforce')) {
+    appendNamespaceSheet(workbook, 'Salesforce', sheetNames, appNameLookup, subIdLabels);
+  }
+
+  if (namespaceHasFieldData('custom')) {
+    appendNamespaceSheet(workbook, 'Custom', sheetNames, appNameLookup, subIdLabels);
+  }
+
   appendApplicationSheets(workbook, sheetNames, subIdLabels);
 
   return {
