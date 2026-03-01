@@ -4,6 +4,10 @@ import {
   openNamingModal,
   sanitizeFileName,
 } from '../../src/controllers/exports/excel_shared.js';
+import {
+  EXCEL_COLUMN_WIDTH_TO_PREVIEW_PX,
+  PREVIEW_THEME_TOKENS,
+} from './export/exportStyleTokens.js';
 
 let workbookCache = null;
 let defaultWorkbookName = '';
@@ -206,7 +210,7 @@ const getColumnStyleClasses = (worksheet, columnNumber, styleRegistry) => {
   const width = worksheet?.getColumn(columnNumber)?.width;
 
   if (width) {
-    classes.push(registerRuleClass(styleRegistry, `column-width:${width}`, 'width', `${Math.round(width * 7)}px`, 'preview-cw'));
+    classes.push(registerRuleClass(styleRegistry, `column-width:${width}`, 'width', `${Math.round(width * EXCEL_COLUMN_WIDTH_TO_PREVIEW_PX)}px`, 'preview-cw'));
   }
 
   return classes.filter(Boolean);
@@ -380,13 +384,13 @@ const buildWorksheetHtml = (worksheet) => {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <style>
-          body { font-family: Arial, sans-serif; padding: 12px; }
-          h1 { font-size: 18px; margin: 0 0 12px; }
+          body { font-family: ${PREVIEW_THEME_TOKENS.bodyFontFamily}; padding: ${PREVIEW_THEME_TOKENS.bodyPaddingPx}px; }
+          h1 { font-size: ${PREVIEW_THEME_TOKENS.titleFontSizePx}px; margin: ${PREVIEW_THEME_TOKENS.titleMargin}; }
           table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; text-align: left; vertical-align: middle; }
+          th, td { border: 1px solid ${PREVIEW_THEME_TOKENS.tableBorderColor}; padding: ${PREVIEW_THEME_TOKENS.tableCellPadding}; font-size: ${PREVIEW_THEME_TOKENS.tableFontSizePx}px; text-align: left; vertical-align: middle; }
           .preview-row { height: auto; }
-          .preview-cell { background: #fff; }
-          .preview-fill-default { background: #fff; }
+          .preview-cell { background: ${PREVIEW_THEME_TOKENS.previewCellDefaultBackground}; }
+          .preview-fill-default { background: ${PREVIEW_THEME_TOKENS.previewCellDefaultBackground}; }
           .preview-font-bold { font-weight: 700; }
           .preview-font-italic { font-style: italic; }
           .preview-font-underline { text-decoration: underline; }
@@ -401,7 +405,7 @@ const buildWorksheetHtml = (worksheet) => {
           .preview-valign-center { vertical-align: middle; }
           .preview-valign-bottom { vertical-align: bottom; }
           .preview-wrap-text { white-space: pre-wrap; }
-          .preview-row-title th { font-size: 14px; }
+          .preview-row-title th { font-size: ${PREVIEW_THEME_TOKENS.previewRowTitleFontSizePx}px; }
           ${styleRegistry.rules.join('\n          ')}
         </style>
       </head>
