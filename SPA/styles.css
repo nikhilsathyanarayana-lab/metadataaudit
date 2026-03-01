@@ -1032,6 +1032,24 @@ h1 {
   gap: 0.4rem;
 }
 
+.excel-exclude-search-container {
+  margin-bottom: 0.35rem;
+}
+
+.excel-exclude-search-input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid rgba(61, 61, 61, 0.2);
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.excel-exclude-search-input:focus {
+  outline: 2px solid rgba(224, 0, 108, 0.2);
+  outline-offset: 1px;
+  border-color: rgba(224, 0, 108, 0.45);
+}
+
 
 .nav-labels-content {
   width: min(620px, 92%);
