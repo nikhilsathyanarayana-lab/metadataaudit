@@ -18,6 +18,17 @@ export const setSubscriptionLabel = (subId, label) => {
   subscriptionLabelMap.set(key, nextLabel);
 };
 
+// Save a batch of SubID labels in memory.
+export const setSubscriptionLabels = (labels = {}) => {
+  if (!labels || typeof labels !== 'object') {
+    return;
+  }
+
+  Object.entries(labels).forEach(([subId, label]) => {
+    setSubscriptionLabel(subId, label);
+  });
+};
+
 // Return a saved label for a subscription identifier when one exists.
 export const getSubscriptionLabel = (subId) => {
   const key = String(subId || '');
@@ -26,6 +37,11 @@ export const getSubscriptionLabel = (subId) => {
 
 // Resolve the display value for a subscription identifier.
 export const getSubscriptionDisplay = (subId) => getSubscriptionLabel(subId);
+
+// Return an object snapshot of all current in-memory labels.
+export const getSubscriptionLabelSnapshot = () => {
+  return Object.fromEntries(subscriptionLabelMap);
+};
 
 // Clear all in-memory subscription labels.
 export const clearSubscriptionLabels = () => {

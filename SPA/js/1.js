@@ -1,6 +1,8 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
 import { setAppCredentials } from '../API/app_names.js';
 
+const CREDENTIAL_STATE_EVENT = 'spa-credentials-changed';
+
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
   const fieldsContainer = document.getElementById('subid-fields');
@@ -23,7 +25,39 @@ class SubIdFormController {
     this.addSubIdField = this.addSubIdField.bind(this);
     this.removeSubIdField = this.removeSubIdField.bind(this);
 
+    this.bindInputEvents();
     this.addSubIdField();
+  }
+
+  // Emit normalized credential state so other SPA modules can react.
+  emitCredentialState() {
+    const entries = this.getCredentialEntries();
+    setAppCredentials(entries);
+
+    document.dispatchEvent(new CustomEvent(CREDENTIAL_STATE_EVENT, { detail: { entries } }));
+  }
+
+  // Watch credential row inputs and emit updates as values change.
+  bindInputEvents() {
+    this.fieldsContainer.addEventListener('input', (event) => {
+      const target = event.target;
+
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      this.emitCredentialState();
+    });
+
+    this.fieldsContainer.addEventListener('change', (event) => {
+      const target = event.target;
+
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      this.emitCredentialState();
+    });
   }
 
   // Replace SubID rows with the supplied credential list.
@@ -42,6 +76,8 @@ class SubIdFormController {
         integrationKey: entry?.integrationKey || '',
       });
     });
+
+    this.emitCredentialState();
   }
 
   // Keep SubID labels/ids in sequence after add/remove actions.
@@ -94,6 +130,7 @@ class SubIdFormController {
 
     this.renumberRows();
     this.attachAddButton();
+    this.emitCredentialState();
   }
 
   // Create a SubID row with optional initial values and render it.
@@ -148,6 +185,7 @@ class SubIdFormController {
 
     this.renumberRows();
     this.attachAddButton();
+    this.emitCredentialState();
   }
 
   // Collect credential entries from the rendered SubID rows.
@@ -207,6 +245,8 @@ export const initSubIdForm = () => {
 
   if (Array.isArray(credentialEntries) && credentialEntries.length) {
     controller.hydrateFromCredentials(credentialEntries);
+  } else {
+    controller.emitCredentialState();
   }
 
   return controller;
