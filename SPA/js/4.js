@@ -153,11 +153,40 @@ const cloneFrameBody = async (frame) => {
   postMetadataToFrame(frame);
   await delay(renderDelayMs);
 
-  const body = frame?.contentDocument?.body?.cloneNode(true);
+  const sourceDocument = frame?.contentDocument;
+  const sourceCanvasNodes = Array.from(sourceDocument?.querySelectorAll('canvas') || []);
+
+  const body = sourceDocument?.body?.cloneNode(true);
 
   if (!body) {
     throw new Error('No body content was available to export.');
   }
+
+  const clonedCanvasNodes = Array.from(body.querySelectorAll('canvas'));
+
+  sourceCanvasNodes.forEach((sourceCanvas, index) => {
+    const clonedCanvas = clonedCanvasNodes[index];
+
+    if (!sourceCanvas || !clonedCanvas) {
+      return;
+    }
+
+    try {
+      const image = sourceDocument.createElement('img');
+
+      image.src = sourceCanvas.toDataURL('image/png');
+      image.className = sourceCanvas.className;
+      image.width = sourceCanvas.width;
+      image.height = sourceCanvas.height;
+      image.style.cssText = sourceCanvas.style.cssText;
+      image.alt = sourceCanvas.getAttribute('aria-label') || 'Chart snapshot';
+
+      clonedCanvas.replaceWith(image);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.warn('Canvas export fallback: failed to capture canvas as image.', error);
+    }
+  });
 
   body.querySelectorAll('script').forEach((script) => script.remove());
 
