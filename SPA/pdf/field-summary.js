@@ -466,6 +466,13 @@ const formatFieldList = (fields) => {
   return String(fields);
 };
 
+// Return true when a namespace row has at least one populated lookback window.
+const hasPopulatedNamespaceRow = (row = {}) => {
+  const windowValues = [row.window7, row.window30, row.window180];
+
+  return windowValues.some((windowValue) => Array.isArray(windowValue) && windowValue.length > 0);
+};
+
 // Render a namespace table body with the provided row data.
 const renderTableRows = (namespace, rows = []) => {
   const tableBody = document.getElementById(`${namespace}-metadata-body`);
@@ -535,7 +542,7 @@ const renderTableRows = (namespace, rows = []) => {
 // Hide optional namespace cards when there is no data to show.
 const toggleNamespaceCardVisibility = (namespace, rows = []) => {
   const namespaceCard = document.getElementById(`${namespace}-metadata-card`);
-  const hasRows = Array.isArray(rows) && rows.length > 0;
+  const hasRows = Array.isArray(rows) && rows.some((row) => hasPopulatedNamespaceRow(row));
 
   if (!namespaceCard) {
     return false;
