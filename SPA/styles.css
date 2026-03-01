@@ -1051,6 +1051,20 @@ h1 {
 }
 
 
+.excel-exclude-list-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.excel-exclude-list-action-button {
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  box-shadow: none;
+}
+
 .nav-labels-content {
   width: min(620px, 92%);
 }
