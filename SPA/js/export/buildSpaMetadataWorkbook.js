@@ -1,4 +1,5 @@
 import { tableData } from '../3.js';
+import { getSubscriptionDisplay } from '../subscriptionLabels.js';
 import { ensureWorkbookLibraries } from '../../../src/controllers/exports/excel_shared.js';
 
 const HEADER_STYLE = {
@@ -171,7 +172,7 @@ const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup) =>
     const appName = appNameLookup.get(appId) || entry?.appName || appId || 'Unknown app';
 
     worksheet.addRow([
-      entry?.subId || 'Unknown SubID',
+      getSubscriptionDisplay(entry?.subId) || 'Unknown SubID',
       appName,
       appId,
       formatWindowValue(entry?.window7),

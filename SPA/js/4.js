@@ -1,6 +1,8 @@
 /*jslint browser: true */
 /*jslint es6: true */
 
+import { exportSubscriptionLabels } from './subscriptionLabels.js';
+
 const exportSources = ['SPA/pdf/table-of-contents.html','SPA/pdf/overview-dashboard.html', 'SPA/pdf/field-analysis.html', 'SPA/pdf/field-summary.html', 'SPA/pdf/subscription-details.html', 'SPA/pdf/application-details.html'];
 let currentSourceIndex = 0;
 const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.meta.url);
@@ -92,6 +94,8 @@ const buildMetadataMessage = () => {
     }
   }
 
+  message.subscriptionLabels = exportSubscriptionLabels();
+
   return message;
 };
 
@@ -112,6 +116,8 @@ const postMetadataToFrame = (frame) => {
   if (message.appCountsBySubId) {
     frame.contentWindow.appCountsBySubId = message.appCountsBySubId;
   }
+
+  frame.contentWindow.subscriptionLabels = message.subscriptionLabels;
 
   frame.contentWindow.postMessage(message, '*');
 };
