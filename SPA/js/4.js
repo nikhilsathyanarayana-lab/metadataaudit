@@ -303,17 +303,23 @@ const loadHtml2Pdf = () => {
 };
 
 // Build a hidden document shell for rendering export pages to PDF.
-const createPdfRenderHost = () => {
+const createPdfRenderHost = (dimensions) => {
   const host = document.createElement('div');
   const stylesheet = document.createElement('link');
   const body = document.createElement('div');
+  const pageWidthMm = dimensions?.pageWidthMm || 210;
+  const pageHeightMm = dimensions?.pageHeightMm || 297;
+  const pageMarginMm = dimensions?.pageMarginMm || 16;
 
   host.id = 'pdf-export-render-host';
   host.style.position = 'fixed';
   host.style.left = '-9999px';
   host.style.top = '0';
-  host.style.width = '210mm';
+  host.style.width = `${pageWidthMm}mm`;
   host.style.background = '#ffffff';
+  host.style.setProperty('--page-width', `${pageWidthMm}mm`);
+  host.style.setProperty('--page-height', `${pageHeightMm}mm`);
+  host.style.setProperty('--page-margin', `${pageMarginMm}mm`);
 
   stylesheet.rel = 'stylesheet';
   stylesheet.href = pdfStylesheetUrl;
@@ -328,10 +334,19 @@ const createPdfRenderHost = () => {
 };
 
 // Render all assembled pages into a downloadable PDF blob.
+// NOTE: This export path is rasterized (html2canvas -> PDF image data), so minor anti-aliasing,
+// line-height, and browser-vs-PDF color differences are acceptable compared with the live iframe preview.
+// If exact parity is required for text-heavy pages, prefer a print-native/vector export path that reuses
+// the same DOM/CSS but avoids bitmap capture.
 const renderPdfBlob = async (pages) => {
   const html2pdf = await loadHtml2Pdf();
-  const { pageWidthIn, pageHeightIn } = readPdfDimensions();
-  const { host, stylesheet, body } = createPdfRenderHost();
+  const dimensions = readPdfDimensions();
+  const {
+    pageWidthIn,
+    pageHeightIn,
+    pageMarginIn,
+  } = dimensions;
+  const { host, stylesheet, body } = createPdfRenderHost(dimensions);
 
   try {
     await waitForStylesheet(stylesheet);
@@ -352,14 +367,16 @@ const renderPdfBlob = async (pages) => {
 
     await waitForLayout();
 
-    if (document.fonts?.ready) {
-      await document.fonts.ready;
+    const renderDocument = host.ownerDocument;
+
+    if (renderDocument?.fonts?.ready) {
+      await renderDocument.fonts.ready;
     }
 
     return html2pdf().set({
-      margin: 0,
+      margin: pageMarginIn,
       filename: exportedPdfFileName,
-      image: { type: 'jpeg', quality: 0.98 },
+      image: { type: 'png', quality: 1 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
       jsPDF: {
         unit: 'in',
