@@ -507,6 +507,28 @@ h1 {
   color: var(--pendo-pink);
 }
 
+.excel-app-selector-button {
+  min-width: 160px;
+  text-align: left;
+}
+
+.excel-app-option-list {
+  display: grid;
+  gap: 0.55rem;
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.excel-app-option-button {
+  text-align: left;
+}
+
+.excel-app-option-button.is-active {
+  border-color: rgba(224, 0, 108, 0.45);
+  background: #ffe7f4;
+  color: var(--pendo-pink);
+}
+
 #export-preview-frame,
 #excel-preview-frame {
   width: 100%;
