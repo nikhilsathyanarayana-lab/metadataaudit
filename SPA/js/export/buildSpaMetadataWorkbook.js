@@ -194,6 +194,49 @@ const buildAggregationAppNameLookup = () => {
   return lookup;
 };
 
+// Collect value occurrence counts for each namespace field across processed app windows.
+const buildAppNamespaceValueCounts = (subId, appId) => {
+  const aggregations = (typeof window !== 'undefined' && window.metadataAggregations)
+    ? window.metadataAggregations
+    : {};
+  const appBucket = aggregations?.[String(subId || '')]?.apps?.[String(appId || '')];
+  const countsByNamespace = {
+    visitor: {},
+    account: {},
+    custom: {},
+    salesforce: {},
+  };
+
+  Object.values(appBucket?.windows || {}).forEach((windowBucket) => {
+    if (!windowBucket?.isProcessed) {
+      return;
+    }
+
+    Object.keys(countsByNamespace).forEach((namespaceKey) => {
+      const namespaceBucket = windowBucket?.namespaces?.[namespaceKey];
+
+      if (!namespaceBucket || typeof namespaceBucket !== 'object') {
+        return;
+      }
+
+      Object.entries(namespaceBucket).forEach(([fieldName, fieldBucket]) => {
+        if (!countsByNamespace[namespaceKey][fieldName]) {
+          countsByNamespace[namespaceKey][fieldName] = new Map();
+        }
+
+        const fieldCounts = countsByNamespace[namespaceKey][fieldName];
+
+        Object.entries(fieldBucket?.values || {}).forEach(([value, count]) => {
+          const currentCount = fieldCounts.get(value) || 0;
+          fieldCounts.set(value, currentCount + (Number(count) || 0));
+        });
+      });
+    });
+  });
+
+  return countsByNamespace;
+};
+
 // Add one worksheet for a namespace table using SPA table cache rows.
 const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, subIdLabelLookup) => {
   const worksheet = workbook.addWorksheet(sanitizeSheetName(namespace, sheetNames));
@@ -280,19 +323,34 @@ const buildAppFieldRows = (summary) => {
   const orderedNamespaces = ['visitor', 'account', 'custom', 'salesforce'];
   const metadataTypeRow = [];
   const fieldNameRow = [];
+  const valueCountHeaderRow = [];
+  const fieldColumns = [];
+  const namespaceValueCounts = buildAppNamespaceValueCounts(summary?.subId, summary?.appId);
 
   orderedNamespaces.forEach((namespaceKey) => {
     const sortedFields = normalizeFields(Array.from(summary?.namespaceFields?.[namespaceKey] || []));
 
     sortedFields.forEach((fieldName) => {
+      const counts = namespaceValueCounts?.[namespaceKey]?.[fieldName] || new Map();
+      const valueRows = Array.from(counts.entries())
+        .map(([value, count]) => ({ value, count: Number(count) || 0 }))
+        .sort((first, second) => second.count - first.count || first.value.localeCompare(second.value));
+
+      metadataTypeRow.push(typeLabels[namespaceKey]);
       metadataTypeRow.push(typeLabels[namespaceKey]);
       fieldNameRow.push(fieldName);
+      fieldNameRow.push('');
+      valueCountHeaderRow.push('Value');
+      valueCountHeaderRow.push('Count');
+      fieldColumns.push(valueRows);
     });
   });
 
   return {
     metadataTypeRow,
     fieldNameRow,
+    valueCountHeaderRow,
+    fieldColumns,
   };
 };
 
@@ -305,7 +363,12 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
     const appName = summary?.appName || summary?.appId || 'Unknown app';
     const worksheetName = sanitizeSheetName(`${appName} (${subIdDisplay})`, sheetNames);
     const worksheet = workbook.addWorksheet(worksheetName);
-    const { metadataTypeRow, fieldNameRow } = buildAppFieldRows(summary);
+    const {
+      metadataTypeRow,
+      fieldNameRow,
+      valueCountHeaderRow,
+      fieldColumns,
+    } = buildAppFieldRows(summary);
 
     if (!metadataTypeRow.length) {
       worksheet.addRow(['No metadata fields available for this application.']);
@@ -315,11 +378,32 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
 
     worksheet.addRow(metadataTypeRow);
     worksheet.addRow(fieldNameRow);
+    worksheet.addRow(valueCountHeaderRow);
     mergeMatchingRowLabels(worksheet, 1, metadataTypeRow);
+    for (let column = 1; column <= fieldNameRow.length; column += 2) {
+      worksheet.mergeCells(2, column, 2, column + 1);
+    }
+
+    const longestValueList = Math.max(0, ...fieldColumns.map((rows) => rows.length));
+
+    for (let rowIndex = 0; rowIndex < longestValueList; rowIndex += 1) {
+      const valueRow = [];
+
+      fieldColumns.forEach((rows) => {
+        const entry = rows[rowIndex];
+        valueRow.push(entry?.value || '');
+        valueRow.push(entry ? entry.count : '');
+      });
+
+      worksheet.addRow(valueRow);
+    }
+
     markPreviewRowRole(worksheet, 1, 'title');
     markPreviewRowRole(worksheet, 2, 'header');
+    markPreviewRowRole(worksheet, 3, 'header');
     applyRowFormatting(worksheet, 1, EXPORT_TITLE_STYLE);
     applyRowFormatting(worksheet, 2, EXPORT_HEADER_STYLE);
+    applyRowFormatting(worksheet, 3, EXPORT_HEADER_STYLE);
     worksheet.metadataColumnCount = metadataTypeRow.length;
   });
 };
