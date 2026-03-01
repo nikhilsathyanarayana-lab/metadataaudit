@@ -222,8 +222,8 @@ a:hover {
 }
 
 .field-records-card {
-  flex-basis: 50%;
-  max-width: 50%;
+  flex-basis: calc(50% - 0.75rem);
+  max-width: calc(50% - 0.75rem);
 }
 
 .chart-half canvas {
