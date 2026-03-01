@@ -9,13 +9,29 @@ const resolveAppListingResults = async () => {
   return app_names();
 };
 
+// Build display-only SubID text without changing stored matching values.
+const buildSubIdText = (subId) => {
+  const rawSubId = String(subId || '');
+  const subDisplay = getSubscriptionDisplay(rawSubId);
+
+  if (!rawSubId && !subDisplay) {
+    return 'Unknown SubID';
+  }
+
+  if (subDisplay && subDisplay !== rawSubId) {
+    return `SubID: ${subDisplay} (${rawSubId})`;
+  }
+
+  return `SubID: ${subDisplay || rawSubId}`;
+};
+
 // Build a single row summarizing status or errors across columns.
 const createStatusRow = (message, columnCount = 4, subId = '') => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
   cell.colSpan = columnCount;
-  const subDisplay = getSubscriptionDisplay(subId);
-  cell.textContent = subId ? `${message} (${subDisplay})` : message;
+  const subIdText = buildSubIdText(subId);
+  cell.textContent = subId ? `${message} (${subIdText})` : message;
   row.appendChild(cell);
   return row;
 };
@@ -23,10 +39,10 @@ const createStatusRow = (message, columnCount = 4, subId = '') => {
 // Build a selectable app entry row for the preview table.
 const createAppRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
-  const subDisplay = getSubscriptionDisplay(subId);
+  const subIdText = buildSubIdText(subId);
 
   const subIdCell = document.createElement('td');
-  subIdCell.textContent = subDisplay || 'Unknown SubID';
+  subIdCell.textContent = subIdText;
 
   const nameCell = document.createElement('td');
   nameCell.textContent = appName || appId || 'Unknown app';
@@ -42,7 +58,7 @@ const createAppRow = ({ subId, appId, appName }) => {
   checkbox.dataset.subId = subId || '';
   checkbox.dataset.appId = appId || '';
   checkbox.dataset.appName = appName || appId || '';
-  checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subDisplay || 'unknown SubID'}`);
+  checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subIdText}`);
   checkboxCell.appendChild(checkbox);
 
   row.append(subIdCell, nameCell, appIdCell, checkboxCell);
