@@ -19,6 +19,18 @@ const resolveSubscriptionDisplay = (subId) => {
   return subscriptionLabels[key] || key || 'Unknown SubID';
 };
 
+// Format a visible SubID label while retaining the raw identifier for structure.
+const formatSubscriptionDisplay = (subId) => {
+  const rawSubId = String(subId || 'Unknown SubID');
+  const label = resolveSubscriptionDisplay(rawSubId);
+
+  if (label !== rawSubId) {
+    return `${label} (${rawSubId})`;
+  }
+
+  return label;
+};
+
 
 
 // Return the requested window bucket from an app aggregation bucket.
@@ -101,7 +113,7 @@ const buildSubscriptionSummaries = (aggregations = (hasMetadataAggregations() &&
     });
 
     const normalizedSubId = subId || 'Unknown SubID';
-    const subDisplay = resolveSubscriptionDisplay(normalizedSubId);
+    const subDisplay = formatSubscriptionDisplay(normalizedSubId);
     const namespaceTotals = METADATA_NAMESPACES.reduce((totals, namespace) => {
       const namespaceBuckets = namespaceCoverage[namespace];
       const windowFields = new Set([
@@ -134,7 +146,8 @@ const buildSubscriptionSummaries = (aggregations = (hasMetadataAggregations() &&
     });
   });
 
-  summaries.sort((first, second) => first.subId.localeCompare(second.subId));
+  summaries.sort((first, second) => first.subDisplay.localeCompare(second.subDisplay)
+    || first.subId.localeCompare(second.subId));
   return summaries;
 };
 
@@ -149,7 +162,8 @@ const formatFieldList = (fields) => {
 
 // Ensure cloned template elements have unique IDs for accessibility.
 const applyTemplateIds = (cardElement, subId) => {
-  const suffix = subId ? subId.replace(/\s+/g, '-').toLowerCase() : 'unknown';
+  const rawSubId = String(subId || 'Unknown SubID');
+  const suffix = encodeURIComponent(rawSubId);
   const assignId = (selector, baseId) => {
     const element = cardElement.querySelector(selector);
 
@@ -226,7 +240,7 @@ const buildSubscriptionCard = (template, summary) => {
 
   applyTemplateIds(clone, summary.subId);
 
-  const subDisplay = summary.subDisplay || resolveSubscriptionDisplay(summary.subId);
+  const subDisplay = summary.subDisplay || formatSubscriptionDisplay(summary.subId);
   const title = clone.querySelector('[data-slot="title"]');
   const summaryText = clone.querySelector('[data-slot="summary"]');
   const appCount = clone.querySelector('[data-slot="app-count"]');
@@ -298,6 +312,7 @@ const renderSubscriptionPages = (aggregations = (hasMetadataAggregations() && wi
 
     if (card) {
       card.setAttribute('data-subscription-index', String(index));
+      card.setAttribute('data-subscription-id', summary.subId);
       container.appendChild(card);
     }
   });
