@@ -2,6 +2,7 @@
   --pendo-pink: #e0006c;
   --pendo-charcoal: #3d3d3d;
   --pendo-light: #f9f6f8;
+  --print-page-aspect-ratio: 210 / 297;
 }
 
 * {
@@ -432,6 +433,20 @@ h1 {
   overflow: auto;
   background: #fff;
   position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 3.25rem 1rem 1rem;
+}
+
+.export-preview-page-shell {
+  width: min(100%, 980px);
+  aspect-ratio: var(--print-page-aspect-ratio);
+  margin: 0 auto;
+  border: 1px solid rgba(61, 61, 61, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  background: #fff;
 }
 
 .export-preview-controls {
@@ -529,11 +544,17 @@ h1 {
   color: var(--pendo-pink);
 }
 
-#export-preview-frame,
+#export-preview-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+  display: block;
+}
+
 #excel-preview-frame {
   width: 100%;
   aspect-ratio: 8.5 / 11;
-  max-height: calc(100vh - 8rem);
   border: none;
   background: #fff;
 }

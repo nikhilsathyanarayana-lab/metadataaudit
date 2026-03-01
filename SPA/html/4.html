@@ -15,14 +15,16 @@
         <button class="export-preview-button" type="button" id="export-nav-prev" aria-label="Previous export">&#8592;</button>
         <button class="export-preview-button" type="button" id="export-nav-next" aria-label="Next export">&#8594;</button>
       </div>
-      <iframe
-        id="export-preview-frame"
-        title="Export PDF preview"
-        src="SPA/pdf/table-of-contents.html"
-        width="100%"
-        loading="lazy"
-        allowfullscreen
-      ></iframe>
+      <div class="export-preview-page-shell" id="export-preview-page-shell">
+        <iframe
+          id="export-preview-frame"
+          title="Export PDF preview"
+          src="SPA/pdf/table-of-contents.html"
+          width="100%"
+          loading="lazy"
+          allowfullscreen
+        ></iframe>
+      </div>
     </div>
   </section>
 </div>
