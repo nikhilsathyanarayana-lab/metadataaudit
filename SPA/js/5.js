@@ -13,7 +13,7 @@ let workbookCache = null;
 let defaultWorkbookName = '';
 let excludedSheetNames = new Set();
 let activeSheetName = '';
-const coreSheetNames = new Set(['Overview', 'Visitor', 'Account']);
+const fixedSheetNames = new Set(['overview', 'visitor', 'account', 'salesforce', 'custom']);
 
 // Escapes HTML characters for safe preview rendering.
 const escapeHtml = (value) => {
@@ -300,8 +300,8 @@ const resolveActiveSheetName = (sheets, desiredName) => {
   return hasDesiredSheet ? desiredName : sheets[0]?.name || '';
 };
 
-// Returns true when the worksheet belongs to the fixed overview/visitor/account set.
-const isCoreSheet = (sheetName) => coreSheetNames.has(String(sheetName || '').trim());
+// Returns true when the worksheet belongs to the fixed non-application sheet set.
+const isFixedSheet = (sheetName) => fixedSheetNames.has(String(sheetName || '').trim().toLowerCase());
 
 // Creates HTML markup representing a worksheet for iframe preview.
 const buildWorksheetHtml = (worksheet) => {
@@ -645,13 +645,16 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
         </div>
         <div class="modal-body" id="excel-exclude-modal-body">
           <div class="excel-exclude-search-container" id="excel-exclude-search-container">
-            <input type="text" id="excel-exclude-search-input" class="excel-exclude-search-input" placeholder="Filter sheets" aria-label="Filter sheets">
+            <input type="text" id="excel-exclude-search-input" class="excel-exclude-search-input" placeholder="Filter apps" aria-label="Filter apps">
           </div>
           <div class="excel-exclude-list-actions" id="excel-exclude-list-actions">
             <button type="button" class="secondary-btn excel-exclude-list-action-button" id="excel-exclude-all-button">Exclude all</button>
             <button type="button" class="secondary-btn excel-exclude-list-action-button" id="excel-include-all-button">Include all</button>
           </div>
-          <div class="checkbox-list" id="excel-exclude-checkbox-list"></div>
+          <div class="checkbox-list excel-exclude-checkbox-list" id="excel-exclude-checkbox-list">
+            <div id="excel-exclude-fixed-sheet-list" class="excel-exclude-fixed-sheet-list"></div>
+            <div id="excel-exclude-app-sheet-list" class="excel-exclude-app-sheet-list"></div>
+          </div>
         </div>
         <div class="modal-actions" id="excel-exclude-modal-actions">
           <button type="button" class="secondary-btn" id="excel-exclude-cancel-button" data-dismiss-exclude-modal>Cancel</button>
@@ -673,7 +676,15 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
   }
 
   checkboxList.innerHTML = '';
-  const sheetRows = [];
+  const fixedSheetList = document.createElement('div');
+  fixedSheetList.id = 'excel-exclude-fixed-sheet-list';
+  fixedSheetList.className = 'excel-exclude-fixed-sheet-list';
+  const appSheetList = document.createElement('div');
+  appSheetList.id = 'excel-exclude-app-sheet-list';
+  appSheetList.className = 'excel-exclude-app-sheet-list';
+  checkboxList.append(fixedSheetList, appSheetList);
+
+  const appSheetRows = [];
 
   sheetNames.forEach((sheetName, index) => {
     const wrapper = document.createElement('label');
@@ -689,22 +700,30 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
     label.textContent = sheetName;
 
     wrapper.append(checkbox, label);
-    checkboxList.append(wrapper);
-    sheetRows.push({
+    const sheetRecord = {
       name: sheetName,
       normalizedName: sheetName.toLowerCase(),
       element: wrapper,
-    });
+      input: checkbox,
+    };
+
+    if (isFixedSheet(sheetName)) {
+      fixedSheetList.append(wrapper);
+      return;
+    }
+
+    appSheetList.append(wrapper);
+    appSheetRows.push(sheetRecord);
   });
 
   return new Promise((resolve) => {
     const cleanup = [];
 
-    // Toggle sheet rows based on the current filter input value.
-    const applySheetFilter = () => {
+    // Toggle app sheet rows based on the current filter input value.
+    const applyAppFilter = () => {
       const query = searchInput.value.trim().toLowerCase();
 
-      sheetRows.forEach((row) => {
+      appSheetRows.forEach((row) => {
         const matches = !query || row.normalizedName.includes(query);
         row.element.hidden = !matches;
       });
@@ -730,22 +749,22 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
     };
 
     const handleCancel = () => closeModal(excluded);
-    const handleSearchInput = () => applySheetFilter();
-    // Checks every sheet checkbox in the exclude list.
+    const handleSearchInput = () => applyAppFilter();
+    // Checks every app checkbox in the exclude list.
     const handleExcludeAll = () => {
-      checkboxList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-        input.checked = true;
+      appSheetRows.forEach((row) => {
+        row.input.checked = true;
       });
     };
-    // Clears every sheet checkbox in the exclude list.
+    // Clears every app checkbox in the exclude list.
     const handleIncludeAll = () => {
-      checkboxList.querySelectorAll('input[type="checkbox"]').forEach((input) => {
-        input.checked = false;
+      appSheetRows.forEach((row) => {
+        row.input.checked = false;
       });
     };
 
     searchInput.value = '';
-    applySheetFilter();
+    applyAppFilter();
     modal.hidden = false;
     backdrop.hidden = false;
     requestAnimationFrame(() => {

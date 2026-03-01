@@ -1065,6 +1065,27 @@ h1 {
   box-shadow: none;
 }
 
+.excel-exclude-checkbox-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.excel-exclude-fixed-sheet-list,
+.excel-exclude-app-sheet-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.excel-exclude-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.excel-exclude-checkbox-row input {
+  margin-top: 0.1rem;
+}
+
 .nav-labels-content {
   width: min(620px, 92%);
 }
