@@ -644,6 +644,9 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
           <button type="button" class="close-btn" id="excel-exclude-close-button" aria-label="Close exclude modal" data-dismiss-exclude-modal>&times;</button>
         </div>
         <div class="modal-body" id="excel-exclude-modal-body">
+          <div class="excel-exclude-search-container" id="excel-exclude-search-container">
+            <input type="text" id="excel-exclude-search-input" class="excel-exclude-search-input" placeholder="Filter sheets" aria-label="Filter sheets">
+          </div>
           <div class="checkbox-list" id="excel-exclude-checkbox-list"></div>
         </div>
         <div class="modal-actions" id="excel-exclude-modal-actions">
@@ -655,17 +658,20 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
   }
 
   const checkboxList = modal.querySelector('#excel-exclude-checkbox-list');
+  const searchInput = modal.querySelector('#excel-exclude-search-input');
   const applyButton = modal.querySelector('#excel-exclude-apply-button');
   const dismissButtons = modal.querySelectorAll('[data-dismiss-exclude-modal]');
 
-  if (!checkboxList || !applyButton) {
+  if (!checkboxList || !searchInput || !applyButton) {
     return excluded;
   }
 
   checkboxList.innerHTML = '';
+  const sheetRows = [];
+
   sheetNames.forEach((sheetName, index) => {
     const wrapper = document.createElement('label');
-    wrapper.className = 'checkbox';
+    wrapper.className = 'checkbox excel-exclude-checkbox-row';
     wrapper.id = `excel-exclude-option-${index}`;
 
     const checkbox = document.createElement('input');
@@ -678,10 +684,25 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
 
     wrapper.append(checkbox, label);
     checkboxList.append(wrapper);
+    sheetRows.push({
+      name: sheetName,
+      normalizedName: sheetName.toLowerCase(),
+      element: wrapper,
+    });
   });
 
   return new Promise((resolve) => {
     const cleanup = [];
+
+    // Toggle sheet rows based on the current filter input value.
+    const applySheetFilter = () => {
+      const query = searchInput.value.trim().toLowerCase();
+
+      sheetRows.forEach((row) => {
+        const matches = !query || row.normalizedName.includes(query);
+        row.element.hidden = !matches;
+      });
+    };
 
     const closeModal = (nextValue = excluded) => {
       modal.classList.remove('is-visible');
@@ -703,14 +724,20 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
     };
 
     const handleCancel = () => closeModal(excluded);
+    const handleSearchInput = () => applySheetFilter();
 
+    searchInput.value = '';
+    applySheetFilter();
     modal.hidden = false;
     backdrop.hidden = false;
     requestAnimationFrame(() => {
       modal.classList.add('is-visible');
       backdrop.classList.add('is-visible');
-      applyButton.focus();
+      searchInput.focus();
     });
+
+    searchInput.addEventListener('input', handleSearchInput);
+    cleanup.push(() => searchInput.removeEventListener('input', handleSearchInput));
 
     applyButton.addEventListener('click', handleApply);
     cleanup.push(() => applyButton.removeEventListener('click', handleApply));
