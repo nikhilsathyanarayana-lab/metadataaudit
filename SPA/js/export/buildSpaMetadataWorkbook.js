@@ -382,8 +382,6 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
   appSummary.forEach((summary) => {
     const subIdDisplay = getSubIdDisplay(summary?.subId, subIdLabelLookup) || 'Unknown SubID';
     const appName = summary?.appName || summary?.appId || 'Unknown app';
-    const worksheetName = sanitizeSheetName(`${appName} (${subIdDisplay})`, sheetNames);
-    const worksheet = workbook.addWorksheet(worksheetName);
     const {
       metadataTypeRow,
       fieldNameRow,
@@ -392,10 +390,11 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
     } = buildAppFieldRows(summary);
 
     if (!metadataTypeRow.length) {
-      worksheet.addRow(['No metadata fields available for this application.']);
-      worksheet.metadataColumnCount = 1;
       return;
     }
+
+    const worksheetName = sanitizeSheetName(`${appName} (${subIdDisplay})`, sheetNames);
+    const worksheet = workbook.addWorksheet(worksheetName);
 
     worksheet.addRow(metadataTypeRow);
     worksheet.addRow(fieldNameRow);
