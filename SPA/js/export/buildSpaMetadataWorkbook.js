@@ -29,6 +29,8 @@ const TITLE_STYLE = {
   alignment: { horizontal: 'center', vertical: 'middle' },
 };
 
+const OVERVIEW_TITLE_COLUMN_SPAN = 8;
+
 
 const METADATA_STATUS_PENDING = 'Pending...';
 
@@ -297,7 +299,7 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
   const timeframeChanges = buildTimeframeChanges(buildAppWindowSummary(), subIdLabelLookup);
 
   const alignmentTitle = worksheet.addRow(['Apps with aligned metadata (7 days)']);
-  formatMergedTitleRow(worksheet, alignmentTitle, 5);
+  formatMergedTitleRow(worksheet, alignmentTitle, OVERVIEW_TITLE_COLUMN_SPAN);
 
   const header = worksheet.addRow(['Category', 'Aligned', 'Misaligned', 'Total Apps', 'Aligned %']);
   header.font = { bold: true };
@@ -318,11 +320,11 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
 
   worksheet.addRow([]);
   const changesTitle = worksheet.addRow(['Metadata changes by timeframe']);
-  formatMergedTitleRow(worksheet, changesTitle, 5);
+  formatMergedTitleRow(worksheet, changesTitle, OVERVIEW_TITLE_COLUMN_SPAN);
 
   if (!timeframeChanges.length) {
     worksheet.addRow(['No field differences detected across available timeframes.']);
-    worksheet.metadataColumnCount = 5;
+    worksheet.metadataColumnCount = OVERVIEW_TITLE_COLUMN_SPAN;
     return;
   }
 
@@ -338,7 +340,7 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
     ]);
   });
 
-  worksheet.metadataColumnCount = 5;
+  worksheet.metadataColumnCount = OVERVIEW_TITLE_COLUMN_SPAN;
 };
 
 // Build the SPA workbook using in-memory table data and metadata aggregation caches.
