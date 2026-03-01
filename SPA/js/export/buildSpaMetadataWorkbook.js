@@ -203,10 +203,8 @@ const namespaceHasData = (namespace) => {
       return false;
     }
 
-    const hasFields = [entry?.window7, entry?.window30, entry?.window180]
+    return [entry?.window7, entry?.window30, entry?.window180]
       .some((fields) => normalizeFields(fields).length > 0);
-
-    return hasFields || Boolean(entry?.appId) || Boolean(entry?.appName) || Boolean(entry?.subId);
   });
 };
 
