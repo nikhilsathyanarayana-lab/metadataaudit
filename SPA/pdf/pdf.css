@@ -597,6 +597,15 @@ a:hover {
   text-align: left;
 }
 
+.subscription-namespace__header-cell--label {
+  width: 8rem;
+}
+
+.subscription-namespace__header-cell--type {
+  min-width: 8rem;
+  white-space: nowrap;
+}
+
 .subscription-namespace__body .subscription-namespace__row:nth-child(even) {
   background: #fffafc;
 }
@@ -615,4 +624,8 @@ a:hover {
 .subscription-namespace__cell--window {
   word-break: break-word;
   white-space: normal;
+}
+
+.application-fields-cell {
+  min-width: 10rem;
 }
