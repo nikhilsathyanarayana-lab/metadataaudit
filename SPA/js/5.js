@@ -456,10 +456,10 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
 
   tabList.innerHTML = '';
 
-  const coreSheets = sheets.filter((sheet) => isCoreSheet(sheet?.name));
-  const appSheets = sheets.filter((sheet) => !isCoreSheet(sheet?.name));
+  const fixedSheets = sheets.filter((sheet) => isFixedSheet(sheet?.name));
+  const appSheets = sheets.filter((sheet) => !isFixedSheet(sheet?.name));
 
-  coreSheets.forEach((sheet, index) => {
+  fixedSheets.forEach((sheet, index) => {
     const tabButton = document.createElement('button');
     tabButton.type = 'button';
     tabButton.className = 'export-tab-button';
