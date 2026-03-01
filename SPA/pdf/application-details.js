@@ -159,13 +159,39 @@ const buildApplicationGroups = (aggregations = (hasMetadataAggregations() && win
   return groups;
 };
 
-// Format a list of fields into a printable string.
-const formatFieldList = (fields) => {
-  if (!fields || !fields.length) {
-    return '—';
+// Format a namespace key for readable display text.
+const formatNamespaceLabel = (namespaceKey = '') => {
+  const normalized = String(namespaceKey || '').trim();
+
+  if (!normalized) {
+    return 'Unknown';
   }
 
-  return fields.join(', ');
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
+// Flatten namespace field arrays into one ordered list for horizontal display.
+const buildHorizontalFieldEntries = (namespaceTotals = {}) => {
+  const entries = [];
+
+  METADATA_NAMESPACES.forEach((namespaceKey) => {
+    const namespaceBucket = namespaceTotals?.[namespaceKey] || {};
+    const uniqueFields = [...new Set([
+      ...(namespaceBucket.window7 || []),
+      ...(namespaceBucket.window30 || []),
+      ...(namespaceBucket.window180 || []),
+    ])].sort((first, second) => first.localeCompare(second));
+
+    uniqueFields.forEach((fieldName) => {
+      entries.push({
+        fieldName,
+        namespaceLabel: formatNamespaceLabel(namespaceKey),
+        namespaceKey,
+      });
+    });
+  });
+
+  return entries;
 };
 
 // Ensure cloned template elements have unique IDs for accessibility.
@@ -210,45 +236,38 @@ const applyTemplateIds = (cardElement, subId, appId) => {
   assignId('#application-template-namespace-table', 'application-card-namespace-table');
   assignId('#application-template-namespace-head', 'application-card-namespace-head');
   assignId('#application-template-namespace-row', 'application-card-namespace-row');
-  assignId('#application-template-namespace-header-namespace', 'application-card-namespace-header-namespace');
-  assignId('#application-template-namespace-header-window7', 'application-card-namespace-header-window7');
-  assignId('#application-template-namespace-header-window30', 'application-card-namespace-header-window30');
-  assignId('#application-template-namespace-header-window180', 'application-card-namespace-header-window180');
+  assignId('#application-template-namespace-header-row-label', 'application-card-namespace-header-row-label');
+  assignId('[data-slot="metadata-type-header"]', 'application-card-namespace-header-type');
   assignId('[data-slot="namespace-body"]', 'application-namespace-body');
+  assignId('#application-template-field-row', 'application-card-field-row');
+  assignId('#application-template-field-row-label', 'application-card-field-row-label');
+  assignId('[data-slot="field-name-cell"]', 'application-card-field-name-cell');
 };
 
-// Build a namespace table row for the application card.
-const buildNamespaceRow = (namespaceKey, namespaceBucket, rowIndex, subId, appId) => {
-  const rowNumber = String(rowIndex + 1).padStart(2, '0');
-  const safeNamespace = namespaceKey.replace(/\s+/g, '-').toLowerCase();
+// Build one metadata type header cell for the application field matrix.
+const buildMetadataTypeHeaderCell = (entry, fieldIndex, subId, appId) => {
+  const columnNumber = String(fieldIndex + 1).padStart(2, '0');
   const safeSubId = encodeURIComponent(String(subId || 'Unknown SubID'));
   const safeAppId = appId ? appId.replace(/\s+/g, '-').toLowerCase() : 'unknown-app';
-  const tableRow = document.createElement('tr');
-  tableRow.id = `application-namespace-row-${safeNamespace}-${safeSubId}-${safeAppId}-${rowNumber}`;
-  tableRow.className = 'subscription-namespace__row application-namespace-row';
+  const cell = document.createElement('th');
+  cell.id = `application-metadata-type-${safeSubId}-${safeAppId}-${columnNumber}`;
+  cell.className = 'subscription-namespace__header-cell subscription-namespace__header-cell--type application-metadata-type-cell';
+  cell.scope = 'col';
+  cell.textContent = entry.namespaceLabel;
+  return cell;
+};
 
-  const namespaceCell = document.createElement('td');
-  namespaceCell.id = `application-namespace-${safeNamespace}-label-${safeSubId}-${safeAppId}-${rowNumber}`;
-  namespaceCell.className = 'subscription-namespace__cell subscription-namespace__cell--label application-namespace-label';
-  namespaceCell.textContent = namespaceKey;
-
-  const window7Cell = document.createElement('td');
-  window7Cell.id = `application-namespace-${safeNamespace}-window7-${safeSubId}-${safeAppId}-${rowNumber}`;
-  window7Cell.className = 'subscription-namespace__cell subscription-namespace__cell--window application-namespace-window';
-  window7Cell.textContent = formatFieldList(namespaceBucket?.window7 || []);
-
-  const window30Cell = document.createElement('td');
-  window30Cell.id = `application-namespace-${safeNamespace}-window30-${safeSubId}-${safeAppId}-${rowNumber}`;
-  window30Cell.className = 'subscription-namespace__cell subscription-namespace__cell--window application-namespace-window';
-  window30Cell.textContent = formatFieldList(namespaceBucket?.window30 || []);
-
-  const window180Cell = document.createElement('td');
-  window180Cell.id = `application-namespace-${safeNamespace}-window180-${safeSubId}-${safeAppId}-${rowNumber}`;
-  window180Cell.className = 'subscription-namespace__cell subscription-namespace__cell--window application-namespace-window';
-  window180Cell.textContent = formatFieldList(namespaceBucket?.window180 || []);
-
-  tableRow.append(namespaceCell, window7Cell, window30Cell, window180Cell);
-  return tableRow;
+// Build one field row cell for the application field matrix.
+const buildFieldNameCell = (entry, fieldIndex, subId, appId) => {
+  const columnNumber = String(fieldIndex + 1).padStart(2, '0');
+  const safeSubId = encodeURIComponent(String(subId || 'Unknown SubID'));
+  const safeAppId = appId ? appId.replace(/\s+/g, '-').toLowerCase() : 'unknown-app';
+  const safeNamespace = entry.namespaceKey.replace(/\s+/g, '-').toLowerCase();
+  const cell = document.createElement('td');
+  cell.id = `application-field-${safeNamespace}-${safeSubId}-${safeAppId}-${columnNumber}`;
+  cell.className = 'subscription-namespace__cell subscription-namespace__cell--window application-fields-cell';
+  cell.textContent = entry.fieldName || '—';
+  return cell;
 };
 
 // Build an application page from the template and provided summary data.
@@ -270,6 +289,7 @@ const buildApplicationCard = (template, summary) => {
   const fieldCount180 = clone.querySelector('[data-slot="field-count-180"]');
   const uniqueCount = clone.querySelector('[data-slot="field-count-unique"]');
   const namespaceBody = clone.querySelector('[data-slot="namespace-body"]');
+  const namespaceHeaderRow = clone.querySelector('#application-card-namespace-row');
 
   if (title) {
     title.textContent = summary.appName || summary.appId || 'Unknown app';
@@ -303,12 +323,41 @@ const buildApplicationCard = (template, summary) => {
     uniqueCount.textContent = summary.uniqueFieldCount.toString();
   }
 
-  if (namespaceBody) {
-    const namespaceEntries = Object.entries(summary.namespaceTotals || {});
-    namespaceEntries.forEach(([namespaceKey, namespaceBucket], index) => {
-      const tableRow = buildNamespaceRow(namespaceKey, namespaceBucket, index, summary.subId, summary.appId);
-      namespaceBody.appendChild(tableRow);
-    });
+  if (namespaceBody && namespaceHeaderRow) {
+    const horizontalEntries = buildHorizontalFieldEntries(summary.namespaceTotals || {});
+    const typePlaceholder = namespaceHeaderRow.querySelector('#application-card-namespace-header-type');
+    const templateFieldRow = namespaceBody.querySelector('#application-card-field-row');
+    const fieldPlaceholder = namespaceBody.querySelector('#application-card-field-name-cell');
+
+    if (!horizontalEntries.length) {
+      if (typePlaceholder) {
+        typePlaceholder.textContent = '—';
+      }
+
+      if (fieldPlaceholder) {
+        fieldPlaceholder.textContent = '—';
+      }
+    } else {
+      horizontalEntries.forEach((entry, index) => {
+        if (index === 0) {
+          if (typePlaceholder) {
+            typePlaceholder.textContent = entry.namespaceLabel;
+          }
+
+          if (fieldPlaceholder) {
+            fieldPlaceholder.textContent = entry.fieldName;
+          }
+
+          return;
+        }
+
+        namespaceHeaderRow.appendChild(buildMetadataTypeHeaderCell(entry, index, summary.subId, summary.appId));
+
+        if (templateFieldRow) {
+          templateFieldRow.appendChild(buildFieldNameCell(entry, index, summary.subId, summary.appId));
+        }
+      });
+    }
   }
 
   return clone;
