@@ -330,7 +330,7 @@ const createPdfRenderHost = () => {
 // Render all assembled pages into a downloadable PDF blob.
 const renderPdfBlob = async (pages) => {
   const html2pdf = await loadHtml2Pdf();
-  const { pageWidthIn, pageHeightIn, pageMarginIn } = readPdfDimensions();
+  const { pageWidthIn, pageHeightIn } = readPdfDimensions();
   const { host, stylesheet, body } = createPdfRenderHost();
 
   try {
@@ -357,7 +357,7 @@ const renderPdfBlob = async (pages) => {
     }
 
     return html2pdf().set({
-      margin: pageMarginIn,
+      margin: 0,
       filename: exportedPdfFileName,
       image: { type: 'jpeg', quality: 0.98 },
       html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
