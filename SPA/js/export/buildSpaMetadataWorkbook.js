@@ -58,17 +58,53 @@ const sanitizeSheetName = (name, existingNames = new Set()) => {
   return candidate;
 };
 
-// Apply the shared pink header style to the first row of a worksheet.
-const applyHeaderFormatting = (worksheet) => {
-  const headerRow = worksheet?.getRow(1);
+// Apply a shared export style to a worksheet row.
+const applyRowFormatting = (worksheet, rowNumber, styleToken) => {
+  const targetRow = worksheet?.getRow(rowNumber);
 
-  if (!headerRow || headerRow.cellCount === 0) {
+  if (!targetRow || targetRow.cellCount === 0 || !styleToken) {
     return;
   }
 
-  headerRow.eachCell((cell) => {
-    cell.font = { ...(cell.font || {}), ...EXPORT_HEADER_STYLE.font };
-    cell.fill = EXPORT_HEADER_STYLE.fill;
+  targetRow.eachCell((cell) => {
+    if (styleToken.font) {
+      cell.font = { ...(cell.font || {}), ...styleToken.font };
+    }
+
+    if (styleToken.fill) {
+      cell.fill = styleToken.fill;
+    }
+
+    if (styleToken.alignment) {
+      cell.alignment = { ...(cell.alignment || {}), ...styleToken.alignment };
+    }
+  });
+};
+
+// Merge contiguous row cells that share the same text value.
+const mergeMatchingRowLabels = (worksheet, rowNumber, values = []) => {
+  if (!worksheet || !rowNumber || !values.length) {
+    return;
+  }
+
+  let mergeStart = 1;
+
+  values.forEach((value, index) => {
+    const isLastCell = index === values.length - 1;
+    const nextValue = values[index + 1];
+    const shouldCloseMerge = isLastCell || value !== nextValue;
+
+    if (!shouldCloseMerge) {
+      return;
+    }
+
+    const mergeEnd = index + 1;
+
+    if (mergeEnd > mergeStart) {
+      worksheet.mergeCells(rowNumber, mergeStart, rowNumber, mergeEnd);
+    }
+
+    mergeStart = mergeEnd + 1;
   });
 };
 
@@ -169,7 +205,7 @@ const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, su
 
   if (!rows.length) {
     worksheet.addRow(['No metadata rows available for this namespace.']);
-    applyHeaderFormatting(worksheet);
+    applyRowFormatting(worksheet, 1, EXPORT_HEADER_STYLE);
     worksheet.metadataColumnCount = header.length;
     return;
   }
@@ -188,7 +224,7 @@ const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, su
     ]);
   });
 
-  applyHeaderFormatting(worksheet);
+  applyRowFormatting(worksheet, 1, EXPORT_HEADER_STYLE);
   worksheet.metadataColumnCount = header.length;
 };
 
@@ -279,8 +315,11 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
 
     worksheet.addRow(metadataTypeRow);
     worksheet.addRow(fieldNameRow);
-    markPreviewRowRole(worksheet, 1, 'header');
-    applyHeaderFormatting(worksheet);
+    mergeMatchingRowLabels(worksheet, 1, metadataTypeRow);
+    markPreviewRowRole(worksheet, 1, 'title');
+    markPreviewRowRole(worksheet, 2, 'header');
+    applyRowFormatting(worksheet, 1, EXPORT_TITLE_STYLE);
+    applyRowFormatting(worksheet, 2, EXPORT_HEADER_STYLE);
     worksheet.metadataColumnCount = metadataTypeRow.length;
   });
 };
