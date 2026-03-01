@@ -55,20 +55,17 @@
         </div>
 
         <section id="application-template-namespace" class="subscription-namespace">
-          <h3 id="application-template-namespace-title" class="subscription-namespace__title">Metadata fields</h3>
+          <h3 id="application-template-namespace-title" class="subscription-namespace__title">Metadata</h3>
           <table id="application-template-namespace-table" class="subscription-namespace__table">
             <thead id="application-template-namespace-head" class="subscription-namespace__head">
               <tr id="application-template-namespace-row" class="subscription-namespace__header-row">
-                <th id="application-template-namespace-header-row-label" class="subscription-namespace__header-cell subscription-namespace__header-cell--label" scope="col">Row</th>
-                <th id="application-template-namespace-header-type-1" class="subscription-namespace__header-cell subscription-namespace__header-cell--type" scope="col" data-slot="metadata-type-header"></th>
+                <th id="application-template-namespace-header-namespace" class="subscription-namespace__header-cell" scope="col">Type</th>
+                <th id="application-template-namespace-header-window7" class="subscription-namespace__header-cell" scope="col">7 days</th>
+                <th id="application-template-namespace-header-window30" class="subscription-namespace__header-cell" scope="col">30 days</th>
+                <th id="application-template-namespace-header-window180" class="subscription-namespace__header-cell" scope="col">180 days</th>
               </tr>
             </thead>
-            <tbody id="application-template-namespace-body" class="subscription-namespace__body" data-slot="namespace-body">
-              <tr id="application-template-field-row" class="subscription-namespace__row application-fields-row">
-                <th id="application-template-field-row-label" class="subscription-namespace__cell subscription-namespace__cell--label" scope="row">Field</th>
-                <td id="application-template-field-cell-1" class="subscription-namespace__cell subscription-namespace__cell--window application-fields-cell" data-slot="field-name-cell"></td>
-              </tr>
-            </tbody>
+            <tbody id="application-template-namespace-body" class="subscription-namespace__body" data-slot="namespace-body"></tbody>
           </table>
         </section>
       </article>
