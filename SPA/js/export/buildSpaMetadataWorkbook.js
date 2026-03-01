@@ -31,6 +31,21 @@ const TITLE_STYLE = {
 
 const METADATA_STATUS_PENDING = 'Pending...';
 
+// Resolve a SubID display value using injected labels first, then shared in-memory labels.
+const getSubIdDisplay = (subId, labelLookup) => {
+  const rawSubId = String(subId || '');
+
+  if (labelLookup instanceof Map) {
+    return labelLookup.get(rawSubId) || getSubscriptionDisplay(rawSubId) || rawSubId;
+  }
+
+  if (labelLookup && typeof labelLookup === 'object') {
+    return labelLookup[rawSubId] || getSubscriptionDisplay(rawSubId) || rawSubId;
+  }
+
+  return getSubscriptionDisplay(rawSubId) || rawSubId;
+};
+
 // Build a date-stamped default workbook name for SPA exports.
 export const buildSpaDefaultFileName = () => {
   const today = new Date();
@@ -153,7 +168,7 @@ const buildAggregationAppNameLookup = () => {
 };
 
 // Add one worksheet for a namespace table using SPA table cache rows.
-const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup) => {
+const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, subIdLabelLookup) => {
   const worksheet = workbook.addWorksheet(sanitizeSheetName(namespace, sheetNames));
   const rows = tableData.filter((entry) => entry?.namespace === namespace.toLowerCase());
   const header = ['SubID', 'App Name', 'App ID', '7 Day', '30 Day', '180 Day'];
@@ -172,7 +187,7 @@ const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup) =>
     const appName = appNameLookup.get(appId) || entry?.appName || appId || 'Unknown app';
 
     worksheet.addRow([
-      getSubscriptionDisplay(entry?.subId) || 'Unknown SubID',
+      getSubIdDisplay(entry?.subId, subIdLabelLookup) || 'Unknown SubID',
       appName,
       appId,
       formatWindowValue(entry?.window7),
@@ -212,7 +227,7 @@ const buildAppWindowSummary = () => {
 };
 
 // Compare field sets across windows to list missing fields in each timeframe.
-const buildTimeframeChanges = (appSummary = new Map()) => {
+const buildTimeframeChanges = (appSummary = new Map(), subIdLabelLookup) => {
   const frames = [
     { key: 'window7', label: '7 day' },
     { key: 'window30', label: '30 day' },
@@ -236,11 +251,14 @@ const buildTimeframeChanges = (appSummary = new Map()) => {
 
         sourceFields.forEach((field) => {
           if (!targetFields.has(field)) {
+            const subIdDisplay = getSubIdDisplay(summary.subId, subIdLabelLookup) || 'Unknown SubID';
+
             changes.push({
               field,
+              subIdDisplay,
               appId: summary.appId,
               appName: summary.appName,
-              note: `${field} was not found in the ${targetFrame.label} window but was found in the ${sourceFrame.label} window for ${summary.appName}`,
+              note: `${field} was not found in the ${targetFrame.label} window but was found in the ${sourceFrame.label} window for ${summary.appName} (${subIdDisplay})`,
             });
           }
         });
@@ -252,13 +270,13 @@ const buildTimeframeChanges = (appSummary = new Map()) => {
 };
 
 // Add the overview worksheet using SPA table snapshots for alignment and timeframe changes.
-const appendOverviewSheet = (workbook, sheetNames) => {
+const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
   const worksheet = workbook.addWorksheet(sanitizeSheetName('Overview', sheetNames));
   const visitorRows = tableData.filter((entry) => entry?.namespace === 'visitor');
   const accountRows = tableData.filter((entry) => entry?.namespace === 'account');
   const visitorAlignment = calculateAlignmentStats(visitorRows);
   const accountAlignment = calculateAlignmentStats(accountRows);
-  const timeframeChanges = buildTimeframeChanges(buildAppWindowSummary());
+  const timeframeChanges = buildTimeframeChanges(buildAppWindowSummary(), subIdLabelLookup);
 
   const alignmentTitle = worksheet.addRow(['Apps with aligned metadata (7 days)']);
   formatMergedTitleRow(worksheet, alignmentTitle, 5);
@@ -282,7 +300,7 @@ const appendOverviewSheet = (workbook, sheetNames) => {
 
   worksheet.addRow([]);
   const changesTitle = worksheet.addRow(['Metadata changes by timeframe']);
-  formatMergedTitleRow(worksheet, changesTitle, 4);
+  formatMergedTitleRow(worksheet, changesTitle, 5);
 
   if (!timeframeChanges.length) {
     worksheet.addRow(['No field differences detected across available timeframes.']);
@@ -290,11 +308,12 @@ const appendOverviewSheet = (workbook, sheetNames) => {
     return;
   }
 
-  const changeHeader = worksheet.addRow(['Field', 'App Name', 'App ID', 'Note']);
+  const changeHeader = worksheet.addRow(['Field', 'SubID', 'App Name', 'App ID', 'Note']);
   changeHeader.font = { bold: true };
   timeframeChanges.forEach((change) => {
     worksheet.addRow([
       change.field,
+      change.subIdDisplay,
       change.appName || change.appId || 'Unknown app',
       change.appId || '',
       change.note,
@@ -305,16 +324,16 @@ const appendOverviewSheet = (workbook, sheetNames) => {
 };
 
 // Build the SPA workbook using in-memory table data and metadata aggregation caches.
-export const buildSpaMetadataWorkbook = async () => {
+export const buildSpaMetadataWorkbook = async ({ subIdLabels } = {}) => {
   await ensureWorkbookLibraries();
 
   const workbook = new window.ExcelJS.Workbook();
   const sheetNames = new Set();
   const appNameLookup = buildAggregationAppNameLookup();
 
-  appendOverviewSheet(workbook, sheetNames);
-  appendNamespaceSheet(workbook, 'Visitor', sheetNames, appNameLookup);
-  appendNamespaceSheet(workbook, 'Account', sheetNames, appNameLookup);
+  appendOverviewSheet(workbook, sheetNames, subIdLabels);
+  appendNamespaceSheet(workbook, 'Visitor', sheetNames, appNameLookup, subIdLabels);
+  appendNamespaceSheet(workbook, 'Account', sheetNames, appNameLookup, subIdLabels);
 
   return {
     workbook,
