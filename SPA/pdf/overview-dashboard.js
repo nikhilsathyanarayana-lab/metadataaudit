@@ -300,10 +300,13 @@ const renderNamespaceSummaryCounts = () => {
   });
 };
 
-// Count how many SubID slices are represented in the donut dataset.
+// Count how many apps are represented in the donut dataset.
 const getSubScanCount = (dataset = subDonutData?.datasets?.[0]?.data) => {
-  const count = Array.isArray(dataset) ? dataset.length : 0;
-  return count;
+  if (!Array.isArray(dataset)) {
+    return 0;
+  }
+
+  return dataset.reduce((total, value) => total + (Number(value) || 0), 0);
 };
 
 // Draw the individual sub counts on top of each donut slice.
@@ -343,7 +346,7 @@ const subDonutSliceLabels = {
   }
 };
 
-// Draw the SubID scan total in the center of the doughnut chart after rendering.
+// Draw the app total in the center of the doughnut chart after rendering.
 const subDonutCenterText = {
   id: 'subDonutCenterText',
   afterDraw(chart) {
@@ -360,7 +363,7 @@ const subDonutCenterText = {
     ctx.textBaseline = 'middle';
     ctx.fillText(String(count), centerX, centerY - 8);
     ctx.font = '12px sans-serif';
-    ctx.fillText('Subscriptions', centerX, centerY + 12);
+    ctx.fillText('Apps', centerX, centerY + 12);
     ctx.restore();
   }
 };
@@ -372,6 +375,7 @@ let subBarChart;
 // Build a donut dataset using the discovered SubIDs in the metadata cache.
 const buildSubDonutData = (aggregations = window.metadataAggregations) => {
   const subscriptionIds = getSubscriptionIds(aggregations);
+  const appTotals = getTotalAppsBySubscription(aggregations);
 
   if (!subscriptionIds.length) {
     return defaultSubDonutData;
@@ -382,8 +386,8 @@ const buildSubDonutData = (aggregations = window.metadataAggregations) => {
   return {
     labels: subscriptionIds.map((subId) => formatSubscriptionDisplay(subId)),
     datasets: [{
-      label: 'SubID coverage',
-      data: subscriptionIds.map(() => 1),
+      label: 'Apps by SubID',
+      data: subscriptionIds.map((subId) => Number(appTotals?.[subId]?.total) || 0),
       backgroundColor: palette,
       hoverOffset: 4
     }]
