@@ -34,6 +34,19 @@ const OVERVIEW_TITLE_COLUMN_SPAN = 8;
 
 const METADATA_STATUS_PENDING = 'Pending...';
 
+// Tag worksheet rows with preview roles used by the SPA workbook renderer.
+const markPreviewRowRole = (worksheet, rowNumber, role) => {
+  if (!worksheet || !rowNumber || !role) {
+    return;
+  }
+
+  if (!worksheet.previewRowRoles) {
+    worksheet.previewRowRoles = {};
+  }
+
+  worksheet.previewRowRoles[rowNumber] = role;
+};
+
 // Resolve a SubID display value using injected labels first, then shared in-memory labels.
 const getSubIdDisplay = (subId, labelLookup) => {
   const rawSubId = String(subId || '');
@@ -177,6 +190,7 @@ const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, su
   const header = ['SubID', 'App Name', 'App ID', '7 Day', '30 Day', '180 Day'];
 
   worksheet.addRow(header);
+  markPreviewRowRole(worksheet, 1, 'header');
 
   if (!rows.length) {
     worksheet.addRow(['No metadata rows available for this namespace.']);
@@ -242,6 +256,7 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
     const titleCell = titleRow.getCell(1);
 
     titleCell.font = { ...(titleCell.font || {}), ...TITLE_STYLE.font };
+    markPreviewRowRole(worksheet, titleRow.number, 'title');
     worksheet.metadataColumnCount = 1;
   });
 };
@@ -299,10 +314,12 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
   const timeframeChanges = buildTimeframeChanges(buildAppWindowSummary(), subIdLabelLookup);
 
   const alignmentTitle = worksheet.addRow(['Apps with aligned metadata (7 days)']);
+  markPreviewRowRole(worksheet, alignmentTitle.number, 'title');
   formatMergedTitleRow(worksheet, alignmentTitle, OVERVIEW_TITLE_COLUMN_SPAN);
 
   const header = worksheet.addRow(['Category', 'Aligned', 'Misaligned', 'Total Apps', 'Aligned %']);
   header.font = { bold: true };
+  markPreviewRowRole(worksheet, header.number, 'header');
   worksheet.addRow([
     'Visitor',
     visitorAlignment.alignedCount,
@@ -320,6 +337,7 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
 
   worksheet.addRow([]);
   const changesTitle = worksheet.addRow(['Metadata changes by timeframe']);
+  markPreviewRowRole(worksheet, changesTitle.number, 'title');
   formatMergedTitleRow(worksheet, changesTitle, OVERVIEW_TITLE_COLUMN_SPAN);
 
   if (!timeframeChanges.length) {
@@ -330,6 +348,7 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
 
   const changeHeader = worksheet.addRow(['Field', 'SubID', 'App Name', 'App ID', 'Note']);
   changeHeader.font = { bold: true };
+  markPreviewRowRole(worksheet, changeHeader.number, 'header');
   timeframeChanges.forEach((change) => {
     worksheet.addRow([
       change.field,
