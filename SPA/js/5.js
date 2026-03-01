@@ -9,6 +9,7 @@ let workbookCache = null;
 let defaultWorkbookName = '';
 let excludedSheetNames = new Set();
 let activeSheetName = '';
+const coreSheetNames = new Set(['Overview', 'Visitor', 'Account']);
 
 // Escapes HTML characters for safe preview rendering.
 const escapeHtml = (value) => {
@@ -38,6 +39,9 @@ const resolveActiveSheetName = (sheets, desiredName) => {
   const hasDesiredSheet = sheets.some((sheet) => sheet?.name === desiredName);
   return hasDesiredSheet ? desiredName : sheets[0]?.name || '';
 };
+
+// Returns true when the worksheet belongs to the fixed overview/visitor/account set.
+const isCoreSheet = (sheetName) => coreSheetNames.has(String(sheetName || '').trim());
 
 // Creates HTML markup representing a worksheet for iframe preview.
 const buildWorksheetHtml = (worksheet) => {
@@ -97,6 +101,10 @@ const updateActiveTab = (tabList, activeName) => {
 
   const tabButtons = tabList.querySelectorAll('.export-tab-button');
   tabButtons.forEach((button) => {
+    if (button.dataset?.role === 'app-selector') {
+      return;
+    }
+
     const isActive = button.dataset?.sheetName === activeName;
     button.classList.toggle('is-active', isActive);
     button.setAttribute('aria-selected', isActive);
@@ -112,7 +120,10 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
 
   tabList.innerHTML = '';
 
-  sheets.forEach((sheet, index) => {
+  const coreSheets = sheets.filter((sheet) => isCoreSheet(sheet?.name));
+  const appSheets = sheets.filter((sheet) => !isCoreSheet(sheet?.name));
+
+  coreSheets.forEach((sheet, index) => {
     const tabButton = document.createElement('button');
     tabButton.type = 'button';
     tabButton.className = 'export-tab-button';
@@ -125,7 +136,142 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
     tabList.append(tabButton);
   });
 
+  if (appSheets.length) {
+    const appSelectorButton = document.createElement('button');
+    appSelectorButton.type = 'button';
+    appSelectorButton.className = 'export-tab-button export-app-selector-button';
+    appSelectorButton.id = 'excel-app-selector-button';
+    appSelectorButton.dataset.role = 'app-selector';
+    appSelectorButton.setAttribute('aria-label', 'Select app worksheet preview');
+
+    const activeAppSheet = appSheets.find((sheet) => sheet?.name === activeName);
+    appSelectorButton.textContent = activeAppSheet?.name || 'Select App';
+    if (activeAppSheet) {
+      appSelectorButton.classList.add('is-active');
+    }
+
+    appSelectorButton.addEventListener('click', async () => {
+      const selectedName = await openAppSheetModal(
+        appSheets.map((sheet) => sheet?.name || ''),
+        activeName,
+      );
+
+      if (selectedName) {
+        onSelect?.(selectedName);
+      }
+    });
+
+    tabList.append(appSelectorButton);
+  }
+
   updateActiveTab(tabList, activeName);
+};
+
+// Presents a modal that allows selecting one app worksheet for preview.
+const openAppSheetModal = async (sheetNames = [], activeName = '') => {
+  const backdropId = 'excel-app-selector-backdrop';
+  const modalId = 'excel-app-selector-modal';
+  let backdrop = document.getElementById(backdropId);
+  let modal = document.getElementById(modalId);
+
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = backdropId;
+    backdrop.className = 'modal-backdrop';
+    backdrop.hidden = true;
+    document.body.append(backdrop);
+  }
+
+  if (!modal) {
+    modal = document.createElement('section');
+    modal.id = modalId;
+    modal.className = 'modal excel-app-selector-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'excel-app-selector-title');
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="modal-content" id="excel-app-selector-content">
+        <div class="modal-header" id="excel-app-selector-header">
+          <div id="excel-app-selector-heading" class="excel-app-selector-heading">
+            <p class="eyebrow" id="excel-app-selector-eyebrow">Preview</p>
+            <h2 class="modal-title" id="excel-app-selector-title">Choose an app tab</h2>
+            <p class="section-hint" id="excel-app-selector-hint">Select the app worksheet you want to preview.</p>
+          </div>
+          <button type="button" class="close-btn" id="excel-app-selector-close-button" aria-label="Close app selector modal" data-dismiss-app-selector>&times;</button>
+        </div>
+        <div class="modal-body" id="excel-app-selector-body">
+          <div class="excel-app-option-list" id="excel-app-option-list"></div>
+        </div>
+      </div>`;
+    document.body.append(modal);
+  }
+
+  const appOptionList = modal.querySelector('#excel-app-option-list');
+  const dismissButtons = modal.querySelectorAll('[data-dismiss-app-selector]');
+
+  if (!appOptionList) {
+    return null;
+  }
+
+  appOptionList.innerHTML = '';
+  sheetNames.forEach((sheetName, index) => {
+    const appButton = document.createElement('button');
+    appButton.type = 'button';
+    appButton.className = 'secondary-btn excel-app-option-button';
+    appButton.id = `excel-app-option-${index}`;
+    appButton.textContent = sheetName;
+    appButton.dataset.sheetName = sheetName;
+    if (sheetName === activeName) {
+      appButton.classList.add('is-active');
+    }
+    appOptionList.append(appButton);
+  });
+
+  return new Promise((resolve) => {
+    const cleanup = [];
+
+    const closeModal = (nextValue = null) => {
+      modal.classList.remove('is-visible');
+      backdrop.classList.remove('is-visible');
+      modal.hidden = true;
+      backdrop.hidden = true;
+      cleanup.forEach((fn) => fn?.());
+      resolve(nextValue);
+    };
+
+    const handleCancel = () => closeModal(null);
+
+    modal.hidden = false;
+    backdrop.hidden = false;
+    requestAnimationFrame(() => {
+      modal.classList.add('is-visible');
+      backdrop.classList.add('is-visible');
+      appOptionList.querySelector('.excel-app-option-button')?.focus();
+    });
+
+    appOptionList.querySelectorAll('.excel-app-option-button').forEach((button) => {
+      const handleSelect = () => closeModal(button.dataset?.sheetName || null);
+      button.addEventListener('click', handleSelect);
+      cleanup.push(() => button.removeEventListener('click', handleSelect));
+    });
+
+    dismissButtons.forEach((button) => {
+      button.addEventListener('click', handleCancel);
+      cleanup.push(() => button.removeEventListener('click', handleCancel));
+    });
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        handleCancel();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    cleanup.push(() => document.removeEventListener('keydown', handleKeyDown));
+    backdrop.addEventListener('click', handleCancel);
+    cleanup.push(() => backdrop.removeEventListener('click', handleCancel));
+  });
 };
 
 // Presents a modal that lists worksheets and captures exclusion selections.
