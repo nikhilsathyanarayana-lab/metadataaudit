@@ -638,8 +638,8 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
         <div class="modal-header" id="excel-exclude-modal-header">
           <div>
             <p class="eyebrow">Preview</p>
-            <h2 class="modal-title" id="excel-exclude-modal-title">Exclude sheets</h2>
-            <p class="section-hint" id="excel-exclude-modal-hint">Uncheck any sheets to hide them from the preview and download.</p>
+            <h2 class="modal-title" id="excel-exclude-modal-title">Hide sheets</h2>
+            <p class="section-hint" id="excel-exclude-modal-hint">Check any sheets to hide them from preview and download.</p>
           </div>
           <button type="button" class="close-btn" id="excel-exclude-close-button" aria-label="Close exclude modal" data-dismiss-exclude-modal>&times;</button>
         </div>
@@ -648,7 +648,7 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
         </div>
         <div class="modal-actions" id="excel-exclude-modal-actions">
           <button type="button" class="secondary-btn" id="excel-exclude-cancel-button" data-dismiss-exclude-modal>Cancel</button>
-          <button type="button" class="primary-btn" id="excel-exclude-apply-button">Apply</button>
+          <button type="button" class="primary-btn" id="excel-exclude-apply-button">Hide selected sheets</button>
         </div>
       </div>`;
     document.body.append(modal);
