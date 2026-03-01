@@ -8,6 +8,7 @@ import {
 } from '../API/metadata.js';
 import { appSelectionState } from './2.js';
 import { openRegexModal } from './regex.js';
+import { getSubscriptionDisplay } from './subscriptionLabels.js';
 
 // Provide a shared SPA environment object for cached selections.
 
@@ -235,7 +236,7 @@ const populateTables = () => {
     selectedApps.forEach((app) => {
       METADATA_NAMESPACES.forEach((namespace) => {
         tableData.push({
-          subId: app?.subId || 'Unknown SubID',
+          subId: app?.subId || '',
           appName: app?.appName || app?.appId || 'Unknown app',
           appId: app?.appId || '',
           namespace,
@@ -719,6 +720,7 @@ const getMetadataAggregations = () => {
 const buildMetadataRowMarkup = (rowData) => {
   const { subId, appId, appName } = rowData || {};
   const valueLookup = rowData || {};
+  const subDisplay = getSubscriptionDisplay(subId);
 
   const lookbackCells = METADATA_TABLE_WINDOWS
     .map((key) => `<td>${formatMetadataWindowCell(valueLookup, key)}</td>`)
@@ -726,7 +728,7 @@ const buildMetadataRowMarkup = (rowData) => {
 
   return [
     '<tr>',
-    `<td>${subId || 'Unknown SubID'}</td>`,
+    `<td>${subDisplay || 'Unknown SubID'}</td>`,
     `<td>${appName || appId || 'Unknown app'}</td>`,
     `<td>${appId || ''}</td>`,
     lookbackCells,
@@ -739,7 +741,8 @@ const createMetadataStatusRow = (message, columnCount = 6, subId = '') => {
   // eslint-disable-next-line no-console
   console.log('createMetadataStatusRow');
 
-  const statusText = subId ? `${message} (${subId})` : message;
+  const subDisplay = getSubscriptionDisplay(subId);
+  const statusText = subId ? `${message} (${subDisplay})` : message;
   return `<tr><td colspan="${columnCount}">${statusText}</td></tr>`;
 };
 
@@ -829,7 +832,7 @@ const renderMetadataTables = async (tableConfigs) => {
 
   const recordTableDataRow = ({ subId, appId, appName, namespace }) => {
     tableData.push({
-      subId: subId || 'Unknown SubID',
+      subId: subId || '',
       appName: appName || appId || 'Unknown app',
       appId: appId || '',
       namespace: namespace || '',
@@ -910,7 +913,7 @@ const renderMetadataTables = async (tableConfigs) => {
 
       if (result?.errorType || !Array.isArray(result?.results)) {
         const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
-        addStatusRowForAllTables(`Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`);
+        addStatusRowForAllTables(`Unable to load apps for ${getSubscriptionDisplay(subId) || 'unknown SubID'}${errorHint}`);
         return;
       }
 

@@ -1,4 +1,5 @@
 import { app_names } from '../API/app_names.js';
+import { getSubscriptionDisplay } from './subscriptionLabels.js';
 
 // Share the latest app selection snapshot between SPA views.
 export const appSelectionState = { entries: [] };
@@ -13,7 +14,8 @@ const createStatusRow = (message, columnCount = 4, subId = '') => {
   const row = document.createElement('tr');
   const cell = document.createElement('td');
   cell.colSpan = columnCount;
-  cell.textContent = subId ? `${message} (${subId})` : message;
+  const subDisplay = getSubscriptionDisplay(subId);
+  cell.textContent = subId ? `${message} (${subDisplay})` : message;
   row.appendChild(cell);
   return row;
 };
@@ -21,9 +23,10 @@ const createStatusRow = (message, columnCount = 4, subId = '') => {
 // Build a selectable app entry row for the preview table.
 const createAppRow = ({ subId, appId, appName }) => {
   const row = document.createElement('tr');
+  const subDisplay = getSubscriptionDisplay(subId);
 
   const subIdCell = document.createElement('td');
-  subIdCell.textContent = subId || 'Unknown SubID';
+  subIdCell.textContent = subDisplay || 'Unknown SubID';
 
   const nameCell = document.createElement('td');
   nameCell.textContent = appName || appId || 'Unknown app';
@@ -39,7 +42,7 @@ const createAppRow = ({ subId, appId, appName }) => {
   checkbox.dataset.subId = subId || '';
   checkbox.dataset.appId = appId || '';
   checkbox.dataset.appName = appName || appId || '';
-  checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subId || 'unknown SubID'}`);
+  checkbox.setAttribute('aria-label', `Select app ${appId || 'unknown'} for ${subDisplay || 'unknown SubID'}`);
   checkboxCell.appendChild(checkbox);
 
   row.append(subIdCell, nameCell, appIdCell, checkboxCell);
@@ -70,8 +73,9 @@ const renderAppTable = async (tableBody) => {
     if (result?.errorType || !Array.isArray(result?.results)) {
       const errorHint = result?.errorHint ? `: ${result.errorHint}` : '';
       tableBody.appendChild(createStatusRow(
-        `Unable to load apps for ${subId || 'unknown SubID'}${errorHint}`,
+        `Unable to load apps${errorHint}`,
         columnCount,
+        subId,
       ));
       return;
     }
