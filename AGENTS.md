@@ -28,3 +28,26 @@
 - Standard flow: request → questions → code suggestions → GitHub PR.
 - For front-end changes impacting visuals, provide a screenshot when feasible.
 - Start using `jslint` as the default linter and run it locally to catch style or syntax issues before submitting changes.
+
+## Export parity contract (Workbook ↔ Page 5 preview)
+- Workbook and preview parity is a required contract for SPA exports. Treat this section as the source of truth.
+- Required parity attributes:
+  - Headers: bold styling, fill color, text color, and text size must match between workbook and preview.
+  - Merged titles: merged section title spans in workbook must render with matching merged structure in preview.
+  - Title styling: title rows must preserve shared font/fill/alignment behavior in workbook and preview.
+  - Fill and typography: explicit workbook fills, bold/italic/underline, font size, and font color must be reflected in preview.
+  - Alignment: horizontal and vertical alignment plus wrap-text behavior must map to equivalent preview rendering.
+  - Column sizing: preview must follow workbook column width proportions via the shared conversion constant.
+  - Empty-state rows: empty-state messages must render in both workbook and preview as visible text rows.
+- Accepted approximations (do not treat as regressions):
+  - Exact Excel desktop column pixel rendering vs. browser pixel rendering.
+  - Excel-specific font rasterization/line-height behavior vs. browser text layout.
+  - Native Excel chrome/gridline differences not explicitly styled by workbook metadata.
+
+## PR Definition of Done for export style changes
+- Any PR that changes workbook styling, merge behavior, row role tagging, or Page 5 preview rendering must include a Page 5 preview parity review.
+- Review checklist:
+  - Confirm required parity attributes in this AGENTS.md section still hold.
+  - Confirm observed differences stay within accepted approximations.
+  - If a change falls outside accepted approximations, capture it as a parity regression and resolve before merge.
+

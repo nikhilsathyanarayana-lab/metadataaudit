@@ -32,8 +32,17 @@
 - View 4 ships with a Pendo-styled "Subscriptions" card and canvas placeholder to host the first Chart.js visualization when the charting logic is added.
 - The subscription progress list reports processed metadata coverage per SubID (`X out of Y`) using `metadataAggregations` app buckets for the numerator and the latest totals cached from `SPA/API/app_names.js` for the denominator so repeated app lookups after adding credentials keep the available-app count in sync.
 
-## Step 5: Follow-up actions
-- View 5 (`SPA/html/5.html`) currently serves as a placeholder card for future follow-up actions or exports so the navigation remains consistent while downstream workflows are finalized.
+## Step 5: XLSX export preview and download
+- View 5 (`SPA/html/5.html`) hosts the export preview and download flow, including sheet tabs, app-sheet picker, and sheet exclusion controls managed by `SPA/js/5.js`.
+- Workbook generation is handled by `SPA/js/export/buildSpaMetadataWorkbook.js`, and preview/workbook styling now shares tokens from `SPA/js/export/exportStyleTokens.js` to reduce drift between Excel output and browser preview.
+- Parity requirements for workbook vs. preview rendering are documented in the repository `AGENTS.md`; treat that section as the source of truth for export visual contract updates.
+
+## PR workflow Definition of Done (export parity)
+- Any PR that changes workbook styling, merge behavior, row-role tagging, or preview render styling must include a **Page 5 preview parity review** before approval.
+- Reviewer checklist:
+  - Confirm workbook and preview still match required parity attributes listed in `AGENTS.md`.
+  - Confirm any intentionally approximate behavior remains within the accepted approximation scope documented in that parity contract.
+  - Confirm regressions are captured as parity bugs when changes fall outside the accepted approximation scope.
 
 ## PDF exports
 - Static PDF-ready assets live under `SPA/pdf/`. Use `overview-dashboard.html` with `pdf/pdf.css` for a simple export shell that centers a 72pt "Overview" title at the top of the page.

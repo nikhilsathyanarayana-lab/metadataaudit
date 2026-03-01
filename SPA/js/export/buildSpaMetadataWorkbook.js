@@ -1,36 +1,11 @@
 import { tableData } from '../3.js';
 import { getSubscriptionDisplay } from '../subscriptionLabels.js';
 import { ensureWorkbookLibraries } from '../../../src/controllers/exports/excel_shared.js';
-
-const HEADER_STYLE = {
-  font: {
-    bold: true,
-    size: 16,
-    color: { argb: 'FFFFFFFF' },
-  },
-  fill: {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE83E8C' },
-  },
-};
-
-const TITLE_STYLE = {
-  font: {
-    bold: true,
-    size: 18,
-    color: { argb: 'FFFFFFFF' },
-  },
-  fill: {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE83E8C' },
-  },
-  alignment: { horizontal: 'center', vertical: 'middle' },
-};
-
-const OVERVIEW_TITLE_COLUMN_SPAN = 8;
-
+import {
+  EXPORT_HEADER_STYLE,
+  EXPORT_TITLE_STYLE,
+  OVERVIEW_TITLE_COLUMN_SPAN,
+} from './exportStyleTokens.js';
 
 const METADATA_STATUS_PENDING = 'Pending...';
 
@@ -92,8 +67,8 @@ const applyHeaderFormatting = (worksheet) => {
   }
 
   headerRow.eachCell((cell) => {
-    cell.font = { ...(cell.font || {}), ...HEADER_STYLE.font };
-    cell.fill = HEADER_STYLE.fill;
+    cell.font = { ...(cell.font || {}), ...EXPORT_HEADER_STYLE.font };
+    cell.fill = EXPORT_HEADER_STYLE.fill;
   });
 };
 
@@ -118,10 +93,10 @@ const formatMergedTitleRow = (worksheet, row, columnCount = 1) => {
 
   worksheet.mergeCells(mergeRange);
   const titleCell = row.getCell(1);
-  titleCell.font = { ...(titleCell.font || {}), ...TITLE_STYLE.font };
-  titleCell.fill = TITLE_STYLE.fill;
-  titleCell.alignment = TITLE_STYLE.alignment;
-  worksheet.getCell(mergeRange.split(':')[1]).alignment = TITLE_STYLE.alignment;
+  titleCell.font = { ...(titleCell.font || {}), ...EXPORT_TITLE_STYLE.font };
+  titleCell.fill = EXPORT_TITLE_STYLE.fill;
+  titleCell.alignment = EXPORT_TITLE_STYLE.alignment;
+  worksheet.getCell(mergeRange.split(':')[1]).alignment = EXPORT_TITLE_STYLE.alignment;
   row.height = 24;
 };
 
@@ -255,7 +230,7 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
     const titleRow = worksheet.addRow([appName]);
     const titleCell = titleRow.getCell(1);
 
-    titleCell.font = { ...(titleCell.font || {}), ...TITLE_STYLE.font };
+    titleCell.font = { ...(titleCell.font || {}), ...EXPORT_TITLE_STYLE.font };
     markPreviewRowRole(worksheet, titleRow.number, 'title');
     worksheet.metadataColumnCount = 1;
   });
