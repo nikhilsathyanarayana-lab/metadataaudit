@@ -194,6 +194,22 @@ const buildAggregationAppNameLookup = () => {
   return lookup;
 };
 
+// Check whether a namespace has any rows or populated fields in the current table cache.
+const namespaceHasData = (namespace) => {
+  const namespaceKey = String(namespace || '').toLowerCase();
+
+  return tableData.some((entry) => {
+    if (String(entry?.namespace || '').toLowerCase() !== namespaceKey) {
+      return false;
+    }
+
+    const hasFields = [entry?.window7, entry?.window30, entry?.window180]
+      .some((fields) => normalizeFields(fields).length > 0);
+
+    return hasFields || Boolean(entry?.appId) || Boolean(entry?.appName) || Boolean(entry?.subId);
+  });
+};
+
 // Add one worksheet for a namespace table using SPA table cache rows.
 const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, subIdLabelLookup) => {
   const worksheet = workbook.addWorksheet(sanitizeSheetName(namespace, sheetNames));
@@ -436,6 +452,15 @@ export const buildSpaMetadataWorkbook = async ({ subIdLabels } = {}) => {
   appendOverviewSheet(workbook, sheetNames, subIdLabels);
   appendNamespaceSheet(workbook, 'Visitor', sheetNames, appNameLookup, subIdLabels);
   appendNamespaceSheet(workbook, 'Account', sheetNames, appNameLookup, subIdLabels);
+
+  if (namespaceHasData('salesforce')) {
+    appendNamespaceSheet(workbook, 'Salesforce', sheetNames, appNameLookup, subIdLabels);
+  }
+
+  if (namespaceHasData('custom')) {
+    appendNamespaceSheet(workbook, 'Custom', sheetNames, appNameLookup, subIdLabels);
+  }
+
   appendApplicationSheets(workbook, sheetNames, subIdLabels);
 
   return {
