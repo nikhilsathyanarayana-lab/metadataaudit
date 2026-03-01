@@ -64,6 +64,20 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+
+let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLabels
+  && typeof window.subscriptionLabels === 'object')
+  ? window.subscriptionLabels
+  : {};
+
+// Resolve SubID display text from the label map with a raw SubID fallback.
+const resolveSubscriptionDisplay = (subId) => {
+  const key = String(subId || '');
+  return subscriptionLabels[key] || key || 'Unknown SubID';
+};
+
+
+
 // Count distinct app IDs for each SubID directly from the metadata cache.
 const countDistinctAppsBySubscription = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -158,7 +172,7 @@ const buildSubBarData = (aggregations = (hasMetadataAggregations() && window.met
   const borders = subscriptionIds.map((_, index) => defaultBarBorders[index % defaultBarBorders.length]);
 
   return {
-    labels: subscriptionIds,
+    labels: subscriptionIds.map((subId) => resolveSubscriptionDisplay(subId)),
     datasets: [{
       data: subscriptionIds.map((subId) => recordCounts[subId] || 0),
       backgroundColor: backgrounds,
@@ -248,7 +262,7 @@ const renderSubscriptionTable = () => {
     const labelCell = document.createElement('td');
     labelCell.id = `subscription-label-${rowNumber}`;
     labelCell.className = 'subscription-label-cell';
-    labelCell.textContent = subId;
+    labelCell.textContent = resolveSubscriptionDisplay(subId);
 
     const countCell = document.createElement('td');
     countCell.id = `subscription-count-${rowNumber}`;
@@ -414,6 +428,11 @@ if (typeof document !== 'undefined') {
     const incomingAppCounts = payload.appCountsBySubId || message.appCountsBySubId;
 
     window.metadataAggregations = aggregations || {};
+
+    subscriptionLabels = message.subscriptionLabels && typeof message.subscriptionLabels === 'object'
+      ? message.subscriptionLabels
+      : {};
+    window.subscriptionLabels = subscriptionLabels;
 
     if (incomingAppCounts && typeof incomingAppCounts === 'object') {
       window.appCountsBySubId = incomingAppCounts;

@@ -8,6 +8,20 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+
+let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLabels
+  && typeof window.subscriptionLabels === 'object')
+  ? window.subscriptionLabels
+  : {};
+
+// Resolve SubID display text from the label map with a raw SubID fallback.
+const resolveSubscriptionDisplay = (subId) => {
+  const key = String(subId || '');
+  return subscriptionLabels[key] || key || 'Unknown SubID';
+};
+
+
+
 // Return the requested window bucket from an app aggregation bucket.
 const getWindowBucket = (appBucket, lookbackWindow) => (
   appBucket?.windows?.[lookbackWindow] || appBucket?.windows?.[String(lookbackWindow)]
@@ -79,7 +93,7 @@ const mapAggregationsToRows = (aggregations = (hasMetadataAggregations() && wind
 
     Object.entries(apps).forEach(([appId, appBucket]) => {
       const windowSummaries = buildWindowSummaries(appBucket);
-      const subLabel = subId || 'Unknown SubID';
+      const subLabel = resolveSubscriptionDisplay(subId || 'Unknown SubID');
       const appLabel = appBucket?.appName || appId || 'Unknown app';
 
       METADATA_NAMESPACES.forEach((namespace) => {
@@ -557,6 +571,10 @@ const handleMetadataMessage = (event) => {
   const nextAggregations = payload.metadataAggregations || (payload.appCountsBySubId ? {} : payload) || {};
   window.metadataAggregations = nextAggregations;
   window.fieldTypeSelections = message.fieldTypeSelections || {};
+  subscriptionLabels = message.subscriptionLabels && typeof message.subscriptionLabels === 'object'
+    ? message.subscriptionLabels
+    : {};
+  window.subscriptionLabels = subscriptionLabels;
   renderMetadataSummary(window.metadataAggregations);
 };
 

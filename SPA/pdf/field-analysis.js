@@ -66,6 +66,20 @@ const hasMetadataAggregations = () => (
     && typeof window.metadataAggregations === 'object'
 );
 
+
+let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLabels
+  && typeof window.subscriptionLabels === 'object')
+  ? window.subscriptionLabels
+  : {};
+
+// Resolve SubID display text from the label map with a raw SubID fallback.
+const resolveSubscriptionDisplay = (subId) => {
+  const key = String(subId || '');
+  return subscriptionLabels[key] || key || 'Unknown SubID';
+};
+
+
+
 // Count how many apps expose each namespace/field combination across all SubIDs.
 const countFieldsAcrossApps = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -325,6 +339,10 @@ if (typeof document !== 'undefined') {
     }
 
     window.fieldTypeSelections = message.fieldTypeSelections || {};
+    subscriptionLabels = message.subscriptionLabels && typeof message.subscriptionLabels === 'object'
+      ? message.subscriptionLabels
+      : {};
+    window.subscriptionLabels = subscriptionLabels;
     updateFromMetadataAggregations(message.payload || {});
   };
 
