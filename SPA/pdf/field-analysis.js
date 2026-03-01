@@ -32,6 +32,7 @@ const defaultSubBarData = {
 let subBarData = defaultSubBarData;
 let fieldSubBarChart;
 let fieldTotalsByWindow = {};
+let fieldValueRows = [];
 
 // Build a default field total map from the sample chart data.
 const buildDefaultFieldTotals = () => {
@@ -271,6 +272,51 @@ const renderFieldRecordsTable = (rows = fieldRecordRows) => {
   });
 };
 
+// Build a printable string for field values in the PDF summary table.
+const formatFieldValueLabel = (value) => {
+  if (typeof value === 'string' && value.length) {
+    return value;
+  }
+
+  return String(value ?? '');
+};
+
+// Render the top field value occurrences table next to received field totals.
+const renderFieldValuesTable = (rows = fieldValueRows) => {
+  const tableBody = document.getElementById('field-values-body');
+
+  if (!tableBody) {
+    return;
+  }
+
+  tableBody.innerHTML = '';
+
+  rows.forEach((row, index) => {
+    const rowNumber = String(index + 1).padStart(2, '0');
+    const summaryRow = document.createElement('tr');
+    summaryRow.id = `field-value-row-${rowNumber}`;
+    summaryRow.className = 'subscription-row field-value-row';
+
+    const fieldCell = document.createElement('td');
+    fieldCell.id = `field-value-name-${rowNumber}`;
+    fieldCell.className = 'subscription-label-cell field-value-name-cell';
+    fieldCell.textContent = row.fieldName || '';
+
+    const valueCell = document.createElement('td');
+    valueCell.id = `field-value-label-${rowNumber}`;
+    valueCell.className = 'subscription-label-cell field-value-label-cell';
+    valueCell.textContent = formatFieldValueLabel(row.valueLabel);
+
+    const countCell = document.createElement('td');
+    countCell.id = `field-value-count-${rowNumber}`;
+    countCell.className = 'subscription-count-cell field-value-count-cell';
+    countCell.textContent = Number(row.recordCount || 0).toLocaleString();
+
+    summaryRow.append(fieldCell, valueCell, countCell);
+    tableBody.appendChild(summaryRow);
+  });
+};
+
 // Update cached field totals and log them to the console.
 const updateFieldTotals = (aggregations) => {
   const computedTotals = combineFieldTotalsByWindow(aggregations);
@@ -314,6 +360,57 @@ const buildFieldRecordRows = (totalsByWindow = fieldTotalsByWindow) => {
     .map(([fieldName, recordCount]) => ({ fieldName, recordCount }));
 };
 
+// Merge value totals by fully-qualified field key so repeated value text stays field-specific.
+const buildFieldValueRows = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  if (!aggregations || typeof aggregations !== 'object') {
+    return [];
+  }
+
+  const valueTotals = {};
+
+  Object.values(aggregations).forEach((subBucket) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return;
+    }
+
+    Object.values(apps).forEach((appBucket) => {
+      Object.values(appBucket?.windows || {}).forEach((windowBucket) => {
+        Object.entries(windowBucket?.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+          if (!namespaceFields || typeof namespaceFields !== 'object') {
+            return;
+          }
+
+          Object.entries(namespaceFields).forEach(([fieldName, fieldBucket]) => {
+            const fieldKey = `${namespaceKey}.${fieldName}`;
+
+            Object.entries(fieldBucket?.values || {}).forEach(([valueLabel, total]) => {
+              const numericTotal = Number(total) || 0;
+
+              if (!numericTotal) {
+                return;
+              }
+
+              const valueKey = `${fieldKey}|||${valueLabel}`;
+
+              if (!valueTotals[valueKey]) {
+                valueTotals[valueKey] = { fieldName: fieldKey, valueLabel, recordCount: 0 };
+              }
+
+              valueTotals[valueKey].recordCount += numericTotal;
+            });
+          });
+        });
+      });
+    });
+  });
+
+  return Object.values(valueTotals)
+    .sort((first, second) => Number(second.recordCount) - Number(first.recordCount))
+    .slice(0, 10);
+};
+
 // Sync cached metadata aggregations with the bar chart.
 const updateFromMetadataAggregations = (aggregations) => {
   if (!aggregations || typeof aggregations !== 'object') {
@@ -324,9 +421,11 @@ const updateFromMetadataAggregations = (aggregations) => {
   updateFieldTotals(aggregations);
   subBarData = buildSubBarData(aggregations);
   fieldRecordRows = buildFieldRecordRows();
+  fieldValueRows = buildFieldValueRows(aggregations);
 
   renderFieldAnalysis();
   renderFieldRecordsTable();
+  renderFieldValuesTable();
 };
 
 if (typeof document !== 'undefined') {
@@ -355,8 +454,10 @@ if (typeof document !== 'undefined') {
     updateFieldTotals(window.metadataAggregations);
     subBarData = buildSubBarData(window.metadataAggregations);
     fieldRecordRows = buildFieldRecordRows();
+    fieldValueRows = buildFieldValueRows(window.metadataAggregations);
     renderFieldAnalysis();
     renderFieldRecordsTable();
+    renderFieldValuesTable();
   };
 
   window.addEventListener('message', handleMetadataMessage);
