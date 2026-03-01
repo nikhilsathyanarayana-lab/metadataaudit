@@ -9,8 +9,8 @@
 </head>
 <body id="pdf-preview-body" class="pdf-preview-body pdf-preview-print-mode">
   <main id="pdf-overview" class="pdf-overview">
-    <h1 id="overview-title" class="overview-title">Overview</h1>
-    <div id="overview-chart-row" class="chart-row">
+    <h1 id="overview-title" class="overview-title pdf-keep-together">Overview</h1>
+    <div id="overview-chart-row" class="chart-row pdf-keep-together">
       <div id="sub-donut-card" class="chart-block chart-half">
         <canvas id="subDonut" class="chart-canvas donut-chart"></canvas>
       </div>
@@ -26,12 +26,12 @@
         </table>
       </div>
     </div>
-    <div id="subscription-bar-card" class="chart-full">
+    <div id="subscription-bar-card" class="chart-full pdf-keep-together">
       <h1 id="subscription-bar-title" class="chart-title subscription-bar-title">Count of Record by Subscription</h1>
       <h2 id="subscription-bar-heading" class="subscription-bar-heading namespace-summary__heading">Records scanned by subscription:</h2>
       <canvas id="subBar" class="chart-canvas bar-chart"></canvas>
     </div>
-    <section id="namespace-summary" class="namespace-summary" aria-label="Namespace totals">
+    <section id="namespace-summary" class="namespace-summary pdf-keep-together" aria-label="Namespace totals">
       <h2 id="namespace-summary-heading" class="namespace-summary__heading">Total Record count by metadata type:</h2>
       <div id="namespace-visitor" class="namespace-summary__item">
         <h2 id="namespace-visitor-title" class="namespace-summary__title">Visitor</h2>
