@@ -212,17 +212,69 @@ const getColumnStyleClasses = (worksheet, columnNumber, styleRegistry) => {
   return classes.filter(Boolean);
 };
 
-// Determine if a row should be rendered as a semantic table header row.
-const isHeaderLikeRow = (rowCells = []) => {
-  const visibleCells = rowCells.filter((cell) => !cell.isCovered);
-  const nonEmptyCells = visibleCells.filter((cell) => cell.text.trim());
+// Read optional preview role markers attached to a worksheet row.
+const getMarkedRowRole = (worksheet, rowNumber) => {
+  const role = worksheet?.previewRowRoles?.[rowNumber] || worksheet?.previewRowRoles?.[String(rowNumber)] || '';
+  const normalized = String(role).trim().toLowerCase();
 
-  if (!visibleCells.length || !nonEmptyCells.length) {
-    return false;
+  if (normalized === 'title' || normalized === 'header' || normalized === 'data') {
+    return normalized;
   }
 
-  const styledCells = nonEmptyCells.filter((cell) => cell.isHeaderLike || cell.colspan > 1);
-  return styledCells.length === nonEmptyCells.length;
+  return '';
+};
+
+// Read an optional preview role marker from a cell note-like metadata field.
+const getCellMarkedRole = (cell) => {
+  const noteText = String(cell?.note || '').trim().toLowerCase();
+
+  if (noteText.includes('preview:role=title')) {
+    return 'title';
+  }
+
+  if (noteText.includes('preview:role=header')) {
+    return 'header';
+  }
+
+  if (noteText.includes('preview:role=data')) {
+    return 'data';
+  }
+
+  return '';
+};
+
+// Classify a worksheet row as title/header/data using workbook style and merge signals.
+const getRowRenderRole = (worksheet, rowNumber, rowCells = [], columnCount = 1) => {
+  const markedRole = getMarkedRowRole(worksheet, rowNumber);
+  if (markedRole) {
+    return markedRole;
+  }
+
+  const visibleCells = rowCells.filter((cell) => !cell.isCovered);
+  const nonEmptyCells = visibleCells.filter((cell) => cell.rawText.trim());
+
+  if (!visibleCells.length || !nonEmptyCells.length) {
+    return 'data';
+  }
+
+  const cellMarkedRole = nonEmptyCells.map((cell) => cell.markedRole).find(Boolean);
+  if (cellMarkedRole) {
+    return cellMarkedRole;
+  }
+
+  const boldAndFilledCells = nonEmptyCells.filter((cell) => cell.isBold && cell.hasFillColor).length;
+  const mergedWidth = Math.max(...nonEmptyCells.map((cell) => cell.colspan));
+  const isMergedSectionRow = mergedWidth >= Math.max(2, columnCount);
+
+  if (isMergedSectionRow || (boldAndFilledCells > 0 && nonEmptyCells.length === 1)) {
+    return 'title';
+  }
+
+  if (boldAndFilledCells === nonEmptyCells.length || nonEmptyCells.every((cell) => cell.isBold)) {
+    return 'header';
+  }
+
+  return 'data';
 };
 
 // Returns the worksheets that are not currently excluded.
@@ -291,30 +343,35 @@ const buildWorksheetHtml = (worksheet) => {
       const rawValue = cell?.text ?? cell?.value ?? '';
       const mergeMeta = mergeLookup.masterCells.get(cellKey) || { colspan: 1, rowspan: 1 };
       const cellClasses = getCellStyleClasses(cell, styleRegistry);
-      const isHeaderLike = Boolean(cell?.font?.bold || excelColorToHex(cell?.fill?.fgColor || cell?.fill?.bgColor));
+      const hasFillColor = Boolean(excelColorToHex(cell?.fill?.fgColor || cell?.fill?.bgColor));
 
       cells.push({
         text: escapeHtml(rawValue),
+        rawText: String(rawValue ?? ''),
         classes: cellClasses,
         colspan: mergeMeta.colspan,
         rowspan: mergeMeta.rowspan,
         isCovered: false,
-        isHeaderLike,
+        isBold: Boolean(cell?.font?.bold),
+        hasFillColor,
+        markedRole: getCellMarkedRole(cell),
       });
     }
 
-    const rowTag = isHeaderLikeRow(cells) ? 'th' : 'td';
+    const rowRole = getRowRenderRole(worksheet, rowNumber, cells, columnCount);
+    const rowTag = (rowRole === 'header' || rowRole === 'title') ? 'th' : 'td';
     const rowClasses = ['preview-row', ...getRowStyleClasses(row, styleRegistry)].filter(Boolean).join(' ');
     const renderedCells = cells.map((cell) => {
       const spans = [
         cell.colspan > 1 ? ` colspan="${cell.colspan}"` : '',
         cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : '',
       ].join('');
+      const scope = rowRole === 'header' ? ' scope="col"' : '';
 
-      return `<${rowTag}${spans} class="${cell.classes.join(' ')}">${cell.text}</${rowTag}>`;
+      return `<${rowTag}${scope}${spans} class="${cell.classes.join(' ')}">${cell.text}</${rowTag}>`;
     });
 
-    rows.push(`<tr class="${rowClasses}">${renderedCells.join('')}</tr>`);
+    rows.push(`<tr class="${rowClasses} preview-row-${rowRole}">${renderedCells.join('')}</tr>`);
   }
 
   return `<!doctype html>
@@ -344,6 +401,7 @@ const buildWorksheetHtml = (worksheet) => {
           .preview-valign-center { vertical-align: middle; }
           .preview-valign-bottom { vertical-align: bottom; }
           .preview-wrap-text { white-space: pre-wrap; }
+          .preview-row-title th { font-size: 14px; }
           ${styleRegistry.rules.join('\n          ')}
         </style>
       </head>
