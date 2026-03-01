@@ -45,16 +45,10 @@ const resolveSubscriptionDisplay = (subId) => {
   return subscriptionLabels[key] || key || 'Unknown SubID';
 };
 
-// Format a visible SubID label while retaining the raw identifier for structure.
+// Format a visible SubID label using either the configured label or raw SubID.
 const formatSubscriptionDisplay = (subId) => {
   const rawSubId = String(subId || 'Unknown SubID');
-  const label = resolveSubscriptionDisplay(rawSubId);
-
-  if (label !== rawSubId) {
-    return `${label} (${rawSubId})`;
-  }
-
-  return label;
+  return resolveSubscriptionDisplay(rawSubId);
 };
 
 // Collect SubIDs from the metadata cache or return sample identifiers.
