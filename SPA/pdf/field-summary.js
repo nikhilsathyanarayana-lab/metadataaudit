@@ -1,5 +1,4 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
-const OPTIONAL_NAMESPACE_CARDS = ['custom', 'salesforce'];
 
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
@@ -558,11 +557,10 @@ const toggleNamespaceCardVisibility = (namespace, rows = []) => {
 // Render all namespace tables from cached metadata aggregations.
 const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const rowsByNamespace = mapAggregationsToRows(aggregations);
+
   METADATA_NAMESPACES.forEach((namespace) => {
     const namespaceRows = rowsByNamespace[namespace];
-    const shouldRenderCard = OPTIONAL_NAMESPACE_CARDS.includes(namespace)
-      ? toggleNamespaceCardVisibility(namespace, namespaceRows)
-      : true;
+    const shouldRenderCard = toggleNamespaceCardVisibility(namespace, namespaceRows);
 
     if (shouldRenderCard) {
       renderTableRows(namespace, namespaceRows);
