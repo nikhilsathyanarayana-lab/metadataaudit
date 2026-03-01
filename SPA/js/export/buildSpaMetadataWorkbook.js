@@ -192,12 +192,12 @@ const appendNamespaceSheet = (workbook, namespace, sheetNames, appNameLookup, su
   worksheet.metadataColumnCount = header.length;
 };
 
-// Build a per-app summary map for visitor/account fields by export window.
+// Build a per-app summary map for all namespace fields by export window.
 const buildAppWindowSummary = () => {
   const summary = new Map();
 
   tableData
-    .filter((entry) => ['visitor', 'account'].includes(entry?.namespace))
+    .filter((entry) => ['visitor', 'account', 'custom', 'salesforce'].includes(entry?.namespace))
     .forEach((entry) => {
       const key = `${entry?.subId || ''}::${entry?.appId || ''}`;
       const existing = summary.get(key) || {
@@ -207,18 +207,60 @@ const buildAppWindowSummary = () => {
         window7: new Set(),
         window30: new Set(),
         window180: new Set(),
+        namespaceFields: {
+          visitor: new Set(),
+          account: new Set(),
+          custom: new Set(),
+          salesforce: new Set(),
+        },
       };
 
       normalizeFields(entry?.window7).forEach((field) => existing.window7.add(field));
       normalizeFields(entry?.window30).forEach((field) => existing.window30.add(field));
       normalizeFields(entry?.window180).forEach((field) => existing.window180.add(field));
+
+      const namespaceKey = String(entry?.namespace || '').toLowerCase();
+
+      if (existing.namespaceFields[namespaceKey]) {
+        normalizeFields(entry?.window7).forEach((field) => existing.namespaceFields[namespaceKey].add(field));
+        normalizeFields(entry?.window30).forEach((field) => existing.namespaceFields[namespaceKey].add(field));
+        normalizeFields(entry?.window180).forEach((field) => existing.namespaceFields[namespaceKey].add(field));
+      }
+
       summary.set(key, existing);
     });
 
   return summary;
 };
 
-// Add one worksheet per app with a simple title row for future app-level export details.
+// Build row-aligned metadata type and field values for one app worksheet.
+const buildAppFieldRows = (summary) => {
+  const typeLabels = {
+    visitor: 'Visitor',
+    account: 'Account',
+    custom: 'Custom',
+    salesforce: 'Salesforce',
+  };
+  const orderedNamespaces = ['visitor', 'account', 'custom', 'salesforce'];
+  const metadataTypeRow = [];
+  const fieldNameRow = [];
+
+  orderedNamespaces.forEach((namespaceKey) => {
+    const sortedFields = normalizeFields(Array.from(summary?.namespaceFields?.[namespaceKey] || []));
+
+    sortedFields.forEach((fieldName) => {
+      metadataTypeRow.push(typeLabels[namespaceKey]);
+      fieldNameRow.push(fieldName);
+    });
+  });
+
+  return {
+    metadataTypeRow,
+    fieldNameRow,
+  };
+};
+
+// Add one worksheet per app with metadata type row and horizontal field values.
 const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
   const appSummary = buildAppWindowSummary();
 
@@ -227,12 +269,19 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
     const appName = summary?.appName || summary?.appId || 'Unknown app';
     const worksheetName = sanitizeSheetName(`${appName} (${subIdDisplay})`, sheetNames);
     const worksheet = workbook.addWorksheet(worksheetName);
-    const titleRow = worksheet.addRow([appName]);
-    const titleCell = titleRow.getCell(1);
+    const { metadataTypeRow, fieldNameRow } = buildAppFieldRows(summary);
 
-    titleCell.font = { ...(titleCell.font || {}), ...EXPORT_TITLE_STYLE.font };
-    markPreviewRowRole(worksheet, titleRow.number, 'title');
-    worksheet.metadataColumnCount = 1;
+    if (!metadataTypeRow.length) {
+      worksheet.addRow(['No metadata fields available for this application.']);
+      worksheet.metadataColumnCount = 1;
+      return;
+    }
+
+    worksheet.addRow(metadataTypeRow);
+    worksheet.addRow(fieldNameRow);
+    markPreviewRowRole(worksheet, 1, 'header');
+    applyHeaderFormatting(worksheet);
+    worksheet.metadataColumnCount = metadataTypeRow.length;
   });
 };
 
