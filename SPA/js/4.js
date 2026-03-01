@@ -7,8 +7,12 @@ const exportSources = ['SPA/pdf/table-of-contents.html','SPA/pdf/overview-dashbo
 let currentSourceIndex = 0;
 const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.meta.url);
 const pdfStylesheetUrl = new URL('../pdf/pdf.css', import.meta.url).href;
+const html2PdfLibraryUrl = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
 const renderDelayMs = 350;
 const footerClassName = 'pdf-page-footer';
+const exportedPdfFileName = 'Metadata export.pdf';
+
+let html2PdfLoaderPromise = null;
 
 // Wait briefly to let iframe content finish rendering.
 const delay = (duration) => new Promise((resolve) => {
@@ -207,8 +211,8 @@ const createStagingArea = () => {
   return container;
 };
 
-// Wait for a stylesheet to finish loading in the print document.
-const waitForPrintStylesheet = (stylesheet) => new Promise((resolve, reject) => {
+// Wait for a stylesheet to finish loading in a target document.
+const waitForStylesheet = (stylesheet) => new Promise((resolve, reject) => {
   const handleLoad = () => {
     stylesheet.removeEventListener('load', handleLoad);
     stylesheet.removeEventListener('error', handleError);
@@ -218,10 +222,10 @@ const waitForPrintStylesheet = (stylesheet) => new Promise((resolve, reject) => 
   const handleError = () => {
     stylesheet.removeEventListener('load', handleLoad);
     stylesheet.removeEventListener('error', handleError);
-    const error = new Error(`Unable to load print stylesheet: ${stylesheet.href}`);
+    const error = new Error(`Unable to load stylesheet: ${stylesheet.href}`);
 
     // eslint-disable-next-line no-console
-    console.error('Print stylesheet failed to load.', error);
+    console.error('Stylesheet failed to load.', error);
     reject(error);
   };
 
@@ -229,63 +233,162 @@ const waitForPrintStylesheet = (stylesheet) => new Promise((resolve, reject) => 
   stylesheet.addEventListener('error', handleError, { once: true });
 });
 
-// Wait for a paint tick so the print layout can settle.
-const waitForPrintLayout = () => new Promise((resolve) => {
+// Wait for a paint tick so the export layout can settle.
+const waitForLayout = () => new Promise((resolve) => {
   window.requestAnimationFrame(() => {
     setTimeout(resolve, 50);
   });
 });
 
-// Render all export pages into a printable window.
-const renderPrintableDocument = async (pages) => {
-  const printWindow = window.open('', '_blank');
+// Convert CSS millimeter values to inches for the PDF generator.
+const millimetersToInches = (millimeters) => millimeters / 25.4;
 
-  if (!printWindow) {
-    throw new Error('Unable to open a print window.');
+// Convert a CSS length value (mm) into a numeric millimeter value.
+const parseMillimeterValue = (value) => {
+  const parsedValue = parseFloat((value || '').trim());
+
+  if (!Number.isFinite(parsedValue)) {
+    return null;
   }
 
-  const printDocument = printWindow.document;
+  return parsedValue;
+};
 
-  printDocument.open();
-  printDocument.write('<!doctype html><html lang="en"><head></head><body></body></html>');
-  printDocument.close();
+// Read PDF page dimensions from css variables with A4 defaults.
+const readPdfDimensions = () => {
+  const rootStyles = getComputedStyle(document.documentElement);
+  const pageWidthMm = parseMillimeterValue(rootStyles.getPropertyValue('--page-width')) || 210;
+  const pageHeightMm = parseMillimeterValue(rootStyles.getPropertyValue('--page-height')) || 297;
+  const pageMarginMm = parseMillimeterValue(rootStyles.getPropertyValue('--page-margin')) || 16;
 
-  printDocument.title = 'Metadata export';
+  return {
+    pageWidthMm,
+    pageHeightMm,
+    pageMarginMm,
+    pageWidthIn: millimetersToInches(pageWidthMm),
+    pageHeightIn: millimetersToInches(pageHeightMm),
+    pageMarginIn: millimetersToInches(pageMarginMm),
+  };
+};
 
-  const stylesheet = printDocument.createElement('link');
+// Load html2pdf once and resolve with the global export function.
+const loadHtml2Pdf = () => {
+  if (typeof window.html2pdf === 'function') {
+    return Promise.resolve(window.html2pdf);
+  }
+
+  if (!html2PdfLoaderPromise) {
+    html2PdfLoaderPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+
+      script.src = html2PdfLibraryUrl;
+      script.async = true;
+      script.addEventListener('load', () => {
+        if (typeof window.html2pdf === 'function') {
+          resolve(window.html2pdf);
+          return;
+        }
+
+        reject(new Error('html2pdf loaded but did not expose a global function.'));
+      }, { once: true });
+      script.addEventListener('error', () => {
+        reject(new Error('Unable to load html2pdf library.'));
+      }, { once: true });
+
+      document.head.appendChild(script);
+    });
+  }
+
+  return html2PdfLoaderPromise;
+};
+
+// Build a hidden document shell for rendering export pages to PDF.
+const createPdfRenderHost = () => {
+  const host = document.createElement('div');
+  const stylesheet = document.createElement('link');
+  const body = document.createElement('div');
+
+  host.id = 'pdf-export-render-host';
+  host.style.position = 'fixed';
+  host.style.left = '-9999px';
+  host.style.top = '0';
+  host.style.width = '210mm';
+  host.style.background = '#ffffff';
+
   stylesheet.rel = 'stylesheet';
   stylesheet.href = pdfStylesheetUrl;
-  printDocument.head.appendChild(stylesheet);
 
-  await waitForPrintStylesheet(stylesheet);
+  body.id = 'pdf-export-body';
+  body.className = 'pdf-export-body';
 
-  if (printDocument.body) {
-    printDocument.body.id = 'pdf-export-body';
-    printDocument.body.className = 'pdf-export-body';
+  host.append(stylesheet, body);
+  document.body.appendChild(host);
+
+  return { host, stylesheet, body };
+};
+
+// Render all assembled pages into a downloadable PDF blob.
+const renderPdfBlob = async (pages) => {
+  const html2pdf = await loadHtml2Pdf();
+  const { pageWidthIn, pageHeightIn, pageMarginIn } = readPdfDimensions();
+  const { host, stylesheet, body } = createPdfRenderHost();
+
+  try {
+    await waitForStylesheet(stylesheet);
+
+    pages.forEach(({ source, body: pageBody }, index) => {
+      const pageNumber = index + 1;
+      const wrapper = document.createElement('section');
+      const adoptedBody = pageBody.cloneNode(true);
+
+      wrapper.className = 'pdf-export-page';
+      wrapper.id = `pdf-export-page-${pageNumber}`;
+      wrapper.setAttribute('data-export-source', source);
+      wrapper.appendChild(adoptedBody);
+
+      applyPageFooter(wrapper, document, pageNumber);
+      body.appendChild(wrapper);
+    });
+
+    await waitForLayout();
+
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+
+    return html2pdf().set({
+      margin: pageMarginIn,
+      filename: exportedPdfFileName,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: {
+        unit: 'in',
+        format: [pageWidthIn, pageHeightIn],
+        orientation: 'portrait',
+      },
+      pagebreak: { mode: ['css', 'legacy'] },
+    }).from(body).toPdf().outputPdf('blob');
+  } finally {
+    host.remove();
   }
+};
 
-  pages.forEach(({ source, body }, index) => {
-    const pageNumber = index + 1;
-    const wrapper = printDocument.createElement('section');
-    const adoptedBody = printDocument.importNode(body, true);
+// Download the generated PDF blob to the user's device.
+const downloadPdfBlob = (pdfBlob) => {
+  const objectUrl = URL.createObjectURL(pdfBlob);
+  const link = document.createElement('a');
 
-    wrapper.className = 'pdf-export-page';
-    wrapper.id = `pdf-export-page-${pageNumber}`;
-    wrapper.setAttribute('data-export-source', source);
-    wrapper.appendChild(adoptedBody);
+  link.href = objectUrl;
+  link.download = exportedPdfFileName;
+  link.style.display = 'none';
 
-    applyPageFooter(wrapper, printDocument, pageNumber);
-    printDocument.body.appendChild(wrapper);
-  });
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 
-  await waitForPrintLayout();
-
-  if (printDocument.fonts?.ready) {
-    await printDocument.fonts.ready;
-  }
-
-  printWindow.focus();
-  printWindow.print();
+  setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 1000);
 };
 
 // Update the iframe source to the selected export preview.
@@ -464,7 +567,7 @@ export async function initSection(sectionElement) {
   // Open the exclusion modal to let users pick PDF sections to skip.
   const openExclusionModal = () => setExclusionModalVisibility(exclusionModal, exclusionBackdrop, true);
 
-  // Assemble all export pages into a printable document.
+  // Assemble all export pages into a downloadable PDF document.
   const handlePdfExportRequested = async () => {
     const stagingArea = createStagingArea();
 
@@ -488,7 +591,8 @@ export async function initSection(sectionElement) {
         pages.push({ source, body });
       }
 
-      await renderPrintableDocument(pages);
+      const pdfBlob = await renderPdfBlob(pages);
+      downloadPdfBlob(pdfBlob);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('PDF export failed.', error);
