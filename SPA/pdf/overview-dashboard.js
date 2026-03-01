@@ -52,7 +52,7 @@ let subBarData = defaultSubBarData;
 const namespaceKeys = ['visitor', 'account', 'custom', 'salesforce'];
 const namespaceSummaryTargets = {
   visitor: 'namespace-visitor-count',
-  account: 'namespace-subscription-count',
+  account: 'namespace-account-count',
   custom: 'namespace-custom-count',
   salesforce: 'namespace-salesforce-count'
 };
