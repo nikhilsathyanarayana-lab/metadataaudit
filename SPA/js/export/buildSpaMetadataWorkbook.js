@@ -516,7 +516,6 @@ const buildTimeframeChanges = (appSummary = new Map(), subIdLabelLookup) => {
 
     changes.push({
       subIdDisplay,
-      appId: summary.appId,
       appName: summary.appName,
       note,
     });
@@ -567,14 +566,13 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
     return;
   }
 
-  const changeHeader = worksheet.addRow(['SubID', 'App Name', 'App ID', 'Note']);
+  const changeHeader = worksheet.addRow(['SubID', 'App Name', 'Note']);
   changeHeader.font = { bold: true };
   markPreviewRowRole(worksheet, changeHeader.number, 'header');
   timeframeChanges.forEach((change) => {
     worksheet.addRow([
       change.subIdDisplay,
-      change.appName || change.appId || 'Unknown app',
-      change.appId || '',
+      change.appName || 'Unknown app',
       change.note,
     ]);
   });
