@@ -428,43 +428,95 @@ const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
   });
 };
 
-// Compare field sets across windows to list missing fields in each timeframe.
+// Return fields present in one set and absent in another.
+const diffFieldSets = (sourceSet = new Set(), targetSet = new Set()) => (
+  Array.from(sourceSet).filter((field) => !targetSet.has(field)).sort((left, right) => left.localeCompare(right))
+);
+
+// Format a field list in concise sentence-friendly text.
+const formatFieldPhrase = (fields = []) => {
+  if (!fields.length) {
+    return '';
+  }
+
+  if (fields.length === 1) {
+    return fields[0];
+  }
+
+  if (fields.length === 2) {
+    return `${fields[0]} and ${fields[1]}`;
+  }
+
+  return `${fields.slice(0, -1).join(', ')}, and ${fields[fields.length - 1]}`;
+};
+
+// Return a pluralized noun fragment for a field list.
+const formatFieldNoun = (fields = []) => (fields.length === 1 ? 'field' : 'fields');
+
+// Build concise, app-level note text for timeframe metadata changes.
+const buildTimeframeChangeNote = (summary) => {
+  const fields7 = summary?.window7 || new Set();
+  const fields30 = summary?.window30 || new Set();
+  const fields180 = summary?.window180 || new Set();
+  const segments = [];
+
+  const hasRecentLoss = !fields7.size && fields30.size;
+  const hasMidLoss = !fields30.size && fields180.size;
+
+  if (hasRecentLoss) {
+    segments.push('This app received metadata in the 30 day window but not the 7 day window.');
+  }
+
+  if (hasMidLoss) {
+    segments.push('This app received metadata in the 180 day window but not the 30 day window.');
+  }
+
+  if (fields7.size && fields30.size) {
+    const recentStarts = diffFieldSets(fields7, fields30);
+    const recentStops = diffFieldSets(fields30, fields7);
+
+    if (recentStarts.length) {
+      segments.push(`The ${formatFieldPhrase(recentStarts)} ${formatFieldNoun(recentStarts)} started receiving metadata in the last 7 days.`);
+    }
+
+    if (recentStops.length) {
+      segments.push(`The ${formatFieldPhrase(recentStops)} ${formatFieldNoun(recentStops)} were present in the 30 day window but not in the 7 day window.`);
+    }
+  }
+
+  if (fields30.size && fields180.size) {
+    const midStarts = diffFieldSets(fields30, fields180);
+    const midStops = diffFieldSets(fields180, fields30);
+
+    if (midStarts.length) {
+      segments.push(`The ${formatFieldPhrase(midStarts)} ${formatFieldNoun(midStarts)} started receiving metadata in the last 30 days.`);
+    }
+
+    if (midStops.length) {
+      segments.push(`The ${formatFieldPhrase(midStops)} ${formatFieldNoun(midStops)} were present in the 180 day window but not in the 30 day window.`);
+    }
+  }
+
+  return segments.join(' ');
+};
+
+// Build one concise change summary row per application.
 const buildTimeframeChanges = (appSummary = new Map(), subIdLabelLookup) => {
-  const frames = [
-    { key: 'window7', label: '7 day' },
-    { key: 'window30', label: '30 day' },
-    { key: 'window180', label: '180 day' },
-  ];
   const changes = [];
 
   appSummary.forEach((summary) => {
-    frames.forEach((sourceFrame) => {
-      frames.forEach((targetFrame) => {
-        if (sourceFrame.key === targetFrame.key) {
-          return;
-        }
+    const note = buildTimeframeChangeNote(summary);
 
-        const sourceFields = summary[sourceFrame.key] || new Set();
-        const targetFields = summary[targetFrame.key] || new Set();
+    if (!note) {
+      return;
+    }
 
-        if (!sourceFields.size || !targetFields.size) {
-          return;
-        }
+    const subIdDisplay = getSubIdDisplay(summary.subId, subIdLabelLookup) || 'Unknown SubID';
 
-        sourceFields.forEach((field) => {
-          if (!targetFields.has(field)) {
-            const subIdDisplay = getSubIdDisplay(summary.subId, subIdLabelLookup) || 'Unknown SubID';
-
-            changes.push({
-              field,
-              subIdDisplay,
-              appId: summary.appId,
-              appName: summary.appName,
-              note: `${field} was not found in the ${targetFrame.label} window but was found in the ${sourceFrame.label} window for ${summary.appName} (${subIdDisplay})`,
-            });
-          }
-        });
-      });
+    changes.push({
+      subIdDisplay,
+      appName: summary.appName,
+      note,
     });
   });
 
@@ -513,15 +565,13 @@ const appendOverviewSheet = (workbook, sheetNames, subIdLabelLookup) => {
     return;
   }
 
-  const changeHeader = worksheet.addRow(['Field', 'SubID', 'App Name', 'App ID', 'Note']);
+  const changeHeader = worksheet.addRow(['SubID', 'App Name', 'Note']);
   changeHeader.font = { bold: true };
   markPreviewRowRole(worksheet, changeHeader.number, 'header');
   timeframeChanges.forEach((change) => {
     worksheet.addRow([
-      change.field,
       change.subIdDisplay,
-      change.appName || change.appId || 'Unknown app',
-      change.appId || '',
+      change.appName || 'Unknown app',
       change.note,
     ]);
   });
