@@ -29,6 +29,7 @@ const TITLE_STYLE = {
   alignment: { horizontal: 'center', vertical: 'middle' },
 };
 
+
 const METADATA_STATUS_PENDING = 'Pending...';
 
 // Resolve a SubID display value using injected labels first, then shared in-memory labels.
@@ -226,6 +227,23 @@ const buildAppWindowSummary = () => {
   return summary;
 };
 
+// Add one worksheet per app with a simple title row for future app-level export details.
+const appendApplicationSheets = (workbook, sheetNames, subIdLabelLookup) => {
+  const appSummary = buildAppWindowSummary();
+
+  appSummary.forEach((summary) => {
+    const subIdDisplay = getSubIdDisplay(summary?.subId, subIdLabelLookup) || 'Unknown SubID';
+    const appName = summary?.appName || summary?.appId || 'Unknown app';
+    const worksheetName = sanitizeSheetName(`${appName} (${subIdDisplay})`, sheetNames);
+    const worksheet = workbook.addWorksheet(worksheetName);
+    const titleRow = worksheet.addRow([appName]);
+    const titleCell = titleRow.getCell(1);
+
+    titleCell.font = { ...(titleCell.font || {}), ...TITLE_STYLE.font };
+    worksheet.metadataColumnCount = 1;
+  });
+};
+
 // Compare field sets across windows to list missing fields in each timeframe.
 const buildTimeframeChanges = (appSummary = new Map(), subIdLabelLookup) => {
   const frames = [
@@ -334,6 +352,7 @@ export const buildSpaMetadataWorkbook = async ({ subIdLabels } = {}) => {
   appendOverviewSheet(workbook, sheetNames, subIdLabels);
   appendNamespaceSheet(workbook, 'Visitor', sheetNames, appNameLookup, subIdLabels);
   appendNamespaceSheet(workbook, 'Account', sheetNames, appNameLookup, subIdLabels);
+  appendApplicationSheets(workbook, sheetNames, subIdLabels);
 
   return {
     workbook,
