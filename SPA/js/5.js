@@ -21,6 +21,210 @@ const escapeHtml = (value) => {
     .replace(/'/g, '&#39;');
 };
 
+// Convert an Excel ARGB color value into a browser-ready hex color.
+const excelColorToHex = (color) => {
+  const argb = String(color?.argb || '').trim();
+
+  if (argb.length === 8) {
+    return `#${argb.slice(2)}`;
+  }
+
+  if (argb.length === 6) {
+    return `#${argb}`;
+  }
+
+  return '';
+};
+
+// Convert an Excel column address (A, AA) into a 1-indexed column number.
+const columnAddressToNumber = (columnAddress = '') => {
+  return String(columnAddress)
+    .toUpperCase()
+    .split('')
+    .reduce((value, character) => (value * 26) + (character.charCodeAt(0) - 64), 0);
+};
+
+// Parse a workbook cell reference (A1) into row and column numbers.
+const parseCellReference = (reference = '') => {
+  const match = String(reference).match(/^([A-Z]+)(\d+)$/i);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    column: columnAddressToNumber(match[1]),
+    row: Number.parseInt(match[2], 10),
+  };
+};
+
+// Parse a merge range (A1:C1) into start and end boundaries.
+const parseMergeRange = (range = '') => {
+  const [startReference, endReference] = String(range).split(':');
+  const start = parseCellReference(startReference);
+  const end = parseCellReference(endReference || startReference);
+
+  if (!start || !end) {
+    return null;
+  }
+
+  return {
+    startRow: Math.min(start.row, end.row),
+    endRow: Math.max(start.row, end.row),
+    startColumn: Math.min(start.column, end.column),
+    endColumn: Math.max(start.column, end.column),
+  };
+};
+
+// Build fast merge lookups for worksheet preview rendering.
+const buildMergeLookup = (worksheet) => {
+  const merges = Array.isArray(worksheet?.model?.merges) ? worksheet.model.merges : [];
+  const masterCells = new Map();
+  const coveredCells = new Set();
+  let maxMergedColumn = 0;
+  let maxMergedRow = 0;
+
+  merges.forEach((mergeRange) => {
+    const parsedRange = parseMergeRange(mergeRange);
+
+    if (!parsedRange) {
+      return;
+    }
+
+    maxMergedColumn = Math.max(maxMergedColumn, parsedRange.endColumn);
+    maxMergedRow = Math.max(maxMergedRow, parsedRange.endRow);
+
+    const key = `${parsedRange.startRow}:${parsedRange.startColumn}`;
+    masterCells.set(key, {
+      colspan: Math.max(1, (parsedRange.endColumn - parsedRange.startColumn) + 1),
+      rowspan: Math.max(1, (parsedRange.endRow - parsedRange.startRow) + 1),
+    });
+
+    for (let row = parsedRange.startRow; row <= parsedRange.endRow; row += 1) {
+      for (let column = parsedRange.startColumn; column <= parsedRange.endColumn; column += 1) {
+        if (row === parsedRange.startRow && column === parsedRange.startColumn) {
+          continue;
+        }
+
+        coveredCells.add(`${row}:${column}`);
+      }
+    }
+  });
+
+  return {
+    masterCells,
+    coveredCells,
+    maxMergedColumn,
+    maxMergedRow,
+  };
+};
+
+// Register a dynamic CSS class once and return its class name.
+const registerRuleClass = (styleRegistry, cacheKey, cssProperty, cssValue, prefix) => {
+  if (!cssValue) {
+    return '';
+  }
+
+  const existingClass = styleRegistry.classByKey.get(cacheKey);
+  if (existingClass) {
+    return existingClass;
+  }
+
+  styleRegistry.counter += 1;
+  const className = `${prefix}-${styleRegistry.counter}`;
+  styleRegistry.classByKey.set(cacheKey, className);
+  styleRegistry.rules.push(`.${className} { ${cssProperty}: ${cssValue}; }`);
+  return className;
+};
+
+// Collect CSS classes for one preview cell from ExcelJS style metadata.
+const getCellStyleClasses = (cell, styleRegistry) => {
+  const classes = ['preview-cell'];
+  const font = cell?.font || {};
+  const fill = cell?.fill || {};
+  const alignment = cell?.alignment || {};
+
+  if (font.bold) {
+    classes.push('preview-font-bold');
+  }
+
+  if (font.italic) {
+    classes.push('preview-font-italic');
+  }
+
+  if (font.underline) {
+    classes.push('preview-font-underline');
+  }
+
+  const fontColor = excelColorToHex(font.color);
+  if (fontColor) {
+    classes.push(registerRuleClass(styleRegistry, `font-color:${fontColor}`, 'color', fontColor, 'preview-fc'));
+  }
+
+  const fillColor = excelColorToHex(fill?.fgColor || fill?.bgColor);
+  if (fillColor) {
+    classes.push(registerRuleClass(styleRegistry, `fill-color:${fillColor}`, 'background-color', fillColor, 'preview-bg'));
+  } else {
+    classes.push('preview-fill-default');
+  }
+
+  if (font.size) {
+    classes.push(registerRuleClass(styleRegistry, `font-size:${font.size}`, 'font-size', `${font.size}px`, 'preview-fs'));
+  }
+
+  if (alignment.horizontal) {
+    classes.push(`preview-align-${alignment.horizontal}`);
+  } else {
+    classes.push('preview-align-left');
+  }
+
+  if (alignment.vertical) {
+    classes.push(`preview-valign-${alignment.vertical}`);
+  }
+
+  if (alignment.wrapText) {
+    classes.push('preview-wrap-text');
+  }
+
+  return classes.filter(Boolean);
+};
+
+// Build CSS classes for row-level metadata like explicit row height.
+const getRowStyleClasses = (row, styleRegistry) => {
+  const classes = [];
+
+  if (row?.height) {
+    classes.push(registerRuleClass(styleRegistry, `row-height:${row.height}`, 'height', `${row.height}px`, 'preview-rh'));
+  }
+
+  return classes.filter(Boolean);
+};
+
+// Build CSS classes for column-level metadata like explicit column width.
+const getColumnStyleClasses = (worksheet, columnNumber, styleRegistry) => {
+  const classes = [];
+  const width = worksheet?.getColumn(columnNumber)?.width;
+
+  if (width) {
+    classes.push(registerRuleClass(styleRegistry, `column-width:${width}`, 'width', `${Math.round(width * 7)}px`, 'preview-cw'));
+  }
+
+  return classes.filter(Boolean);
+};
+
+// Determine if a row should be rendered as a semantic table header row.
+const isHeaderLikeRow = (rowCells = []) => {
+  const visibleCells = rowCells.filter((cell) => !cell.isCovered);
+  const nonEmptyCells = visibleCells.filter((cell) => cell.text.trim());
+
+  if (!visibleCells.length || !nonEmptyCells.length) {
+    return false;
+  }
+
+  const styledCells = nonEmptyCells.filter((cell) => cell.isHeaderLike || cell.colspan > 1);
+  return styledCells.length === nonEmptyCells.length;
+};
+
 // Returns the worksheets that are not currently excluded.
 const getIncludedSheets = (workbook, excluded = new Set()) => {
   if (!workbook?.worksheets?.length) {
@@ -49,19 +253,69 @@ const buildWorksheetHtml = (worksheet) => {
     return '<p>Workbook preview is unavailable.</p>';
   }
 
-  const columnCount = worksheet.metadataColumnCount || worksheet.columnCount || worksheet.actualColumnCount || 1;
+  const mergeLookup = buildMergeLookup(worksheet);
+  const columnCount = Math.max(
+    worksheet.metadataColumnCount || 0,
+    worksheet.columnCount || 0,
+    worksheet.actualColumnCount || 0,
+    mergeLookup.maxMergedColumn || 0,
+    1,
+  );
+  const rowCount = Math.max(worksheet.rowCount || 0, worksheet.actualRowCount || 0, mergeLookup.maxMergedRow || 0, 1);
+  const styleRegistry = {
+    classByKey: new Map(),
+    rules: [],
+    counter: 0,
+  };
+
+  const colgroup = [];
+  for (let column = 1; column <= columnCount; column += 1) {
+    const columnClasses = getColumnStyleClasses(worksheet, column, styleRegistry);
+    colgroup.push(`<col class="${columnClasses.join(' ')}" />`);
+  }
+
   const rows = [];
 
-  worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+  for (let rowNumber = 1; rowNumber <= rowCount; rowNumber += 1) {
+    const row = worksheet.getRow(rowNumber);
     const cells = [];
+
     for (let column = 1; column <= columnCount; column += 1) {
+      const cellKey = `${rowNumber}:${column}`;
+
+      if (mergeLookup.coveredCells.has(cellKey)) {
+        continue;
+      }
+
       const cell = row.getCell(column);
       const rawValue = cell?.text ?? cell?.value ?? '';
-      const cellTag = rowNumber === 1 ? 'th' : 'td';
-      cells.push(`<${cellTag}>${escapeHtml(rawValue)}</${cellTag}>`);
+      const mergeMeta = mergeLookup.masterCells.get(cellKey) || { colspan: 1, rowspan: 1 };
+      const cellClasses = getCellStyleClasses(cell, styleRegistry);
+      const isHeaderLike = Boolean(cell?.font?.bold || excelColorToHex(cell?.fill?.fgColor || cell?.fill?.bgColor));
+
+      cells.push({
+        text: escapeHtml(rawValue),
+        classes: cellClasses,
+        colspan: mergeMeta.colspan,
+        rowspan: mergeMeta.rowspan,
+        isCovered: false,
+        isHeaderLike,
+      });
     }
-    rows.push(`<tr>${cells.join('')}</tr>`);
-  });
+
+    const rowTag = isHeaderLikeRow(cells) ? 'th' : 'td';
+    const rowClasses = ['preview-row', ...getRowStyleClasses(row, styleRegistry)].filter(Boolean).join(' ');
+    const renderedCells = cells.map((cell) => {
+      const spans = [
+        cell.colspan > 1 ? ` colspan="${cell.colspan}"` : '',
+        cell.rowspan > 1 ? ` rowspan="${cell.rowspan}"` : '',
+      ].join('');
+
+      return `<${rowTag}${spans} class="${cell.classes.join(' ')}">${cell.text}</${rowTag}>`;
+    });
+
+    rows.push(`<tr class="${rowClasses}">${renderedCells.join('')}</tr>`);
+  }
 
   return `<!doctype html>
     <html lang="en">
@@ -72,13 +326,33 @@ const buildWorksheetHtml = (worksheet) => {
           body { font-family: Arial, sans-serif; padding: 12px; }
           h1 { font-size: 18px; margin: 0 0 12px; }
           table { width: 100%; border-collapse: collapse; }
-          th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; text-align: left; }
-          th { background: #f8d7e5; }
+          th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; text-align: left; vertical-align: middle; }
+          .preview-row { height: auto; }
+          .preview-cell { background: #fff; }
+          .preview-fill-default { background: #fff; }
+          .preview-font-bold { font-weight: 700; }
+          .preview-font-italic { font-style: italic; }
+          .preview-font-underline { text-decoration: underline; }
+          .preview-align-left { text-align: left; }
+          .preview-align-center { text-align: center; }
+          .preview-align-right { text-align: right; }
+          .preview-align-fill,
+          .preview-align-distributed,
+          .preview-align-justify { text-align: justify; }
+          .preview-valign-top { vertical-align: top; }
+          .preview-valign-middle,
+          .preview-valign-center { vertical-align: middle; }
+          .preview-valign-bottom { vertical-align: bottom; }
+          .preview-wrap-text { white-space: pre-wrap; }
+          ${styleRegistry.rules.join('\n          ')}
         </style>
       </head>
       <body>
         <h1>${escapeHtml(worksheet.name)}</h1>
-        <table>${rows.join('')}</table>
+        <table>
+          <colgroup>${colgroup.join('')}</colgroup>
+          <tbody>${rows.join('')}</tbody>
+        </table>
       </body>
     </html>`;
 };
