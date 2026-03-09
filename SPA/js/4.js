@@ -367,10 +367,13 @@ const createPdfRenderHost = (dimensions) => {
 
   host.id = 'pdf-export-render-host';
   host.style.position = 'fixed';
-  host.style.left = '-9999px';
+  host.style.left = '0';
   host.style.top = '0';
   host.style.width = `${pageWidthMm}mm`;
   host.style.background = '#ffffff';
+  host.style.opacity = '0';
+  host.style.pointerEvents = 'none';
+  host.style.zIndex = '-1';
   host.style.setProperty('--page-width', `${pageWidthMm}mm`);
   host.style.setProperty('--page-height', `${pageHeightMm}mm`);
   host.style.setProperty('--page-margin', `${pageMarginMm}mm`);
