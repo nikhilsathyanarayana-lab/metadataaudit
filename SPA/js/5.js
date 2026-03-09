@@ -803,20 +803,87 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
   });
 };
 
-// Clones a workbook and removes any excluded worksheets.
-const filterWorkbookForDownload = async (workbook, excluded = new Set()) => {
-  const clone = new window.ExcelJS.Workbook();
-  const buffer = await workbook.xlsx.writeBuffer();
-  await clone.xlsx.load(buffer);
+// Export a workbook while temporarily removing excluded sheets, then restore them in place.
+const exportWorkbookWithExcludedSheets = async (workbook, excluded = new Set(), filename = '') => {
+  const sheetSnapshots = [];
 
   excluded.forEach((sheetName) => {
-    const worksheet = clone.getWorksheet(sheetName);
-    if (worksheet) {
-      clone.removeWorksheet(worksheet.id);
+    const worksheet = workbook.getWorksheet(sheetName);
+
+    if (!worksheet) {
+      return;
+    }
+
+    try {
+      sheetSnapshots.push({
+        model: structuredClone(worksheet.model),
+        name: worksheet.name,
+        position: workbook.worksheets.findIndex((sheet) => sheet.id === worksheet.id),
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(`Unable to snapshot worksheet "${sheetName}" before export.`, error);
     }
   });
 
-  return clone;
+  sheetSnapshots.forEach((snapshot) => {
+    const worksheet = workbook.getWorksheet(snapshot.name);
+
+    if (!worksheet) {
+      return;
+    }
+
+    try {
+      workbook.removeWorksheet(worksheet.id);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(`Unable to remove worksheet "${snapshot.name}" before export.`, error);
+    }
+  });
+
+  try {
+    await downloadWorkbook(workbook, filename);
+  } finally {
+    const restoredSheets = [];
+
+    sheetSnapshots
+      .slice()
+      .sort((left, right) => left.position - right.position)
+      .forEach((snapshot) => {
+        try {
+          const restoredWorksheet = workbook.addWorksheet(snapshot.name);
+          restoredWorksheet.model = snapshot.model;
+          restoredSheets.push({
+            position: snapshot.position,
+            worksheet: restoredWorksheet,
+          });
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.error(`Unable to restore worksheet "${snapshot.name}" after export.`, error);
+        }
+      });
+
+    try {
+      const orderedSheets = workbook.worksheets.slice();
+
+      restoredSheets.forEach((restored) => {
+        const currentIndex = orderedSheets.indexOf(restored.worksheet);
+        if (currentIndex < 0) {
+          return;
+        }
+
+        orderedSheets.splice(currentIndex, 1);
+        orderedSheets.splice(Math.min(Math.max(restored.position, 0), orderedSheets.length), 0, restored.worksheet);
+      });
+
+      orderedSheets.forEach((worksheet, index) => {
+        worksheet.orderNo = index + 1;
+      });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Unable to restore worksheet order after export.', error);
+    }
+  }
 };
 
 // Refreshes the worksheet tabs and iframe preview based on the current selection.
@@ -897,8 +964,7 @@ export async function initSection(sectionElement) {
         return;
       }
 
-      const filteredWorkbook = await filterWorkbookForDownload(workbookCache, excludedSheetNames);
-      await downloadWorkbook(filteredWorkbook, desiredName || defaultWorkbookName);
+      await exportWorkbookWithExcludedSheets(workbookCache, excludedSheetNames, desiredName || defaultWorkbookName);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Unable to download filtered workbook.', error);
