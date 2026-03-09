@@ -681,6 +681,25 @@ const formatTableDataValue = (value) => {
 const formatMetadataWindowCell = (rowData, windowKey) => {
   const value = rowData?.[windowKey];
   const labels = getWindowStatusLabels(rowData, windowKey);
+  const failureLabels = labels.filter((label) => label === METADATA_STATUS_FAILED || /^Error:|^Failed:/.test(label));
+
+  if (failureLabels.length) {
+    return failureLabels.join(' | ');
+  }
+
+  const isNoDataValue = value === null || (Array.isArray(value) && !value.length);
+  const inProgressLabels = labels.filter((label) => label === METADATA_STATUS_PENDING
+    || label === METADATA_STATUS_SENT
+    || /^Split into \d+ calls$/.test(label));
+
+  if (inProgressLabels.length && (value === METADATA_STATUS_PENDING || value === undefined || value === '')) {
+    return inProgressLabels.join(' | ');
+  }
+
+  if (isNoDataValue) {
+    return 'No Data';
+  }
+
   const valueText = formatTableDataValue(value);
 
   if (labels.includes(METADATA_STATUS_PENDING) && valueText === METADATA_STATUS_PENDING) {
