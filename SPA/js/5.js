@@ -612,6 +612,15 @@ const openAppSheetModal = async (sheetNames = [], activeName = '') => {
 
 // Presents a modal that lists worksheets and captures exclusion selections.
 const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
+  const allSheetNames = sheetNames
+    .map((sheet) => {
+      if (typeof sheet === 'string') {
+        return sheet;
+      }
+
+      return sheet?.name || '';
+    })
+    .filter(Boolean);
   const backdropId = 'excel-exclude-backdrop';
   const modalId = 'excel-exclude-modal';
   let backdrop = document.getElementById(backdropId);
@@ -686,7 +695,7 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
 
   const appSheetRows = [];
 
-  sheetNames.forEach((sheetName, index) => {
+  allSheetNames.forEach((sheetName, index) => {
     const wrapper = document.createElement('label');
     wrapper.className = 'checkbox excel-exclude-checkbox-row';
     wrapper.id = `excel-exclude-option-${index}`;
@@ -933,11 +942,7 @@ export async function initSection(sectionElement) {
       return;
     }
 
-    const sheets = getIncludedSheets(workbookCache);
-    const nextExcluded = await openExcludeSheetModal(
-      sheets.map((sheet) => sheet?.name || ''),
-      excludedSheetNames,
-    );
+    const nextExcluded = await openExcludeSheetModal(workbookCache.worksheets, excludedSheetNames);
 
     excludedSheetNames = nextExcluded instanceof Set ? nextExcluded : excludedSheetNames;
     refreshWorkbookPreview(previewFrame, tabList);
