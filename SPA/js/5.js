@@ -891,6 +891,12 @@ export async function initSection(sectionElement) {
     }
 
     try {
+      if (excludedSheetNames.size === 0) {
+        // Skip cloning when no sheets are excluded to avoid a large in-memory copy.
+        await downloadWorkbook(workbookCache, desiredName || defaultWorkbookName);
+        return;
+      }
+
       const filteredWorkbook = await filterWorkbookForDownload(workbookCache, excludedSheetNames);
       await downloadWorkbook(filteredWorkbook, desiredName || defaultWorkbookName);
     } catch (error) {
