@@ -1,5 +1,9 @@
 import { ensureMessageRegion, renderRegionBanner } from './statusBanner.js';
-import { getOutstandingPendingCalls, summarizePendingCallProgress } from '../pages/deepDive/aggregation.js';
+import {
+  getOutstandingPendingCalls,
+  metadata_pending_api_calls,
+  summarizePendingCallProgress,
+} from '../pages/deepDive/aggregation.js';
 
 const defaultFormatMessage = ({ total, completed }) => {
   if (!total) {
@@ -24,19 +28,21 @@ export const renderPendingQueueBanner = ({
   const boundedCompleted = Math.max(0, Math.min(Number(completed) || 0, Number(total) || 0));
   const normalizedTotal = Math.max(0, Number(total) || 0);
   const pendingCalls = getOutstandingPendingCalls();
-  const hasFailed = pendingCalls.some((call) => call?.status === 'failed');
+  const failedCount = metadata_pending_api_calls.filter((call) => call?.status === 'failed').length;
 
-  const message =
+  const baseMessage =
     typeof formatMessage === 'function'
-      ? formatMessage({ total: normalizedTotal, completed: boundedCompleted, pendingCalls })
+      ? formatMessage({ total: normalizedTotal, completed: boundedCompleted, pendingCalls, failedCount })
       : normalizedTotal
         ? `API calls completed ${boundedCompleted} of ${normalizedTotal}`
         : idleText;
 
+  const message = failedCount > 0 ? `${baseMessage} · ${failedCount} failed` : baseMessage;
+
   const resolvedTone =
     typeof tone === 'function'
-      ? tone({ total: normalizedTotal, completed: boundedCompleted, pendingCalls })
-      : tone || (hasFailed ? 'warning' : 'info');
+      ? tone({ total: normalizedTotal, completed: boundedCompleted, pendingCalls, failedCount })
+      : tone || (failedCount > 0 ? 'warning' : 'info');
 
   return renderRegionBanner(region, message, resolvedTone, {
     ariaLive: resolvedTone === 'error' ? 'assertive' : ariaLive,
@@ -79,16 +85,16 @@ export const createPendingQueueStatusHelper = ({
       beforeSelector,
       idleText,
       ariaLive,
-      formatMessage: ({ total, completed, pendingCalls }) => {
+      formatMessage: ({ total, completed, pendingCalls, failedCount }) => {
         if (typeof message === 'string') {
           return combineMessage([message, ...resolvedNotes]) || idleText;
         }
 
-        const progressMessage = formatProgressMessage({ total, completed, pendingCalls });
+        const progressMessage = formatProgressMessage({ total, completed, pendingCalls, failedCount });
         const combined = combineMessage([progressMessage, ...resolvedNotes]);
         return combined || idleText;
       },
-      tone: ({ pendingCalls }) => {
+      tone: ({ pendingCalls, failedCount }) => {
         if (tone) {
           return tone;
         }
@@ -97,8 +103,7 @@ export const createPendingQueueStatusHelper = ({
           return toneOverride;
         }
 
-        const pendingFailure = pendingCalls?.some((call) => call?.status === 'failed');
-        const fallbackTone = pendingFailure ? 'warning' : 'info';
+        const fallbackTone = failedCount > 0 ? 'warning' : 'info';
         return typeof toneResolver === 'function'
           ? toneResolver({ pendingCalls, notes: resolvedNotes, fallbackTone })
           : fallbackTone;
