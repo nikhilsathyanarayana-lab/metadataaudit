@@ -448,6 +448,21 @@ const updateActiveTab = (tabList, activeName) => {
   });
 };
 
+// Updates the app-selector tab label and active state for the current sheet.
+const updateAppSelectorButton = (tabList, sheets, activeName) => {
+  const appSelectorButton = tabList?.querySelector('#excel-app-selector-button');
+
+  if (!appSelectorButton) {
+    return;
+  }
+
+  const appSheets = sheets.filter((sheet) => !isFixedSheet(sheet?.name));
+  const activeAppSheet = appSheets.find((sheet) => sheet?.name === activeName);
+
+  appSelectorButton.textContent = activeAppSheet?.name || 'Select App';
+  appSelectorButton.classList.toggle('is-active', Boolean(activeAppSheet));
+};
+
 // Builds the tab strip for the available worksheets.
 const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
   if (!tabList) {
@@ -480,12 +495,6 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
     appSelectorButton.dataset.role = 'app-selector';
     appSelectorButton.setAttribute('aria-label', 'Select app worksheet preview');
 
-    const activeAppSheet = appSheets.find((sheet) => sheet?.name === activeName);
-    appSelectorButton.textContent = activeAppSheet?.name || 'Select App';
-    if (activeAppSheet) {
-      appSelectorButton.classList.add('is-active');
-    }
-
     appSelectorButton.addEventListener('click', async () => {
       const selectedName = await openAppSheetModal(
         appSheets.map((sheet) => sheet?.name || ''),
@@ -500,6 +509,7 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
     tabList.append(appSelectorButton);
   }
 
+  updateAppSelectorButton(tabList, sheets, activeName);
   updateActiveTab(tabList, activeName);
 };
 
@@ -904,6 +914,7 @@ const refreshWorkbookPreview = (previewFrame, tabList) => {
   renderExcelTabs(tabList, sheets, (sheetName) => {
     activeSheetName = sheetName;
     updateActiveTab(tabList, sheetName);
+    updateAppSelectorButton(tabList, sheets, sheetName);
     const nextSheet = sheets.find((sheet) => sheet?.name === sheetName);
     renderSheetPreview(previewFrame, nextSheet);
   }, activeSheetName);
