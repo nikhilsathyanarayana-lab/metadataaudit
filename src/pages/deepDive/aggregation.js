@@ -30,7 +30,7 @@ const notifyPendingCallObservers = () =>
 
 const getPendingQueueSnapshot = () =>
   metadata_pending_api_calls.filter(
-    (call) => call?.status === 'queued' || call?.status === 'in-flight' || call?.status === 'failed',
+    (call) => call?.status === 'queued' || call?.status === 'in-flight',
   );
 
 const notifyRecordedCallObservers = () =>
@@ -828,5 +828,4 @@ function updateVisitorAggregation(visitorMetadata, entry, visitorId, aggregation
 
   updateFieldCount('visitorId', visitorId || '');
 }
-
 
