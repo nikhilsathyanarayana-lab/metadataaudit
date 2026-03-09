@@ -6,16 +6,20 @@
         <p class="section-hint" id="page-four-hint">Preview export output in the embedded frame below.</p>
       </div>
       <div class="card-actions export-actions" id="export-actions" aria-label="Export actions">
+        <button class="secondary-btn" id="export-mode-toggle-button" type="button">Source page debug</button>
         <button class="secondary-btn" id="export-exclusion-button" type="button">Exclude sections</button>
         <button class="primary-btn" id="export-pdf-button" type="button">Export PDF</button>
       </div>
     </div>
     <div class="export-preview" id="export-preview">
-      <div class="export-preview-controls" aria-label="Export preview navigation">
+      <div class="export-preview-controls" id="export-preview-controls" aria-label="Export preview navigation" hidden>
         <button class="export-preview-button" type="button" id="export-nav-prev" aria-label="Previous export">&#8592;</button>
         <button class="export-preview-button" type="button" id="export-nav-next" aria-label="Next export">&#8594;</button>
       </div>
-      <div class="export-preview-page-shell" id="export-preview-page-shell">
+      <div class="export-preview-assembled-shell" id="export-preview-assembled-shell">
+        <div class="export-preview-assembled" id="export-preview-assembled"></div>
+      </div>
+      <div class="export-preview-page-shell" id="export-preview-page-shell" hidden>
         <iframe
           id="export-preview-frame"
           title="Export PDF preview"

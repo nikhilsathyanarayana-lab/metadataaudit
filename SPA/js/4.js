@@ -13,6 +13,7 @@ const footerClassName = 'pdf-page-footer';
 const exportedPdfFileName = 'Metadata export.pdf';
 
 let html2PdfLoaderPromise = null;
+let assembledExportPagesCache = [];
 
 // Wait briefly to let iframe content finish rendering.
 const delay = (duration) => new Promise((resolve) => {
@@ -333,11 +334,38 @@ const createPdfRenderHost = (dimensions) => {
   return { host, stylesheet, body };
 };
 
+// Build export page wrappers once so preview and export share the same DOM shape.
+const buildAssembledExportDom = (pages, targetDocument) => {
+  const fragment = targetDocument.createDocumentFragment();
+
+  pages.forEach(({ source, body: pageBody }, index) => {
+    const pageNumber = index + 1;
+    const wrapper = targetDocument.createElement('section');
+    const adoptedBody = targetDocument.adoptNode(pageBody.cloneNode(true));
+
+    wrapper.className = 'pdf-export-page';
+    wrapper.id = `pdf-export-page-${pageNumber}`;
+    wrapper.setAttribute('data-export-source', source);
+    wrapper.appendChild(adoptedBody);
+
+    applyPageFooter(wrapper, targetDocument, pageNumber);
+    fragment.appendChild(wrapper);
+  });
+
+  return fragment;
+};
+
+// Render assembled export pages into the page 4 final preview container.
+const renderAssembledPreview = async (previewContainer, pages) => {
+  if (!previewContainer) {
+    return;
+  }
+
+  previewContainer.replaceChildren(buildAssembledExportDom(pages, document));
+  await waitForLayout();
+};
+
 // Render all assembled pages into a downloadable PDF blob.
-// NOTE: This export path is rasterized (html2canvas -> PDF image data), so minor anti-aliasing,
-// line-height, and browser-vs-PDF color differences are acceptable compared with the live iframe preview.
-// If exact parity is required for text-heavy pages, prefer a print-native/vector export path that reuses
-// the same DOM/CSS but avoids bitmap capture.
 const renderPdfBlob = async (pages) => {
   const html2pdf = await loadHtml2Pdf();
   const dimensions = readPdfDimensions();
@@ -350,21 +378,7 @@ const renderPdfBlob = async (pages) => {
 
   try {
     await waitForStylesheet(stylesheet);
-
-    pages.forEach(({ source, body: pageBody }, index) => {
-      const pageNumber = index + 1;
-      const wrapper = document.createElement('section');
-      const adoptedBody = pageBody.cloneNode(true);
-
-      wrapper.className = 'pdf-export-page';
-      wrapper.id = `pdf-export-page-${pageNumber}`;
-      wrapper.setAttribute('data-export-source', source);
-      wrapper.appendChild(adoptedBody);
-
-      applyPageFooter(wrapper, document, pageNumber);
-      body.appendChild(wrapper);
-    });
-
+    body.appendChild(buildAssembledExportDom(pages, document));
     await waitForLayout();
 
     const renderDocument = host.ownerDocument;
@@ -453,9 +467,41 @@ const loadExclusionModal = async () => {
   return { modal, backdrop };
 };
 
+// Build assembled export pages by loading each source into hidden iframes.
+const assembleExportPages = async () => {
+  const stagingArea = createStagingArea();
+  const pages = [];
+
+  try {
+    for (const source of exportSources) {
+      const frame = document.createElement('iframe');
+
+      frame.src = source;
+      frame.loading = 'eager';
+      frame.setAttribute('aria-hidden', 'true');
+      frame.style.width = '1px';
+      frame.style.height = '1px';
+
+      stagingArea.appendChild(frame);
+      pages.push({ source, body: await cloneFrameBody(frame) });
+    }
+
+    assembledExportPagesCache = pages;
+
+    return pages;
+  } finally {
+    stagingArea.remove();
+  }
+};
+
 // Initialize export preview navigation controls.
 export async function initSection(sectionElement) {
   const previewFrame = sectionElement?.querySelector('#export-preview-frame');
+  const previewControls = sectionElement?.querySelector('#export-preview-controls');
+  const previewShell = sectionElement?.querySelector('#export-preview-page-shell');
+  const assembledShell = sectionElement?.querySelector('#export-preview-assembled-shell');
+  const assembledPreview = sectionElement?.querySelector('#export-preview-assembled');
+  const previewModeToggle = sectionElement?.querySelector('#export-mode-toggle-button');
   const prevButton = sectionElement?.querySelector('#export-nav-prev');
   const nextButton = sectionElement?.querySelector('#export-nav-next');
   const exclusionButton = sectionElement?.querySelector('#export-exclusion-button');
@@ -463,6 +509,8 @@ export async function initSection(sectionElement) {
   let exclusionModal = document.getElementById('export-exclusion-modal');
   let exclusionBackdrop = document.getElementById('export-exclusion-backdrop');
   let exclusionCloseButtons = null;
+  let isDebugSourceMode = false;
+
   // Send updated metadata aggregations to the export preview iframe.
   const postMetadataToPreview = () => {
     if (!previewFrame?.contentWindow || typeof window === 'undefined') {
@@ -492,7 +540,49 @@ export async function initSection(sectionElement) {
     previewFrame.contentWindow.postMessage(message, '*');
   };
 
-  if (!previewFrame || !prevButton || !nextButton) {
+  // Toggle between final assembled preview and source-page debug preview.
+  const setPreviewMode = (enableDebugMode) => {
+    isDebugSourceMode = Boolean(enableDebugMode);
+
+    if (previewControls) {
+      previewControls.hidden = !isDebugSourceMode;
+    }
+
+    if (previewShell) {
+      previewShell.hidden = !isDebugSourceMode;
+    }
+
+    if (assembledShell) {
+      assembledShell.hidden = isDebugSourceMode;
+    }
+
+    if (previewModeToggle) {
+      previewModeToggle.textContent = isDebugSourceMode
+        ? 'Final export preview'
+        : 'Source page debug';
+    }
+  };
+
+  // Refresh the final export preview with the assembled export DOM tree.
+  const refreshAssembledPreview = async () => {
+    if (!assembledPreview) {
+      return;
+    }
+
+    setExportButtonBusyState(exportPdfButton, true);
+
+    try {
+      const pages = await assembleExportPages();
+
+      await renderAssembledPreview(assembledPreview, pages);
+    } catch (error) {
+      console.error('Unable to refresh assembled export preview.', error);
+    } finally {
+      setExportButtonBusyState(exportPdfButton, false);
+    }
+  };
+
+  if (!previewFrame || !prevButton || !nextButton || !assembledPreview || !previewModeToggle) {
     return;
   }
 
@@ -516,10 +606,6 @@ export async function initSection(sectionElement) {
     let metadataAggregationsCache = window.metadataAggregations;
     let appCountsBySubIdCache = window.appCountsBySubId;
     let hasLoggedMetadataCache = false;
-
-    const updatePreviewFooter = () => {
-      applyPageFooter(previewFrame?.contentDocument?.body, previewFrame?.contentDocument, currentSourceIndex + 1);
-    };
 
     // Log when metadata aggregations become available in the cache.
     const logMetadataCacheAvailable = () => {
@@ -561,7 +647,6 @@ export async function initSection(sectionElement) {
 
     logMetadataCacheAvailable();
     postMetadataToPreview();
-    updatePreviewFooter();
   }
 
   const handlePreviewLoad = () => {
@@ -586,36 +671,20 @@ export async function initSection(sectionElement) {
 
   // Assemble all export pages into a downloadable PDF document.
   const handlePdfExportRequested = async () => {
-    const stagingArea = createStagingArea();
-
     try {
       setExportButtonBusyState(exportPdfButton, true);
 
-      const pages = [];
-
-      for (const source of exportSources) {
-        const frame = document.createElement('iframe');
-
-        frame.src = source;
-        frame.loading = 'eager';
-        frame.setAttribute('aria-hidden', 'true');
-        frame.style.width = '1px';
-        frame.style.height = '1px';
-
-        stagingArea.appendChild(frame);
-
-        const body = await cloneFrameBody(frame);
-        pages.push({ source, body });
-      }
-
+      const pages = assembledExportPagesCache.length
+        ? assembledExportPagesCache
+        : await assembleExportPages();
       const pdfBlob = await renderPdfBlob(pages);
+
       downloadPdfBlob(pdfBlob);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('PDF export failed.', error);
       alert('Unable to export PDF right now. Please try again.');
     } finally {
-      stagingArea.remove();
       setExportButtonBusyState(exportPdfButton, false);
     }
   };
@@ -626,6 +695,10 @@ export async function initSection(sectionElement) {
   });
   exclusionBackdrop?.addEventListener('click', closeExclusionModal);
 
+  previewModeToggle.addEventListener('click', () => {
+    setPreviewMode(!isDebugSourceMode);
+  });
+
   // Dismiss the modal when the escape key is pressed.
   const handleEscape = (event) => {
     if (event.key === 'Escape') {
@@ -635,4 +708,8 @@ export async function initSection(sectionElement) {
 
   document.addEventListener('keydown', handleEscape);
   exportPdfButton?.addEventListener('click', handlePdfExportRequested);
+
+  setPreviewMode(false);
+  await refreshAssembledPreview();
 }
+

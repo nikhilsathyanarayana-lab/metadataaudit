@@ -438,6 +438,31 @@ h1 {
   padding: 3.25rem 1rem 1rem;
 }
 
+
+.export-preview-assembled-shell {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  border: 1px solid rgba(61, 61, 61, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
+  overflow: auto;
+  background: #f7f7f7;
+  max-height: 70vh;
+}
+
+.export-preview-assembled {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.export-preview-assembled .pdf-export-page {
+  width: min(100%, var(--page-width));
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
 .export-preview-page-shell {
   width: min(100%, 980px);
   aspect-ratio: var(--print-page-aspect-ratio);
