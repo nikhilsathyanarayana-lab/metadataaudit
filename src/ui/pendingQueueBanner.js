@@ -5,13 +5,17 @@ import {
   summarizePendingCallProgress,
 } from '../pages/deepDive/aggregation.js';
 
-const defaultFormatMessage = ({ total, completed }) => {
+const defaultFormatMessage = ({ total, completed, pendingCalls }) => {
   if (!total) {
     return 'No API calls queued.';
   }
 
   const boundedCompleted = Math.min(completed, total);
-  return `API calls completed ${boundedCompleted} of ${total}`;
+  const waiting = pendingCalls.filter(
+    (call) => call?.status === 'queued' || call?.status === 'in-flight',
+  ).length;
+
+  return `API calls waiting: ${waiting} · completed: ${boundedCompleted} of ${total}`;
 };
 
 export const renderPendingQueueBanner = ({
