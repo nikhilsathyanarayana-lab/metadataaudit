@@ -91,10 +91,17 @@ body.pdf-export-body main {
   position: relative;
   margin: 0 auto;
   min-height: calc(var(--page-height) - (var(--page-margin) * 2));
+  break-before: page;
+  page-break-before: always;
   break-after: page;
   page-break-after: always;
   break-inside: avoid;
   page-break-inside: avoid;
+}
+
+.pdf-export-page:first-of-type {
+  break-before: auto;
+  page-break-before: auto;
 }
 
 .pdf-export-page:last-of-type {
@@ -138,7 +145,7 @@ body.pdf-export-body main {
 h1 {
   margin-top: 0;
   color: var(--pendo-pink);
-  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
 }
 
 h2 {
