@@ -1,6 +1,16 @@
 /*jslint browser: true */
 /*jslint es6: true */
 
+
+// Dispatch a ready signal after this PDF page finishes rendering.
+const dispatchPdfReady = () => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('pdf:ready'));
+};
+
 const defaultSubscriptionIds = Array.from({ length: 5 }, (_, index) => `Sub ${String(index + 1).padStart(2, '0')}`);
 const tableOfContentsStartPage = 1;
 const firstContentPage = tableOfContentsStartPage + 1;
@@ -142,6 +152,7 @@ const renderSubscriptionEntries = (aggregations = (hasMetadataAggregations() && 
   const template = document.getElementById('toc-subscription-template');
 
   if (!tocList || !template) {
+    dispatchPdfReady();
     return;
   }
 
@@ -158,6 +169,8 @@ const renderSubscriptionEntries = (aggregations = (hasMetadataAggregations() && 
       tocList.appendChild(entry);
     }
   });
+
+  dispatchPdfReady();
 };
 
 // Process metadata updates from the parent window and refresh the TOC links.
