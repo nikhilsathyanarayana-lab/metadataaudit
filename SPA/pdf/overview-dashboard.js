@@ -57,6 +57,20 @@ const namespaceSummaryTargets = {
   salesforce: 'namespace-salesforce-count'
 };
 
+// Return true when the page is being rendered for PDF export.
+const isPdfExportContext = () => (
+  typeof window !== 'undefined' && window.__pdfExportMode === true
+);
+
+// Dispatch a ready signal after this PDF page finishes rendering.
+const dispatchPdfReady = () => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('pdf:ready'));
+};
+
 // Confirm whether cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
   typeof window !== 'undefined'
@@ -414,6 +428,7 @@ const renderPdfCharts = () => {
     type: 'doughnut',
     data: subDonutData,
     options: {
+      animation: isPdfExportContext() ? false : undefined,
       plugins: {
         title: { display: false },
         legend: { display: false }
@@ -423,6 +438,14 @@ const renderPdfCharts = () => {
   });
 
   const subBarConfig = createSubBarConfig(subBarData);
+
+  if (isPdfExportContext()) {
+    subBarConfig.options = {
+      ...(subBarConfig.options || {}),
+      animation: false,
+    };
+  }
+
   subBarChart = new Chart(subBarCanvas, subBarConfig);
 };
 
@@ -458,6 +481,7 @@ if (typeof document !== 'undefined') {
     renderSubscriptionTable();
     renderNamespaceSummaryCounts();
     renderPdfCharts();
+    dispatchPdfReady();
   };
 
   const renderPdfPreview = () => {
@@ -470,6 +494,7 @@ if (typeof document !== 'undefined') {
     }
 
     renderPdfCharts();
+    dispatchPdfReady();
   };
 
   window.addEventListener('message', handleMetadataMessage);

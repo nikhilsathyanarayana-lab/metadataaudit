@@ -55,6 +55,21 @@ const buildDefaultWindowTotals = () => ({
 
 fieldTotalsByWindow = buildDefaultWindowTotals();
 let fieldRecordRows = [];
+
+// Return true when the page is being rendered for PDF export.
+const isPdfExportContext = () => (
+  typeof window !== 'undefined' && window.__pdfExportMode === true
+);
+
+// Dispatch a ready signal after this PDF page finishes rendering.
+const dispatchPdfReady = () => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('pdf:ready'));
+};
+
 const WINDOW_COLUMNS = [
   { key: 'sevenDay', match: (windowKey) => Number(windowKey) === 7, label: '7-Day Records' },
   { key: 'otherWindows', match: (windowKey) => Number(windowKey) !== 7, label: 'Other Window Records' }
@@ -204,6 +219,7 @@ const createSubBarConfig = (data) => ({
   type: 'bar',
   data,
   options: {
+    animation: isPdfExportContext() ? false : undefined,
     plugins: {
       title: { display: false },
       legend: { display: false }
@@ -426,6 +442,7 @@ const updateFromMetadataAggregations = (aggregations) => {
   renderFieldAnalysis();
   renderFieldRecordsTable();
   renderFieldValuesTable();
+  dispatchPdfReady();
 };
 
 if (typeof document !== 'undefined') {
@@ -458,6 +475,7 @@ if (typeof document !== 'undefined') {
     renderFieldAnalysis();
     renderFieldRecordsTable();
     renderFieldValuesTable();
+    dispatchPdfReady();
   };
 
   window.addEventListener('message', handleMetadataMessage);

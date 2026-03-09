@@ -9,8 +9,12 @@ const exclusionModalUrl = new URL('../html/export-exclusion-modal.html', import.
 const pdfStylesheetUrl = new URL('../pdf/pdf.css', import.meta.url).href;
 const html2PdfLibraryUrl = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
 const renderDelayMs = 350;
+const nonChartFallbackDelayMs = 120;
+const readyEventName = 'pdf:ready';
+const readySignalTimeoutMs = 2000;
 const footerClassName = 'pdf-page-footer';
 const exportedPdfFileName = 'Metadata export.pdf';
+const chartExportSourceSegments = ['overview-dashboard.html', 'field-analysis.html'];
 
 let html2PdfLoaderPromise = null;
 let assembledExportPagesCache = [];
@@ -18,6 +22,43 @@ let assembledExportPagesCache = [];
 // Wait briefly to let iframe content finish rendering.
 const delay = (duration) => new Promise((resolve) => {
   setTimeout(resolve, duration);
+});
+
+// Return true when the source path points to a chart-heavy export page.
+const isChartExportSource = (source = '') => chartExportSourceSegments
+  .some((segment) => String(source || '').includes(segment));
+
+// Wait for a ready event from an export frame, resolving false on timeout.
+const waitForFrameReadySignal = (frame, timeoutMs = readySignalTimeoutMs) => new Promise((resolve) => {
+  const targetWindow = frame?.contentWindow;
+
+  if (!targetWindow) {
+    resolve(false);
+    return;
+  }
+
+  let hasResolved = false;
+  let timeoutId;
+
+  const finish = (didReceiveSignal) => {
+    if (hasResolved) {
+      return;
+    }
+
+    hasResolved = true;
+    clearTimeout(timeoutId);
+    targetWindow.removeEventListener(readyEventName, handleReady);
+    resolve(Boolean(didReceiveSignal));
+  };
+
+  const handleReady = () => {
+    finish(true);
+  };
+
+  targetWindow.addEventListener(readyEventName, handleReady);
+  timeoutId = window.setTimeout(() => {
+    finish(false);
+  }, timeoutMs);
 });
 
 // Build a shared footer containing the page number label.
@@ -125,6 +166,7 @@ const postMetadataToFrame = (frame) => {
   }
 
   frame.contentWindow.subscriptionLabels = message.subscriptionLabels;
+  frame.contentWindow.__pdfExportMode = true;
 
   frame.contentWindow.postMessage(message, '*');
 };
@@ -155,8 +197,19 @@ const waitForFrameLoad = (frame) => new Promise((resolve, reject) => {
 // Clone the iframe body after its markup is ready.
 const cloneFrameBody = async (frame) => {
   await waitForFrameLoad(frame);
+  const readySignalPromise = waitForFrameReadySignal(frame);
   postMetadataToFrame(frame);
-  await delay(renderDelayMs);
+  const sourceUrl = frame?.getAttribute('src') || frame?.src || '';
+  const isChartPage = isChartExportSource(sourceUrl);
+  const didReceiveReadySignal = await readySignalPromise;
+
+  if (didReceiveReadySignal) {
+    if (!isChartPage) {
+      await delay(nonChartFallbackDelayMs);
+    }
+  } else {
+    await delay(isChartPage ? renderDelayMs : nonChartFallbackDelayMs);
+  }
 
   const sourceDocument = frame?.contentDocument;
   const sourceCanvasNodes = Array.from(sourceDocument?.querySelectorAll('canvas') || []);
@@ -712,4 +765,3 @@ export async function initSection(sectionElement) {
   setPreviewMode(false);
   await refreshAssembledPreview();
 }
-

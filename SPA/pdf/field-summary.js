@@ -1,5 +1,15 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 
+
+// Dispatch a ready signal after this PDF page finishes rendering.
+const dispatchPdfReady = () => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('pdf:ready'));
+};
+
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
   typeof window !== 'undefined'
@@ -411,6 +421,7 @@ const renderFieldChangeSummary = () => {
     const summaryContainer = document.getElementById('field-change-summary');
 
     if (!summaryContainer) {
+      dispatchPdfReady();
       return;
     }
 
@@ -439,6 +450,7 @@ const renderFieldChangeSummary = () => {
       summaryContainer.appendChild(sentenceList);
     }
 
+    dispatchPdfReady();
   };
 
   if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {

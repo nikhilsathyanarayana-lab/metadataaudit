@@ -1,5 +1,15 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 
+
+// Dispatch a ready signal after this PDF page finishes rendering.
+const dispatchPdfReady = () => {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent('pdf:ready'));
+};
+
 // Confirm that cached metadata aggregations are available on the window.
 const hasMetadataAggregations = () => (
   typeof window !== 'undefined'
@@ -287,6 +297,7 @@ const renderSubscriptionPages = (aggregations = (hasMetadataAggregations() && wi
   const template = document.getElementById('subscription-details-template');
 
   if (!container || !template) {
+    dispatchPdfReady();
     return;
   }
 
@@ -298,6 +309,8 @@ const renderSubscriptionPages = (aggregations = (hasMetadataAggregations() && wi
     if (emptyState) {
       container.appendChild(emptyState);
     }
+
+    dispatchPdfReady();
     return;
   }
 
@@ -310,6 +323,8 @@ const renderSubscriptionPages = (aggregations = (hasMetadataAggregations() && wi
       container.appendChild(card);
     }
   });
+
+  dispatchPdfReady();
 };
 
 // Process incoming metadata messages from the parent window.
