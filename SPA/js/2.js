@@ -3,9 +3,14 @@ import { getSubscriptionDisplay } from './subscriptionLabels.js';
 
 // Share the latest app selection snapshot between SPA views.
 export const appSelectionState = { entries: [] };
+const TEST_FLOW_COMPLETED_EVENT = 'spa-test-flow-completed';
 
 // Resolve app listing results from the API layer.
-const resolveAppListingResults = async () => {
+const resolveAppListingResults = async (overrideResults) => {
+  if (Array.isArray(overrideResults)) {
+    return overrideResults;
+  }
+
   return app_names();
 };
 
@@ -72,11 +77,11 @@ const getColumnCount = (tableBody) => {
 };
 
 // Populate the preview table with apps for each credential.
-const renderAppTable = async (tableBody) => {
+const renderAppTable = async (tableBody, overrideResults) => {
   const columnCount = getColumnCount(tableBody);
   tableBody.innerHTML = '';
 
-  const credentialResults = await resolveAppListingResults();
+  const credentialResults = await resolveAppListingResults(overrideResults);
 
   if (!credentialResults.length) {
     tableBody.appendChild(createStatusRow('No credentials available for app discovery.', columnCount));
@@ -241,7 +246,8 @@ const enableSelectionControls = (
 };
 
 // Render the app selection preview, restoring saved choices and wiring UI controls.
-const renderAppPreview = async (sectionRoot) => {
+const renderAppPreview = async (sectionRoot, options = {}) => {
+  const { credentialResults } = options;
   const tableBody = sectionRoot?.querySelector('tbody');
   const headerToggle = sectionRoot?.querySelector('#app-selection-toggle-all-preview');
   const continueButton = sectionRoot?.querySelector('#app-selection-continue-btn');
@@ -252,7 +258,7 @@ const renderAppPreview = async (sectionRoot) => {
     return;
   }
 
-  await renderAppTable(tableBody);
+  await renderAppTable(tableBody, credentialResults);
 
   const tableCheckboxes = sectionRoot.querySelectorAll('tbody input[type="checkbox"]');
   applySavedSelections(tableCheckboxes, savedSelections);
@@ -265,11 +271,31 @@ const renderAppPreview = async (sectionRoot) => {
   enableSelectionControls(sectionRoot, tableCheckboxes, headerToggle, continueButton, pageThreeButton);
 };
 
+// Keep the app preview aligned with background local test-flow runs.
+const bindLiveTestFlowRefresh = (sectionRoot) => {
+  if (!sectionRoot || sectionRoot.dataset.testFlowBound === 'true') {
+    return;
+  }
+
+  document.addEventListener(TEST_FLOW_COMPLETED_EVENT, async (event) => {
+    if (!sectionRoot.isConnected) {
+      return;
+    }
+
+    await renderAppPreview(sectionRoot, {
+      credentialResults: event?.detail?.results,
+    });
+  });
+
+  sectionRoot.dataset.testFlowBound = 'true';
+};
+
 // Initialize the app discovery section with available credentials.
 export async function initSection(sectionRoot) {
   // eslint-disable-next-line no-console
   console.log('Initializing app selection preview');
 
+  bindLiveTestFlowRefresh(sectionRoot);
   await renderAppPreview(sectionRoot);
 }
 
