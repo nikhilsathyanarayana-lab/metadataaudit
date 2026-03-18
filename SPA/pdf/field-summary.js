@@ -565,7 +565,7 @@ const renderEmptyFieldSummary = (aggregations = (hasMetadataAggregations() && wi
   });
 };
 
-// Render a concise guide so the PDF maps clearly to the audit use cases.
+// Render a concise guide so the PDF maps clearly to the audit questions.
 const renderFieldChangeSummary = (rowsByNamespace = {}, aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const summaryContainer = document.getElementById('field-change-summary');
 
@@ -599,9 +599,9 @@ const renderFieldChangeSummary = (rowsByNamespace = {}, aggregations = (hasMetad
   guidanceList.className = 'field-summary-guidance-list';
 
   [
-    `Use case 1: ${trackedApps.size.toLocaleString()} applications have metadata in this export. Review the namespace tables below to see which fields appeared in 7-day, 30-day, and 180-day windows.`,
-    `Use case 2: Review the "Fields with most distinct values" table on the previous page to find fields with the widest value variety.`,
-    `Use case 3: ${emptyRows.length.toLocaleString()} empty-field hotspots are listed below. These rows highlight blank strings, nulls, and undefined values reaching metadata fields.`,
+    `Question: Which apps are sending blank values, and for which fields? Answer: ${emptyRows.length.toLocaleString()} empty-value hotspots are listed below, and each row names the application, field, empty value types, and count.`,
+    `Question: Which apps are sending metadata? Answer: ${trackedApps.size.toLocaleString()} applications have metadata in this export. Review the namespace tables below to see which fields appeared in 7-day, 30-day, and 180-day windows.`,
+    'Question: Which fields carry the widest range of values? Answer: Review the "Fields with most distinct values" table on the previous page.',
     `Namespaces shown in this export: ${visibleNamespaces.length ? visibleNamespaces.map((namespace) => formatNamespaceTitle(namespace)).join(', ') : 'none yet'}.`,
   ].forEach((sentence, index) => {
     const listItem = document.createElement('li');

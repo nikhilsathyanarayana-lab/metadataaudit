@@ -85,6 +85,13 @@ let subscriptionLabels = (typeof window !== 'undefined' && window.subscriptionLa
   ? window.subscriptionLabels
   : {};
 
+const windowLabelMap = {
+  1: '1 day',
+  7: '7 days',
+  30: '30 days',
+  180: '180 days'
+};
+
 // Resolve SubID display text from the label map with a raw SubID fallback.
 const resolveSubscriptionDisplay = (subId) => {
   const key = String(subId || '');
@@ -95,6 +102,80 @@ const resolveSubscriptionDisplay = (subId) => {
 const formatSubscriptionDisplay = (subId) => {
   const rawSubId = String(subId || 'Unknown SubID');
   return resolveSubscriptionDisplay(rawSubId);
+};
+
+// Build a readable list from one or more timeframe labels.
+const formatTimeframeList = (labels = []) => {
+  if (!labels.length) {
+    return '';
+  }
+
+  if (labels.length === 1) {
+    return labels[0];
+  }
+
+  if (labels.length === 2) {
+    return `${labels[0]} and ${labels[1]}`;
+  }
+
+  return `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]}`;
+};
+
+// Collect the export timeframe labels that have processed metadata.
+const getScannedTimeframes = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  const processedWindows = new Set();
+
+  if (!aggregations || typeof aggregations !== 'object') {
+    return [];
+  }
+
+  Object.values(aggregations).forEach((subBucket) => {
+    Object.values(subBucket?.apps || {}).forEach((appBucket) => {
+      const windowBuckets = appBucket?.windows || {};
+      const hasWindow1 = Boolean(windowBuckets?.[1]?.isProcessed || windowBuckets?.['1']?.isProcessed);
+      const hasWindow7 = Boolean(windowBuckets?.[7]?.isProcessed || windowBuckets?.['7']?.isProcessed);
+      const hasWindow23 = Boolean(windowBuckets?.[23]?.isProcessed || windowBuckets?.['23']?.isProcessed);
+      const hasWindow150 = Boolean(windowBuckets?.[150]?.isProcessed || windowBuckets?.['150']?.isProcessed);
+
+      if (hasWindow1) {
+        processedWindows.add(1);
+      }
+
+      if (hasWindow7) {
+        processedWindows.add(7);
+      }
+
+      if (hasWindow7 && hasWindow23) {
+        processedWindows.add(30);
+      }
+
+      if (hasWindow7 && hasWindow23 && hasWindow150) {
+        processedWindows.add(180);
+      }
+    });
+  });
+
+  return Array.from(processedWindows)
+    .sort((first, second) => first - second)
+    .map((windowKey) => windowLabelMap[windowKey])
+    .filter(Boolean);
+};
+
+// Show the scanned timeframe near the top of the PDF overview page.
+const renderOverviewTimeframe = () => {
+  const timeframeElement = document.getElementById('overview-timeframe');
+  const scannedTimeframes = getScannedTimeframes();
+
+  if (!timeframeElement) {
+    return;
+  }
+
+  if (!scannedTimeframes.length) {
+    timeframeElement.textContent = 'Scanned timeframe: no completed metadata window was available for this export.';
+    return;
+  }
+
+  timeframeElement.textContent = `Scanned timeframe: ${formatTimeframeList(scannedTimeframes)}.`;
 };
 
 
@@ -340,7 +421,7 @@ const renderAuditSummary = () => {
   }
 
   if (fieldsText) {
-    fieldsText.textContent = `${summary.fieldsWithValues.toLocaleString()} app-level field entries were observed across the scanned timeframe.`;
+    fieldsText.textContent = `${summary.appsWithMetadata.toLocaleString()} applications sent metadata in the scanned timeframe.`;
   }
 
   if (valuesValue) {
@@ -348,7 +429,7 @@ const renderAuditSummary = () => {
   }
 
   if (valuesText) {
-    valuesText.textContent = `${summary.fieldsWithValues.toLocaleString()} fields have at least one tracked value across the export windows.`;
+    valuesText.textContent = `${summary.fieldsWithValues.toLocaleString()} fields have at least one tracked value across the scanned timeframe.`;
   }
 
   if (emptiesValue) {
@@ -356,7 +437,7 @@ const renderAuditSummary = () => {
   }
 
   if (emptiesText) {
-    emptiesText.textContent = `${summary.emptyValueCount.toLocaleString()} blank, null, or undefined values were detected.`;
+    emptiesText.textContent = `${summary.emptyValueCount.toLocaleString()} blank, null, or undefined values were detected. See the Empty Value Hotspots table for the specific apps and fields.`;
   }
 };
 
@@ -595,6 +676,7 @@ if (typeof document !== 'undefined') {
     renderSubscriptionTable();
     renderNamespaceSummaryCounts();
     renderAuditSummary();
+    renderOverviewTimeframe();
     renderPdfCharts();
     dispatchPdfReady();
   };
@@ -609,6 +691,7 @@ if (typeof document !== 'undefined') {
     }
 
     renderAuditSummary();
+    renderOverviewTimeframe();
     renderPdfCharts();
     dispatchPdfReady();
   };

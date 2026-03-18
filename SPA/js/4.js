@@ -15,7 +15,6 @@ const readySignalTimeoutMs = 2000;
 const footerClassName = 'pdf-page-footer';
 const exportedPdfFileName = 'Metadata export.pdf';
 const chartExportSourceSegments = ['overview-dashboard.html', 'field-analysis.html'];
-
 let html2PdfLoaderPromise = null;
 let assembledExportPagesCache = [];
 
@@ -77,6 +76,25 @@ const buildPageFooter = (doc, pageNumber) => {
   footer.appendChild(label);
 
   return footer;
+};
+
+// Remove cloned nodes that were hidden in the source page.
+const stripHiddenExportContent = (sourceDocument, exportBody) => {
+  if (!sourceDocument || !exportBody) {
+    return;
+  }
+
+  const sourceHiddenNodes = Array.from(sourceDocument.querySelectorAll('.chart-title'));
+  const clonedHiddenNodes = Array.from(exportBody.querySelectorAll('.chart-title'));
+
+  sourceHiddenNodes.forEach((sourceNode, index) => {
+    const clonedNode = clonedHiddenNodes[index];
+    const sourceStyles = window.getComputedStyle(sourceNode);
+
+    if (clonedNode && sourceStyles.display === 'none') {
+      clonedNode.remove();
+    }
+  });
 };
 
 // Attach or replace the footer on the printable area for a page.
@@ -247,6 +265,7 @@ const cloneFrameBody = async (frame) => {
   });
 
   body.querySelectorAll('script').forEach((script) => script.remove());
+  stripHiddenExportContent(sourceDocument, body);
 
   return body;
 };
@@ -453,7 +472,29 @@ const renderPdfBlob = async (pages) => {
         format: [pageWidthIn, pageHeightIn],
         orientation: 'portrait',
       },
-      pagebreak: { mode: ['css', 'legacy'] },
+      pagebreak: {
+        mode: ['css', 'legacy'],
+        avoid: [
+          '.pdf-keep-together',
+          '.overview-title',
+          '.overview-intro',
+          '.table-card',
+          '.toc-entry',
+          '.subscription-card',
+          '.subscription-apps',
+          '.subscription-namespace',
+          '.namespace-summary__item',
+          'h1',
+          'h2',
+          'h3',
+          'p',
+          'li',
+          'table',
+          'thead',
+          'tbody',
+          'tr'
+        ],
+      },
     }).from(body).toPdf().outputPdf('blob');
   } finally {
     host.remove();
