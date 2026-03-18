@@ -5,6 +5,7 @@ export const DEFAULT_LOOKBACK_WINDOW = 7;
 export const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
 let metadataCallQueue = [];
 let lastDiscoveredApps = [];
+let lastWindowPlan = [];
 const metadataAggregations = {};
 // Return a namespace counter seeded with zero counts for each known namespace.
 const buildNamespaceCounter = () => METADATA_NAMESPACES.reduce(
@@ -19,6 +20,13 @@ const METADATA_WINDOW_PLAN = [
   { lookbackWindow: 23, first: 'dateAdd(now(), -7, "days")' },
   { lookbackWindow: 150, first: 'dateAdd(now(), -30, "days")' },
 ];
+
+// Return the request plan for the supplied audit lookback.
+const getMetadataWindowPlan = (lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
+  return Number(lookbackWindow) === 1
+    ? [{ lookbackWindow: 1, first: 'now()' }]
+    : METADATA_WINDOW_PLAN;
+};
 
 // Choose the best available window bucket for the requested lookback.
 export const resolvePreferredWindowBucket = (appBucket, lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
@@ -338,8 +346,12 @@ const buildCredentialLookup = (credentialResults = []) => {
 };
 
 // Construct credential-bound API requests for each app to fetch metadata across planned windows.
-export const buildMetadataCallPlan = async (appEntries = []) => {
+export const buildMetadataCallPlan = async (
+  appEntries = [],
+  lookbackWindow = DEFAULT_LOOKBACK_WINDOW,
+) => {
   const normalizedApps = normalizeAppEntries(appEntries);
+  const windowPlan = getMetadataWindowPlan(lookbackWindow);
 
   if (!normalizedApps.length) {
     return [];
@@ -354,7 +366,7 @@ export const buildMetadataCallPlan = async (appEntries = []) => {
   const credentialLookup = buildCredentialLookup(credentialResults);
   const plannedCalls = [];
 
-  METADATA_WINDOW_PLAN.forEach((windowConfig) => {
+  windowPlan.forEach((windowConfig) => {
     normalizedApps.forEach((appEntry) => {
       const credential = credentialLookup.get(appEntry.subId) || credentialResults[0]?.credential;
 
@@ -379,15 +391,18 @@ export const buildMetadataCallPlan = async (appEntries = []) => {
 
 // Prepare a reusable queue of metadata calls for the supplied entries.
 export const buildMetadataQueue = async (entries = [], lookbackWindow = DEFAULT_LOOKBACK_WINDOW) => {
-  metadataCallQueue = await buildMetadataCallPlan(entries);
+  const windowPlan = getMetadataWindowPlan(lookbackWindow);
+
+  metadataCallQueue = await buildMetadataCallPlan(entries, lookbackWindow);
   lastDiscoveredApps = entries;
+  lastWindowPlan = windowPlan;
 
   // eslint-disable-next-line no-console
   console.log('[buildMetadataQueue] Ready', {
     count: metadataCallQueue.length,
     lookbackWindow,
-    windowsPerApp: METADATA_WINDOW_PLAN.length,
-    plannedWindows: METADATA_WINDOW_PLAN,
+    windowsPerApp: windowPlan.length,
+    plannedWindows: windowPlan,
   });
 
   return metadataCallQueue;
@@ -644,9 +659,10 @@ export const runMetadataQueue = async (
   const responses = [];
   let remaining = plannedLimit;
   let windowOffset = 0;
+  const windowPlan = lastWindowPlan.length ? lastWindowPlan : getMetadataWindowPlan(lookbackWindow);
 
-  for (let index = 0; index < METADATA_WINDOW_PLAN.length; index += 1) {
-    const targetWindow = METADATA_WINDOW_PLAN[index].lookbackWindow;
+  for (let index = 0; index < windowPlan.length; index += 1) {
+    const targetWindow = windowPlan[index].lookbackWindow;
     const windowCalls = metadataCallQueue.filter(
       (call) => Number(call.lookbackWindow) === Number(targetWindow),
     );

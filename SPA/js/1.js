@@ -1,5 +1,10 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
 import { setAppCredentials } from '../API/app_names.js';
+import {
+  AUDIT_MODE_QUICK,
+  AUDIT_MODE_STANDARD,
+  setAuditMode,
+} from './auditMode.js';
 
 const CREDENTIAL_STATE_EVENT = 'spa-credentials-changed';
 
@@ -207,10 +212,22 @@ class SubIdFormController {
 // Wire SubID card actions to the SPA page switcher.
 const initShortcutButtons = (sectionRoot, subIdFormController) => {
   const shortcutButtons = sectionRoot.querySelectorAll('[data-target-page]');
+  const auditAllButton = sectionRoot.querySelector('#subid-audit-all-btn');
+  const quickAuditButton = sectionRoot.querySelector('#subid-quick-audit-btn');
 
   if (!shortcutButtons.length) {
     return;
   }
+
+  // Mark the standard audit flow before moving into later SPA steps.
+  auditAllButton?.addEventListener('click', () => {
+    setAuditMode(AUDIT_MODE_STANDARD);
+  });
+
+  // Mark the quick audit flow before jumping straight into the metadata scan.
+  quickAuditButton?.addEventListener('click', () => {
+    setAuditMode(AUDIT_MODE_QUICK);
+  });
 
   shortcutButtons.forEach((button) => {
     const targetPage = button.dataset.targetPage;

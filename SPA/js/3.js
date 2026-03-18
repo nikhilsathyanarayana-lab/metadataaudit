@@ -7,6 +7,7 @@ import {
   runMetadataQueue,
 } from '../API/metadata.js';
 import { appSelectionState } from './2.js';
+import { getAuditMode, isQuickAuditMode } from './auditMode.js';
 import { openRegexModal } from './regex.js';
 import { getSubscriptionDisplay } from './subscriptionLabels.js';
 
@@ -25,7 +26,8 @@ const getFieldtypesContainer = () => {
 };
 
 const FIELDTYPES = getFieldtypesContainer();
-const METADATA_TABLE_WINDOWS = ['window7', 'window30', 'window180'];
+const METADATA_TABLE_WINDOWS_STANDARD = ['window7', 'window30', 'window180'];
+const METADATA_TABLE_WINDOWS_QUICK = ['window1'];
 const METADATA_STATUS_PENDING = 'Pending...';
 const METADATA_STATUS_SENT = 'Call sent';
 const METADATA_STATUS_FAILED = 'Failed (cannot split smaller)';
@@ -33,6 +35,7 @@ export const tableData = [];
 let tableStatusRows = [];
 let activeTableConfigs = [];
 let fieldTypesModalBound = false;
+let lastAuditMode = getAuditMode();
 const fieldTypeSelections = FIELDTYPES.fieldTypeSelections || {};
 FIELDTYPES.fieldTypeSelections = fieldTypeSelections;
 const FIELD_TYPE_OPTIONS = [
@@ -41,6 +44,17 @@ const FIELD_TYPE_OPTIONS = [
   { key: 'boolean', label: 'Boolean' },
   { key: 'email', label: 'Email' },
 ];
+
+// Return the active set of metadata table windows for the current audit mode.
+const getActiveMetadataTableWindows = () => (
+  isQuickAuditMode() ? METADATA_TABLE_WINDOWS_QUICK : METADATA_TABLE_WINDOWS_STANDARD
+);
+
+// Return the metadata lookback window used for the current audit mode.
+const getActiveAuditLookbackWindow = () => (isQuickAuditMode() ? 1 : DEFAULT_LOOKBACK_WINDOW);
+
+// Return the metadata table column count for the current audit mode.
+const getMetadataTableColumnCount = () => 3 + getActiveMetadataTableWindows().length;
 
 // Normalize app selections so they can be compared between renders.
 const normalizeAppSelections = (selections = []) => selections
@@ -96,6 +110,10 @@ const buildNamespaceFieldSummary = (windowBuckets = []) => {
 // Translate lookback windows into table window keys.
 const getTableWindowKey = (lookbackWindow) => {
   const normalizedWindow = Number(lookbackWindow);
+
+  if (normalizedWindow === 1) {
+    return 'window1';
+  }
 
   if (normalizedWindow === 7) {
     return 'window7';
@@ -177,14 +195,17 @@ const processAPI = () => {
       const window7Bucket = getWindowBucket(appBucket, 7);
       const window23Bucket = getWindowBucket(appBucket, 23);
       const window150Bucket = getWindowBucket(appBucket, 150);
+      const window1Bucket = getWindowBucket(appBucket, 1);
+      const hasWindow1Data = Boolean(window1Bucket?.isProcessed);
       const hasWindow7Data = Boolean(window7Bucket?.isProcessed);
       const hasWindow23Data = Boolean(window23Bucket?.isProcessed);
       const hasWindow150Data = Boolean(window150Bucket?.isProcessed);
 
-      if (!hasWindow7Data && !hasWindow23Data && !hasWindow150Data) {
+      if (!hasWindow1Data && !hasWindow7Data && !hasWindow23Data && !hasWindow150Data) {
         return;
       }
 
+      const window1Fields = hasWindow1Data ? buildNamespaceFieldSummary([window1Bucket]) : null;
       const window7Fields = hasWindow7Data ? buildNamespaceFieldSummary([window7Bucket]) : null;
       // 30- and 180-day views combine the processed 7- and 23-day buckets (and 150 for 180-day)
       const window30Fields = (hasWindow7Data && hasWindow23Data)
@@ -208,6 +229,10 @@ const processAPI = () => {
 
         if (window7Fields && Object.prototype.hasOwnProperty.call(window7Fields, namespaceKey)) {
           entry.window7 = window7Fields[namespaceKey];
+        }
+
+        if (window1Fields && Object.prototype.hasOwnProperty.call(window1Fields, namespaceKey)) {
+          entry.window1 = window1Fields[namespaceKey];
         }
 
         if (window30Fields && Object.prototype.hasOwnProperty.call(window30Fields, namespaceKey)) {
@@ -240,9 +265,11 @@ const populateTables = () => {
           appName: app?.appName || app?.appId || 'Unknown app',
           appId: app?.appId || '',
           namespace,
+          window1: METADATA_STATUS_PENDING,
           window7: METADATA_STATUS_PENDING,
           window30: METADATA_STATUS_PENDING,
           window180: METADATA_STATUS_PENDING,
+          window1Status: [METADATA_STATUS_PENDING],
           window7Status: [METADATA_STATUS_PENDING],
           window30Status: [METADATA_STATUS_PENDING],
           window180Status: [METADATA_STATUS_PENDING],
@@ -360,7 +387,7 @@ const getUniqueAvailableFields = () => {
   const fieldNames = new Set();
 
   tableData.forEach((entry) => {
-    const availableFields = [entry?.window180, entry?.window30, entry?.window7]
+    const availableFields = [entry?.window180, entry?.window30, entry?.window7, entry?.window1]
       .find((windowFields) => Array.isArray(windowFields));
 
     if (!Array.isArray(availableFields)) {
@@ -757,7 +784,7 @@ const buildMetadataRowMarkup = (rowData) => {
   const valueLookup = rowData || {};
   const subIdText = buildSubIdText(subId);
 
-  const lookbackCells = METADATA_TABLE_WINDOWS
+  const activeLookbackCells = getActiveMetadataTableWindows()
     .map((key) => `<td>${formatMetadataWindowCell(valueLookup, key)}</td>`)
     .join('');
 
@@ -766,7 +793,7 @@ const buildMetadataRowMarkup = (rowData) => {
     `<td>${subIdText}</td>`,
     `<td>${appName || appId || 'Unknown app'}</td>`,
     `<td>${appId || ''}</td>`,
-    lookbackCells,
+    activeLookbackCells,
     '</tr>',
   ].join('');
 };
@@ -792,8 +819,10 @@ const renderTablesFromData = () => {
     return;
   }
 
+  const columnCount = getMetadataTableColumnCount();
+
   const statusMarkup = tableStatusRows
-    .map(({ message, columnCount, subId }) => createMetadataStatusRow(message, columnCount, subId))
+    .map(({ message, subId }) => createMetadataStatusRow(message, columnCount, subId))
     .join('');
 
   activeTableConfigs.forEach(({ namespace, element }) => {
@@ -807,7 +836,7 @@ const renderTablesFromData = () => {
       .join('');
 
     if (!rowMarkup && !statusMarkup) {
-      element.innerHTML = createMetadataStatusRow('No metadata rows available.');
+      element.innerHTML = createMetadataStatusRow('No metadata rows available.', columnCount);
       return;
     }
 
@@ -823,10 +852,11 @@ const runMetadataScansWithStatus = async (appsForMetadata, onAggregation, status
 
   let hasCompleted = false;
   notifyMetadataScanStarted();
+  const lookbackWindow = getActiveAuditLookbackWindow();
 
   try {
-    await buildMetadataQueue(appsForMetadata, DEFAULT_LOOKBACK_WINDOW);
-    await runMetadataQueue(onAggregation, DEFAULT_LOOKBACK_WINDOW, undefined, statusHooks);
+    await buildMetadataQueue(appsForMetadata, lookbackWindow);
+    await runMetadataQueue(onAggregation, lookbackWindow, undefined, statusHooks);
     hasCompleted = true;
     notifyMetadataScanCompleted();
   } finally {
@@ -871,9 +901,11 @@ const renderMetadataTables = async (tableConfigs) => {
       appName: appName || appId || 'Unknown app',
       appId: appId || '',
       namespace: namespace || '',
+      window1: METADATA_STATUS_PENDING,
       window7: METADATA_STATUS_PENDING,
       window30: METADATA_STATUS_PENDING,
       window180: METADATA_STATUS_PENDING,
+      window1Status: [METADATA_STATUS_PENDING],
       window7Status: [METADATA_STATUS_PENDING],
       window30Status: [METADATA_STATUS_PENDING],
       window180Status: [METADATA_STATUS_PENDING],
@@ -953,7 +985,7 @@ const renderMetadataTables = async (tableConfigs) => {
       }
 
       if (!result.results.length) {
-        addStatusRowForAllTables('No apps returned for SubID.', 6, subId);
+        addStatusRowForAllTables('No apps returned for SubID.', undefined, subId);
         return;
       }
 
@@ -995,6 +1027,44 @@ const getTableConfigsFromRoot = (sectionRoot) => METADATA_NAMESPACES
   }))
   .filter(({ element }) => Boolean(element));
 
+// Update the page-3 copy and visible columns to match the current audit mode.
+const applyAuditModePresentation = (sectionRoot) => {
+  if (!sectionRoot) {
+    return;
+  }
+
+  const isQuickMode = isQuickAuditMode();
+  const hintText = isQuickMode
+    ? 'Retention counts for metadata across the last 1 day.'
+    : 'Retention counts for metadata across the last 7, 30, and 180 days.';
+  const hiddenColumnSuffixes = isQuickMode ? ['window-7', 'window-30', 'window-180'] : ['window-1'];
+  const visibleColumnSuffixes = isQuickMode ? ['window-1'] : ['window-7', 'window-30', 'window-180'];
+
+  METADATA_NAMESPACES.forEach((namespace) => {
+    const hint = sectionRoot.querySelector(`#${namespace}-metadata-section-hint`);
+
+    if (hint) {
+      hint.textContent = hintText;
+    }
+
+    hiddenColumnSuffixes.forEach((suffix) => {
+      const column = sectionRoot.querySelector(`#${namespace}-metadata-col-${suffix}`);
+
+      if (column instanceof HTMLElement) {
+        column.hidden = true;
+      }
+    });
+
+    visibleColumnSuffixes.forEach((suffix) => {
+      const column = sectionRoot.querySelector(`#${namespace}-metadata-col-${suffix}`);
+
+      if (column instanceof HTMLElement) {
+        column.hidden = false;
+      }
+    });
+  });
+};
+
 // Populate metadata tables with discovered apps.
 export async function initSection(sectionRoot) {
   // eslint-disable-next-line no-console
@@ -1010,6 +1080,8 @@ export async function initSection(sectionRoot) {
     return;
   }
 
+  applyAuditModePresentation(sectionRoot);
+
   const expectedValuesButton = sectionRoot.querySelector('#expected-values-button');
 
   if (expectedValuesButton && !expectedValuesButton.dataset.boundExpectedValues) {
@@ -1018,6 +1090,7 @@ export async function initSection(sectionRoot) {
   }
 
   lastSelectionSignature = buildSelectionSignature(appSelectionState.entries);
+  lastAuditMode = getAuditMode();
   await renderMetadataTables(tableConfigs);
 }
 
@@ -1029,12 +1102,16 @@ export async function onShow(sectionRoot) {
     return;
   }
 
-  const currentSelectionSignature = buildSelectionSignature(appSelectionState.entries);
+  applyAuditModePresentation(sectionRoot);
 
-  if (currentSelectionSignature === lastSelectionSignature) {
+  const currentSelectionSignature = buildSelectionSignature(appSelectionState.entries);
+  const currentAuditMode = getAuditMode();
+
+  if (currentSelectionSignature === lastSelectionSignature && currentAuditMode === lastAuditMode) {
     return;
   }
 
   lastSelectionSignature = currentSelectionSignature;
+  lastAuditMode = currentAuditMode;
   await renderMetadataTables(tableConfigs);
 }
