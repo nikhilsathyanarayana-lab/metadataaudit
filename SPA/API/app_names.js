@@ -25,7 +25,9 @@ const APP_LISTING_PAYLOAD = Object.freeze({
   },
 });
 
-let credentialEntries = Array.isArray(window?.appCredentials) ? window.appCredentials : [];
+let credentialEntries = typeof window !== 'undefined' && Array.isArray(window.appCredentials)
+  ? window.appCredentials
+  : [];
 const appCountsBySubId = new Map();
 
 // Track the latest app totals per SubID from app_names responses.
@@ -87,7 +89,9 @@ const getCredentials = (override) => {
     return normalized;
   }
 
-  const windowCredentials = normalizeCredentials(window?.appCredentials || []);
+  const windowCredentials = typeof window !== 'undefined'
+    ? normalizeCredentials(window.appCredentials || [])
+    : [];
   return windowCredentials;
 };
 

@@ -8,6 +8,32 @@ import {
 
 const CREDENTIAL_STATE_EVENT = 'spa-credentials-changed';
 
+// Persist credentials, set audit mode, and route a shortcut button click.
+export const activateShortcutAction = ({
+  targetPage,
+  auditMode,
+  subIdFormController,
+  setAuditModeFn = setAuditMode,
+  setAppCredentialsFn = setAppCredentials,
+  queryDestinationButton = (pageId) => document.querySelector(`[data-page-btn="${pageId}"]`),
+} = {}) => {
+  if (!targetPage) {
+    return;
+  }
+
+  if (auditMode) {
+    setAuditModeFn(auditMode);
+  }
+
+  if (subIdFormController?.emitCredentialState) {
+    subIdFormController.emitCredentialState();
+  } else if (subIdFormController?.getCredentialEntries) {
+    setAppCredentialsFn(subIdFormController.getCredentialEntries());
+  }
+
+  queryDestinationButton(targetPage)?.click?.();
+};
+
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
   const fieldsContainer = document.getElementById('subid-fields');
@@ -211,41 +237,24 @@ class SubIdFormController {
 
 // Wire SubID card actions to the SPA page switcher.
 const initShortcutButtons = (sectionRoot, subIdFormController) => {
-  const shortcutButtons = sectionRoot.querySelectorAll('[data-target-page]');
+  const selectAppsButton = sectionRoot.querySelector('#subid-select-apps-btn');
   const auditAllButton = sectionRoot.querySelector('#subid-audit-all-btn');
   const quickAuditButton = sectionRoot.querySelector('#subid-quick-audit-btn');
 
-  if (!shortcutButtons.length) {
+  if (!selectAppsButton && !auditAllButton && !quickAuditButton) {
     return;
   }
 
-  // Mark the standard audit flow before moving into later SPA steps.
+  selectAppsButton?.addEventListener('click', () => {
+    activateShortcutAction({ targetPage: '2', auditMode: AUDIT_MODE_STANDARD, subIdFormController });
+  });
+
   auditAllButton?.addEventListener('click', () => {
-    setAuditMode(AUDIT_MODE_STANDARD);
+    activateShortcutAction({ targetPage: '3', auditMode: AUDIT_MODE_STANDARD, subIdFormController });
   });
 
-  // Mark the quick audit flow before jumping straight into the metadata scan.
   quickAuditButton?.addEventListener('click', () => {
-    setAuditMode(AUDIT_MODE_QUICK);
-  });
-
-  shortcutButtons.forEach((button) => {
-    const targetPage = button.dataset.targetPage;
-
-    if (!targetPage) {
-      return;
-    }
-
-    button.addEventListener('click', () => {
-      if (subIdFormController) {
-        const entries = subIdFormController.getCredentialEntries();
-        setAppCredentials(entries);
-      }
-
-      const destinationButton = document.querySelector(`[data-page-btn="${targetPage}"]`);
-
-      destinationButton?.click();
-    });
+    activateShortcutAction({ targetPage: '3', auditMode: AUDIT_MODE_QUICK, subIdFormController });
   });
 };
 

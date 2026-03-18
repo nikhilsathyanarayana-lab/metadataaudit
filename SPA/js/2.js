@@ -272,17 +272,25 @@ const renderAppPreview = async (sectionRoot, options = {}) => {
 };
 
 // Keep the app preview aligned with background local test-flow runs.
-const bindLiveTestFlowRefresh = (sectionRoot) => {
+export const bindLiveTestFlowRefresh = (
+  sectionRoot,
+  options = {},
+) => {
+  const {
+    doc = document,
+    renderPreview = renderAppPreview,
+  } = options;
+
   if (!sectionRoot || sectionRoot.dataset.testFlowBound === 'true') {
     return;
   }
 
-  document.addEventListener(TEST_FLOW_COMPLETED_EVENT, async (event) => {
+  doc.addEventListener(TEST_FLOW_COMPLETED_EVENT, async (event) => {
     if (!sectionRoot.isConnected) {
       return;
     }
 
-    await renderAppPreview(sectionRoot, {
+    await renderPreview(sectionRoot, {
       credentialResults: event?.detail?.results,
     });
   });

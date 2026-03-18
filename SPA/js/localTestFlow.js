@@ -7,7 +7,7 @@ const TEST_FLOW_FAILED_EVENT = 'spa-test-flow-failed';
 const DEFAULT_DEBOUNCE_MS = 600;
 
 // Choose the closest SPA domain from the API identifier suffix.
-const deriveDomainFromApiValue = (apiValue = '') => {
+export const deriveDomainFromApiValue = (apiValue = '') => {
   const normalizedApiValue = String(apiValue || '').trim().toLowerCase();
 
   if (normalizedApiValue.endsWith('.eu')) {
@@ -30,7 +30,7 @@ const deriveDomainFromApiValue = (apiValue = '') => {
 };
 
 // Normalize local test-flow settings into SPA credential entries.
-const normalizeLocalTestFlowConfig = (rawConfig = {}) => {
+export const normalizeLocalTestFlowConfig = (rawConfig = {}) => {
   if (!rawConfig || typeof rawConfig !== 'object' || rawConfig.enabled !== true) {
     return null;
   }
@@ -61,6 +61,18 @@ const normalizeLocalTestFlowConfig = (rawConfig = {}) => {
     credentials,
     autoRunOnCredentialChange: rawConfig.autoRunOnCredentialChange !== false,
     debounceMs: Number(rawConfig.debounceMs) || DEFAULT_DEBOUNCE_MS,
+  };
+};
+
+// Build a quick-audit smoke-check result from the current document.
+export const buildQuickAuditSmokeCheckResult = (doc = document) => {
+  const quickAuditButton = doc?.getElementById?.('subid-quick-audit-btn');
+  const pageThreeButton = doc?.getElementById?.('page-switcher-btn-3');
+
+  return {
+    quickAuditButtonFound: Boolean(quickAuditButton),
+    quickAuditTargetMatches: quickAuditButton?.dataset?.targetPage === '3',
+    pageThreeButtonFound: Boolean(pageThreeButton),
   };
 };
 
@@ -143,6 +155,16 @@ export const initLocalTestFlow = (config) => {
       }));
     }
   };
+
+  // Expose a tiny smoke check so shortcut flows can be verified from the console.
+  if (typeof window !== 'undefined') {
+    window.spaLocalTestFlow = {
+      config,
+      runQuickAuditSmokeCheck() {
+        return buildQuickAuditSmokeCheckResult(document);
+      },
+    };
+  }
 
   // Debounce rapid edits so the test flow waits for a stable credential snapshot.
   document.addEventListener(CREDENTIAL_STATE_EVENT, (event) => {
