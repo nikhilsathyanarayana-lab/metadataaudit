@@ -72,6 +72,10 @@ function initPageSwitcher() {
     document
       .getElementById('subid-audit-all-btn')
       ?.addEventListener('click', unlock, { once: true });
+
+    document
+      .getElementById('subid-quick-audit-btn')
+      ?.addEventListener('click', unlock, { once: true });
   };
 
   lockPageSwitcher();
