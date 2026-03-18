@@ -1,16 +1,7 @@
 import { renderSpaNavigation } from './nav.js';
-import {
-  applyLocalTestFlowConfig,
-  initLocalTestFlow,
-  loadLocalTestFlowConfig,
-} from './localTestFlow.js';
 
 // Wait for the DOM to be parsed before wiring up SPA navigation and page switching.
 document.addEventListener('DOMContentLoaded', async () => {
-  const localTestFlowConfig = await loadLocalTestFlowConfig();
-  applyLocalTestFlowConfig(localTestFlowConfig);
-  initLocalTestFlow(localTestFlowConfig);
-
   try {
     await renderSpaNavigation('#nav-root', { activePage: 'spa' });
   } catch (error) {
@@ -90,6 +81,7 @@ function initPageSwitcher() {
   lockPageSwitcher();
   disableExportButtons();
 
+  document.addEventListener('spa-audit-state-reset', disableExportButtons);
   document.addEventListener('metadata-scan-started', disableExportButtons);
   document.addEventListener('metadata-scan-completed', enableExportButtons);
 

@@ -1,12 +1,61 @@
 import { createAddButton, createDomainSelect, createRemoveButton } from '../../src/ui/components.js';
-import { setAppCredentials } from '../API/app_names.js';
+import { setAppCredentials, setAppCountsBySubId } from '../API/app_names.js';
+import { setMetadataAggregations } from '../API/metadata.js';
 import {
   AUDIT_MODE_QUICK,
   AUDIT_MODE_STANDARD,
   setAuditMode,
 } from './auditMode.js';
+import { appSelectionState } from './2.js';
 
 const CREDENTIAL_STATE_EVENT = 'spa-credentials-changed';
+const AUDIT_STATE_RESET_EVENT = 'spa-audit-state-reset';
+
+// Return true when a credential row includes every required field.
+const isCompleteCredentialEntry = (entry = {}) => {
+  return Boolean(
+    entry?.subId?.trim?.()
+    && entry?.domain
+    && entry?.integrationKey?.trim?.(),
+  );
+};
+
+// Normalize credentials so signature checks ignore incomplete rows and whitespace.
+const normalizeCredentialEntries = (entries = []) => {
+  return entries
+    .filter((entry) => entry && isCompleteCredentialEntry(entry))
+    .map((entry) => ({
+      subId: entry?.subId?.trim?.() || '',
+      domain: entry?.domain || '',
+      integrationKey: entry?.integrationKey?.trim?.() || '',
+    }));
+};
+
+// Build a stable signature for the current credential set.
+function buildCredentialSignature(entries = []) {
+  return JSON.stringify(normalizeCredentialEntries(entries));
+}
+
+let lastCredentialSignature = buildCredentialSignature(
+  typeof window !== 'undefined' ? window.appCredentials : [],
+);
+
+// Persist credentials and clear cached app selections when the credential set changes.
+const syncCredentialState = (entries = [], setAppCredentialsFn = setAppCredentials) => {
+  const normalizedEntries = normalizeCredentialEntries(entries);
+  const nextSignature = buildCredentialSignature(normalizedEntries);
+
+  if (nextSignature !== lastCredentialSignature) {
+    appSelectionState.entries = [];
+    setMetadataAggregations({});
+    setAppCountsBySubId({});
+    document.dispatchEvent(new Event(AUDIT_STATE_RESET_EVENT));
+  }
+
+  lastCredentialSignature = nextSignature;
+  setAppCredentialsFn(normalizedEntries);
+  return normalizedEntries;
+};
 
 // Persist credentials, set audit mode, and route a shortcut button click.
 export const activateShortcutAction = ({
@@ -21,6 +70,10 @@ export const activateShortcutAction = ({
     return;
   }
 
+  if (subIdFormController?.validateBeforeNavigation && !subIdFormController.validateBeforeNavigation()) {
+    return;
+  }
+
   if (auditMode) {
     setAuditModeFn(auditMode);
   }
@@ -28,7 +81,7 @@ export const activateShortcutAction = ({
   if (subIdFormController?.emitCredentialState) {
     subIdFormController.emitCredentialState();
   } else if (subIdFormController?.getCredentialEntries) {
-    setAppCredentialsFn(subIdFormController.getCredentialEntries());
+    syncCredentialState(subIdFormController.getCredentialEntries(), setAppCredentialsFn);
   }
 
   queryDestinationButton(targetPage)?.click?.();
@@ -36,13 +89,15 @@ export const activateShortcutAction = ({
 
 // Collect SubID form DOM references needed for the controller.
 const querySubIdFormElements = () => {
+  const formElement = document.getElementById('subid-form');
   const fieldsContainer = document.getElementById('subid-fields');
 
-  if (!fieldsContainer) {
+  if (!formElement || !fieldsContainer) {
     return null;
   }
 
   return {
+    formElement,
     fieldsContainer,
   };
 };
@@ -50,20 +105,21 @@ const querySubIdFormElements = () => {
 class SubIdFormController {
   // Set up SubID form state and initial hydration.
   constructor(elements) {
+    this.formElement = elements.formElement;
     this.fieldsContainer = elements.fieldsContainer;
     this.subIdCount = 0;
 
     this.addSubIdField = this.addSubIdField.bind(this);
     this.removeSubIdField = this.removeSubIdField.bind(this);
+    this.validateBeforeNavigation = this.validateBeforeNavigation.bind(this);
 
     this.bindInputEvents();
-    this.addSubIdField();
+    this.addSubIdField({}, { emitCredentialState: false });
   }
 
   // Emit normalized credential state so other SPA modules can react.
   emitCredentialState() {
-    const entries = this.getCredentialEntries();
-    setAppCredentials(entries);
+    const entries = syncCredentialState(this.getCredentialEntries());
 
     document.dispatchEvent(new CustomEvent(CREDENTIAL_STATE_EVENT, { detail: { entries } }));
   }
@@ -91,6 +147,11 @@ class SubIdFormController {
     });
   }
 
+  // Run browser validity checks before allowing page navigation shortcuts.
+  validateBeforeNavigation() {
+    return this.formElement?.reportValidity?.() ?? true;
+  }
+
   // Replace SubID rows with the supplied credential list.
   hydrateFromCredentials(entries = []) {
     if (!Array.isArray(entries) || !entries.length) {
@@ -105,7 +166,7 @@ class SubIdFormController {
         subId: entry?.subId || '',
         domain: entry?.domain || '',
         integrationKey: entry?.integrationKey || '',
-      });
+      }, { emitCredentialState: false });
     });
 
     this.emitCredentialState();
@@ -165,7 +226,8 @@ class SubIdFormController {
   }
 
   // Create a SubID row with optional initial values and render it.
-  addSubIdField({ subId = '', domain = '', integrationKey = '' } = {}) {
+  addSubIdField({ subId = '', domain = '', integrationKey = '' } = {}, options = {}) {
+    const { emitCredentialState = true } = options;
     this.subIdCount += 1;
     const rowId = `row-${this.subIdCount}`;
 
@@ -190,6 +252,8 @@ class SubIdFormController {
     input.value = subId;
 
     const domainSelect = createDomainSelect();
+    domainSelect.required = true;
+    domainSelect.setAttribute('aria-label', 'Pendo domain');
     if (domain) {
       domainSelect.value = domain;
     }
@@ -216,7 +280,9 @@ class SubIdFormController {
 
     this.renumberRows();
     this.attachAddButton();
-    this.emitCredentialState();
+    if (emitCredentialState) {
+      this.emitCredentialState();
+    }
   }
 
   // Collect credential entries from the rendered SubID rows.

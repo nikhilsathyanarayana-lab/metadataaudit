@@ -9,15 +9,16 @@
 </head>
 <body id="field-analysis-body" class="pdf-preview-body pdf-preview-print-mode">
   <main id="field-analysis" class="pdf-overview">
-    <h1 id="field-analysis-title" class="overview-title pdf-keep-together">Field Analysis</h1>
+    <h1 id="field-analysis-title" class="overview-title pdf-keep-together">Field Coverage Analysis</h1>
+    <p id="field-analysis-intro" class="overview-intro pdf-keep-together">Use this page for high-level coverage checks: which metadata fields show up most often across applications, which fields carry the most records, and which fields have the widest range of observed values.</p>
     <div id="field-overview-chart-row" class="chart-row pdf-keep-together">
       <div id="field-bar-card" class="chart-block field-bar-card pdf-keep-together">
-        <h2 id="field-bar-title" class="chart-title">Top 10 Fields per Application</h2>
-        <h3 id="field-sub-bar-title" class="chart-subtitle">Top 10 most commonly found fields in scanned apps</h3>
+        <h2 id="field-bar-title" class="chart-title">Most widely shared fields</h2>
+        <h3 id="field-sub-bar-title" class="chart-subtitle">Top 10 metadata fields found across scanned applications</h3>
         <canvas id="fieldSubBar" class="chart-canvas bar-chart"></canvas>
       </div>
       <div id="field-records-card" class="chart-half table-card field-records-card pdf-keep-together">
-        <h2 id="field-records-title" class="chart-title">Top 10 Received Fields</h2>
+        <h2 id="field-records-title" class="chart-title">Highest-volume fields</h2>
         <table id="field-records-table" class="subscription-summary-table field-records-table">
           <thead id="field-records-head" class="subscription-table-head">
               <tr id="field-records-header-row" class="subscription-header-row">
@@ -29,13 +30,13 @@
         </table>
       </div>
       <div id="field-values-card" class="chart-half table-card field-values-card pdf-keep-together">
-        <h2 id="field-values-title" class="chart-title">Top 10 Most Common Values</h2>
+        <h2 id="field-values-title" class="chart-title">Fields with most distinct values</h2>
         <table id="field-values-table" class="subscription-summary-table field-values-table">
           <thead id="field-values-head" class="subscription-table-head">
             <tr id="field-values-header-row" class="subscription-header-row">
               <th id="field-values-header-field" class="subscription-header-cell" scope="col">Field Name</th>
-              <th id="field-values-header-value" class="subscription-header-cell" scope="col">Value</th>
-              <th id="field-values-header-count" class="subscription-header-cell" scope="col">Occurrences</th>
+              <th id="field-values-header-value" class="subscription-header-cell" scope="col">Example Values</th>
+              <th id="field-values-header-count" class="subscription-header-cell" scope="col">Distinct Values</th>
             </tr>
           </thead>
           <tbody id="field-values-body" class="subscription-table-body"></tbody>

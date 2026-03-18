@@ -345,6 +345,16 @@ const buildCredentialLookup = (credentialResults = []) => {
   return lookup;
 };
 
+// Log when a metadata app cannot be matched to a credential for its SubID.
+const logMissingMetadataCredential = (appEntry) => {
+  // eslint-disable-next-line no-console
+  console.error('[buildMetadataCallPlan] Skipping app because no credential matched its SubID.', {
+    appId: appEntry?.appId || '',
+    appName: appEntry?.appName || '',
+    subId: appEntry?.subId || '',
+  });
+};
+
 // Construct credential-bound API requests for each app to fetch metadata across planned windows.
 export const buildMetadataCallPlan = async (
   appEntries = [],
@@ -368,9 +378,10 @@ export const buildMetadataCallPlan = async (
 
   windowPlan.forEach((windowConfig) => {
     normalizedApps.forEach((appEntry) => {
-      const credential = credentialLookup.get(appEntry.subId) || credentialResults[0]?.credential;
+      const credential = credentialLookup.get(appEntry.subId);
 
       if (!credential) {
+        logMissingMetadataCredential(appEntry);
         return;
       }
 

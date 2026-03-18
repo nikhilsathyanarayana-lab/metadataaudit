@@ -56,6 +56,7 @@ const namespaceSummaryTargets = {
   custom: 'namespace-custom-count',
   salesforce: 'namespace-salesforce-count'
 };
+const emptyValueTokens = new Set(['null', 'undefined']);
 
 // Return true when the page is being rendered for PDF export.
 const isPdfExportContext = () => (
@@ -244,6 +245,119 @@ const collectNamespaceValueTotals = (aggregations = (hasMetadataAggregations() &
 
     return totals;
   }, createNamespaceTotals());
+};
+
+// Return true when a tracked field value should be treated as empty for audit purposes.
+const isEmptyValueLabel = (valueLabel) => {
+  const normalizedLabel = String(valueLabel ?? '').trim();
+
+  return normalizedLabel === '' || emptyValueTokens.has(normalizedLabel.toLowerCase());
+};
+
+// Summarize high-level audit counts used by the overview cards.
+const collectAuditSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  const summary = {
+    appsWithMetadata: 0,
+    fieldsWithValues: 0,
+    distinctValues: 0,
+    fieldsWithEmptyValues: 0,
+    emptyValueCount: 0,
+  };
+
+  if (!aggregations || typeof aggregations !== 'object') {
+    return summary;
+  }
+
+  const fieldMetrics = {};
+
+  Object.values(aggregations).forEach((subBucket) => {
+    const apps = subBucket?.apps;
+
+    if (!apps || typeof apps !== 'object') {
+      return;
+    }
+
+    Object.entries(apps).forEach(([appId, appBucket]) => {
+      const hasProcessedWindow = Object.values(appBucket?.windows || {}).some((windowBucket) => (
+        Boolean(windowBucket?.isProcessed)
+      ));
+
+      if (hasProcessedWindow) {
+        summary.appsWithMetadata += 1;
+      }
+
+      Object.values(appBucket?.windows || {}).forEach((windowBucket) => {
+        Object.entries(windowBucket?.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+          Object.entries(namespaceFields || {}).forEach(([fieldName, fieldBucket]) => {
+            const fieldKey = `${appId}|||${namespaceKey}.${fieldName}`;
+            const values = fieldBucket?.values || {};
+
+            if (!fieldMetrics[fieldKey]) {
+              fieldMetrics[fieldKey] = {
+                distinctValues: new Set(),
+                emptyValueCount: 0,
+              };
+            }
+
+            Object.entries(values).forEach(([valueLabel, count]) => {
+              fieldMetrics[fieldKey].distinctValues.add(valueLabel);
+
+              if (isEmptyValueLabel(valueLabel)) {
+                fieldMetrics[fieldKey].emptyValueCount += Number(count) || 0;
+              }
+            });
+          });
+        });
+      });
+    });
+  });
+
+  Object.values(fieldMetrics).forEach((fieldMetric) => {
+    summary.fieldsWithValues += 1;
+    summary.distinctValues += fieldMetric.distinctValues.size;
+
+    if (fieldMetric.emptyValueCount > 0) {
+      summary.fieldsWithEmptyValues += 1;
+      summary.emptyValueCount += fieldMetric.emptyValueCount;
+    }
+  });
+
+  return summary;
+};
+
+// Populate the overview cards that frame the export around the audit use cases.
+const renderAuditSummary = () => {
+  const summary = collectAuditSummary();
+  const fieldsValue = document.getElementById('audit-summary-fields-value');
+  const fieldsText = document.getElementById('audit-summary-fields-text');
+  const valuesValue = document.getElementById('audit-summary-values-value');
+  const valuesText = document.getElementById('audit-summary-values-text');
+  const emptiesValue = document.getElementById('audit-summary-empties-value');
+  const emptiesText = document.getElementById('audit-summary-empties-text');
+
+  if (fieldsValue) {
+    fieldsValue.textContent = summary.appsWithMetadata.toLocaleString();
+  }
+
+  if (fieldsText) {
+    fieldsText.textContent = `${summary.fieldsWithValues.toLocaleString()} app-level field entries were observed across the scanned timeframe.`;
+  }
+
+  if (valuesValue) {
+    valuesValue.textContent = summary.distinctValues.toLocaleString();
+  }
+
+  if (valuesText) {
+    valuesText.textContent = `${summary.fieldsWithValues.toLocaleString()} fields have at least one tracked value across the export windows.`;
+  }
+
+  if (emptiesValue) {
+    emptiesValue.textContent = summary.fieldsWithEmptyValues.toLocaleString();
+  }
+
+  if (emptiesText) {
+    emptiesText.textContent = `${summary.emptyValueCount.toLocaleString()} blank, null, or undefined values were detected.`;
+  }
 };
 
 // Collect SubIDs from the cached metadata aggregations.
@@ -480,6 +594,7 @@ if (typeof document !== 'undefined') {
 
     renderSubscriptionTable();
     renderNamespaceSummaryCounts();
+    renderAuditSummary();
     renderPdfCharts();
     dispatchPdfReady();
   };
@@ -493,6 +608,7 @@ if (typeof document !== 'undefined') {
       renderNamespaceSummaryCounts();
     }
 
+    renderAuditSummary();
     renderPdfCharts();
     dispatchPdfReady();
   };

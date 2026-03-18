@@ -240,6 +240,10 @@ a:hover {
 }
 
 @media (max-width: 900px) {
+  .audit-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
   .chart-half {
     flex-basis: 100%;
     max-width: 100%;
@@ -289,6 +293,16 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.field-values-example-cell,
+.empty-field-summary-types-cell {
+  text-align: left;
+  font-variant-numeric: normal;
+}
+
+.empty-field-summary-rate-cell {
+  font-weight: 700;
+}
+
 .namespace-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -335,6 +349,48 @@ a:hover {
   color: var(--pendo-pink);
 }
 
+.audit-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.audit-summary-card {
+  background: linear-gradient(180deg, #fff7fb 0%, #ffffff 100%);
+  border: 1px solid rgba(224, 0, 108, 0.12);
+  border-radius: 14px;
+  padding: 1rem;
+}
+
+.audit-summary-label {
+  margin: 0 0 0.35rem;
+  color: #666;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.audit-summary-title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--pendo-charcoal);
+}
+
+.audit-summary-value {
+  margin: 0.65rem 0 0.25rem;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 800;
+  color: var(--pendo-pink);
+}
+
+.audit-summary-text {
+  margin: 0;
+  color: #555;
+  line-height: 1.45;
+}
+
 .metadata-summary-grid {
   display: flex;
   flex-direction: column;
@@ -352,6 +408,14 @@ a:hover {
 
 .field-change-summary {
   font-size: 0.9rem;
+}
+
+.field-summary-guidance-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .field-change-list {

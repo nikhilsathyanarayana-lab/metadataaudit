@@ -17,15 +17,15 @@ const firstContentPage = tableOfContentsStartPage + 1;
 const staticTableOfContentsEntries = [
   {
     entryId: 'toc-entry-overview',
-    description: 'Snapshot of subscriptions, scanned applications, and coverage.',
+    description: 'Audit summary for subscriptions, field coverage, value variety, and empty-field risk.',
   },
   {
     entryId: 'toc-entry-field-analysis',
-    description: 'Field-level completeness analysis across the scanned subscriptions.',
+    description: 'Use case 1 and 2 summary: common fields, highest-volume fields, and fields with broad value variety.',
   },
   {
     entryId: 'toc-entry-field-summary',
-    description: 'Quick field summary with high-level coverage and readiness signals.',
+    description: 'Use case 1 and 3 detail: empty-value hotspots plus field presence by app and timeframe.',
   },
   {
     entryId: 'toc-entry-subscription-details',

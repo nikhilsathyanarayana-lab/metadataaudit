@@ -33,6 +33,7 @@ let subBarData = defaultSubBarData;
 let fieldSubBarChart;
 let fieldTotalsByWindow = {};
 let fieldValueRows = [];
+const emptyValueTokens = new Set(['null', 'undefined']);
 
 // Build a default field total map from the sample chart data.
 const buildDefaultFieldTotals = () => {
@@ -74,6 +75,13 @@ const WINDOW_COLUMNS = [
   { key: 'sevenDay', match: (windowKey) => Number(windowKey) === 7, label: '7-Day Records' },
   { key: 'otherWindows', match: (windowKey) => Number(windowKey) !== 7, label: 'Other Window Records' }
 ];
+
+// Return true when a tracked field value should be treated as empty for audit purposes.
+const isEmptyValueLabel = (valueLabel) => {
+  const normalizedLabel = String(valueLabel ?? '').trim();
+
+  return normalizedLabel === '' || emptyValueTokens.has(normalizedLabel.toLowerCase());
+};
 
 // Check whether the window already includes metadata aggregations we can use.
 const hasMetadataAggregations = () => (
@@ -250,7 +258,7 @@ const renderFieldAnalysis = () => {
   }
 
   if (barTitle) {
-    barTitle.textContent = 'Top 10 Fields per Application';
+    barTitle.textContent = 'Most widely shared fields';
   }
 
   fieldSubBarChart?.destroy();
@@ -288,13 +296,13 @@ const renderFieldRecordsTable = (rows = fieldRecordRows) => {
   });
 };
 
-// Build a printable string for field values in the PDF summary table.
-const formatFieldValueLabel = (value) => {
-  if (typeof value === 'string' && value.length) {
-    return value;
+// Build a printable string for example field values in the PDF summary table.
+const formatFieldExamples = (examples = []) => {
+  if (!Array.isArray(examples) || !examples.length) {
+    return 'No populated examples';
   }
 
-  return String(value ?? '');
+  return examples.join(', ');
 };
 
 // Render the top field value occurrences table next to received field totals.
@@ -320,13 +328,13 @@ const renderFieldValuesTable = (rows = fieldValueRows) => {
 
     const valueCell = document.createElement('td');
     valueCell.id = `field-value-label-${rowNumber}`;
-    valueCell.className = 'subscription-label-cell field-value-label-cell';
-    valueCell.textContent = formatFieldValueLabel(row.valueLabel);
+    valueCell.className = 'subscription-label-cell field-value-label-cell field-values-example-cell';
+    valueCell.textContent = formatFieldExamples(row.exampleValues);
 
     const countCell = document.createElement('td');
     countCell.id = `field-value-count-${rowNumber}`;
     countCell.className = 'subscription-count-cell field-value-count-cell';
-    countCell.textContent = Number(row.recordCount || 0).toLocaleString();
+    countCell.textContent = Number(row.distinctValueCount || 0).toLocaleString();
 
     summaryRow.append(fieldCell, valueCell, countCell);
     tableBody.appendChild(summaryRow);
@@ -376,13 +384,13 @@ const buildFieldRecordRows = (totalsByWindow = fieldTotalsByWindow) => {
     .map(([fieldName, recordCount]) => ({ fieldName, recordCount }));
 };
 
-// Merge value totals by fully-qualified field key so repeated value text stays field-specific.
+// Build per-field distinct value summaries so the PDF shows value variety, not just top occurrences.
 const buildFieldValueRows = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   if (!aggregations || typeof aggregations !== 'object') {
     return [];
   }
 
-  const valueTotals = {};
+  const fieldValueTotals = {};
 
   Object.values(aggregations).forEach((subBucket) => {
     const apps = subBucket?.apps;
@@ -400,21 +408,29 @@ const buildFieldValueRows = (aggregations = (hasMetadataAggregations() && window
 
           Object.entries(namespaceFields).forEach(([fieldName, fieldBucket]) => {
             const fieldKey = `${namespaceKey}.${fieldName}`;
+            const values = fieldBucket?.values || {};
 
-            Object.entries(fieldBucket?.values || {}).forEach(([valueLabel, total]) => {
+            if (!fieldValueTotals[fieldKey]) {
+              fieldValueTotals[fieldKey] = {
+                fieldName: fieldKey,
+                recordCount: 0,
+                distinctValues: new Set(),
+                exampleCounts: {},
+              };
+            }
+
+            Object.entries(values).forEach(([valueLabel, total]) => {
               const numericTotal = Number(total) || 0;
 
               if (!numericTotal) {
                 return;
               }
 
-              const valueKey = `${fieldKey}|||${valueLabel}`;
-
-              if (!valueTotals[valueKey]) {
-                valueTotals[valueKey] = { fieldName: fieldKey, valueLabel, recordCount: 0 };
-              }
-
-              valueTotals[valueKey].recordCount += numericTotal;
+              fieldValueTotals[fieldKey].distinctValues.add(valueLabel);
+              fieldValueTotals[fieldKey].recordCount += numericTotal;
+              fieldValueTotals[fieldKey].exampleCounts[valueLabel] = (
+                fieldValueTotals[fieldKey].exampleCounts[valueLabel] || 0
+              ) + numericTotal;
             });
           });
         });
@@ -422,8 +438,20 @@ const buildFieldValueRows = (aggregations = (hasMetadataAggregations() && window
     });
   });
 
-  return Object.values(valueTotals)
-    .sort((first, second) => Number(second.recordCount) - Number(first.recordCount))
+  return Object.values(fieldValueTotals)
+    .map((entry) => ({
+      fieldName: entry.fieldName,
+      distinctValueCount: entry.distinctValues.size,
+      recordCount: entry.recordCount,
+      exampleValues: Object.entries(entry.exampleCounts || {})
+        .filter(([valueLabel]) => !isEmptyValueLabel(valueLabel))
+        .sort((first, second) => Number(second[1]) - Number(first[1]))
+        .slice(0, 3)
+        .map(([valueLabel]) => valueLabel),
+    }))
+    .sort((first, second) => Number(second.distinctValueCount) - Number(first.distinctValueCount)
+      || Number(second.recordCount) - Number(first.recordCount)
+      || first.fieldName.localeCompare(second.fieldName))
     .slice(0, 10);
 };
 

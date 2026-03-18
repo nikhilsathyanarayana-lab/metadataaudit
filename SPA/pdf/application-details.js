@@ -286,7 +286,7 @@ const buildApplicationCard = (template, summary) => {
   }
 
   if (summaryText) {
-    summaryText.textContent = `Sub ID ${summary.subDisplay} coverage with ${summary.uniqueFieldCount} unique fields across namespaces.`;
+    summaryText.textContent = `Sub ID ${summary.subDisplay} observed ${summary.uniqueFieldCount} unique fields across the scanned audit windows.`;
   }
 
   if (subIdValue) {

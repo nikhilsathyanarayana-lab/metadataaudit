@@ -1,4 +1,5 @@
 const METADATA_NAMESPACES = ['visitor', 'account', 'custom', 'salesforce'];
+const emptyValueTokens = new Set(['null', 'undefined']);
 
 
 // Dispatch a ready signal after this PDF page finishes rendering.
@@ -33,6 +34,32 @@ const resolveSubscriptionDisplay = (subId) => {
 const formatSubscriptionDisplay = (subId) => {
   const rawSubId = String(subId || 'Unknown SubID');
   return resolveSubscriptionDisplay(rawSubId);
+};
+
+// Return true when a tracked field value should be treated as empty for audit purposes.
+const isEmptyValueLabel = (valueLabel) => {
+  const normalizedLabel = String(valueLabel ?? '').trim();
+
+  return normalizedLabel === '' || emptyValueTokens.has(normalizedLabel.toLowerCase());
+};
+
+// Format a tracked empty token into reader-friendly export text.
+const formatEmptyValueType = (valueLabel) => {
+  const normalizedLabel = String(valueLabel ?? '').trim().toLowerCase();
+
+  if (normalizedLabel === '') {
+    return 'blank string';
+  }
+
+  if (normalizedLabel === 'null') {
+    return 'null';
+  }
+
+  if (normalizedLabel === 'undefined') {
+    return 'undefined';
+  }
+
+  return String(valueLabel);
 };
 
 
@@ -415,50 +442,177 @@ const buildFieldChangeFindings = () => {
   return findings;
 };
 
-// Render field change findings after the tables finish rendering.
-const renderFieldChangeSummary = () => {
-  const renderFindings = () => {
-    const summaryContainer = document.getElementById('field-change-summary');
+// Build empty-value hotspots across all app/window field buckets.
+const buildEmptyValueRows = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  const rowsByField = {};
 
-    if (!summaryContainer) {
-      dispatchPdfReady();
-      return;
-    }
+  if (!aggregations || typeof aggregations !== 'object') {
+    return [];
+  }
 
-    const findings = buildFieldChangeFindings();
-    summaryContainer.innerHTML = '';
+  Object.entries(aggregations).forEach(([subId, subBucket]) => {
+    const apps = subBucket?.apps || {};
+    const subDisplay = formatSubscriptionDisplay(subId || 'Unknown SubID');
 
-    if (!findings.length) {
-      const emptyMessage = document.createElement('p');
-      emptyMessage.id = 'field-change-empty-message';
-      emptyMessage.className = 'field-change-text field-change-text--empty';
-      emptyMessage.textContent = 'No field comparisons available yet.';
-      summaryContainer.appendChild(emptyMessage);
-    } else {
-      const sentenceList = document.createElement('ul');
-      sentenceList.id = 'field-change-list';
-      sentenceList.className = 'field-change-list';
+    Object.entries(apps).forEach(([appId, appBucket]) => {
+      const appName = appBucket?.appName || appId || 'Unknown app';
 
-      findings.forEach((sentence, index) => {
-        const listItem = document.createElement('li');
-        listItem.id = `field-change-item-${String(index + 1).padStart(2, '0')}`;
-        listItem.className = 'field-change-text';
-        listItem.textContent = sentence;
-        sentenceList.appendChild(listItem);
+      Object.values(appBucket?.windows || {}).forEach((windowBucket) => {
+        Object.entries(windowBucket?.namespaces || {}).forEach(([namespaceKey, namespaceFields]) => {
+          Object.entries(namespaceFields || {}).forEach(([fieldName, fieldBucket]) => {
+            const rowKey = `${subId}|||${appId}|||${namespaceKey}.${fieldName}`;
+            const totalCount = Number(fieldBucket?.total) || 0;
+
+            if (!rowsByField[rowKey]) {
+              rowsByField[rowKey] = {
+                fieldName: `${namespaceKey}.${fieldName}`,
+                applicationLabel: `${appName} (${subDisplay})`,
+                emptyTypes: new Set(),
+                emptyCount: 0,
+                totalCount: 0,
+              };
+            }
+
+            rowsByField[rowKey].totalCount += totalCount;
+
+            Object.entries(fieldBucket?.values || {}).forEach(([valueLabel, count]) => {
+              const numericCount = Number(count) || 0;
+
+              if (!numericCount || !isEmptyValueLabel(valueLabel)) {
+                return;
+              }
+
+              rowsByField[rowKey].emptyCount += numericCount;
+              rowsByField[rowKey].emptyTypes.add(formatEmptyValueType(valueLabel));
+            });
+          });
+        });
       });
+    });
+  });
 
-      summaryContainer.appendChild(sentenceList);
-    }
+  return Object.values(rowsByField)
+    .filter((row) => row.emptyCount > 0 && row.totalCount > 0)
+    .map((row) => ({
+      ...row,
+      emptyRate: row.totalCount > 0 ? (row.emptyCount / row.totalCount) : 0,
+      emptyTypes: [...row.emptyTypes].sort((first, second) => first.localeCompare(second)),
+    }))
+    .sort((first, second) => Number(second.emptyCount) - Number(first.emptyCount)
+      || Number(second.emptyRate) - Number(first.emptyRate)
+      || first.fieldName.localeCompare(second.fieldName))
+    .slice(0, 12);
+};
 
-    dispatchPdfReady();
-  };
+// Render the empty-value hotspot table above the namespace detail tables.
+const renderEmptyFieldSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  const tableBody = document.getElementById('empty-field-summary-body');
+  const rows = buildEmptyValueRows(aggregations);
 
-  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(renderFindings);
+  if (!tableBody) {
     return;
   }
 
-  renderFindings();
+  tableBody.innerHTML = '';
+
+  if (!rows.length) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.id = 'empty-field-summary-empty-row';
+    emptyRow.className = 'metadata-row metadata-row--empty';
+    const emptyCell = document.createElement('td');
+    emptyCell.id = 'empty-field-summary-empty-cell';
+    emptyCell.className = 'metadata-cell metadata-cell--empty';
+    emptyCell.colSpan = 5;
+    emptyCell.textContent = 'No blank, null, or undefined values were detected in the scanned metadata.';
+    emptyRow.appendChild(emptyCell);
+    tableBody.appendChild(emptyRow);
+    return;
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = String(index + 1).padStart(2, '0');
+    const tableRow = document.createElement('tr');
+    tableRow.id = `empty-field-summary-row-${rowNumber}`;
+    tableRow.className = 'metadata-row empty-field-summary-row';
+
+    const fieldCell = document.createElement('td');
+    fieldCell.id = `empty-field-summary-field-${rowNumber}`;
+    fieldCell.className = 'metadata-cell empty-field-summary-field-cell';
+    fieldCell.textContent = row.fieldName;
+
+    const applicationCell = document.createElement('td');
+    applicationCell.id = `empty-field-summary-application-${rowNumber}`;
+    applicationCell.className = 'metadata-cell empty-field-summary-application-cell';
+    applicationCell.textContent = row.applicationLabel;
+
+    const typeCell = document.createElement('td');
+    typeCell.id = `empty-field-summary-types-${rowNumber}`;
+    typeCell.className = 'metadata-cell empty-field-summary-types-cell';
+    typeCell.textContent = row.emptyTypes.join(', ');
+
+    const countCell = document.createElement('td');
+    countCell.id = `empty-field-summary-count-${rowNumber}`;
+    countCell.className = 'metadata-cell empty-field-summary-count-cell';
+    countCell.textContent = row.emptyCount.toLocaleString();
+
+    const rateCell = document.createElement('td');
+    rateCell.id = `empty-field-summary-rate-${rowNumber}`;
+    rateCell.className = 'metadata-cell empty-field-summary-rate-cell';
+    rateCell.textContent = `${(row.emptyRate * 100).toFixed(1)}%`;
+
+    tableRow.append(fieldCell, applicationCell, typeCell, countCell, rateCell);
+    tableBody.appendChild(tableRow);
+  });
+};
+
+// Render a concise guide so the PDF maps clearly to the audit use cases.
+const renderFieldChangeSummary = (rowsByNamespace = {}, aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
+  const summaryContainer = document.getElementById('field-change-summary');
+
+  if (!summaryContainer) {
+    dispatchPdfReady();
+    return;
+  }
+
+  const trackedApps = new Set();
+  const visibleNamespaces = METADATA_NAMESPACES.filter((namespace) => (
+    Array.isArray(rowsByNamespace[namespace]) && rowsByNamespace[namespace].some((row) => hasPopulatedNamespaceRow(row))
+  ));
+  const emptyRows = buildEmptyValueRows(aggregations);
+
+  Object.values(aggregations || {}).forEach((subBucket) => {
+    Object.entries(subBucket?.apps || {}).forEach(([appId, appBucket]) => {
+      const hasProcessedWindow = Object.values(appBucket?.windows || {}).some((windowBucket) => (
+        Boolean(windowBucket?.isProcessed)
+      ));
+
+      if (hasProcessedWindow) {
+        trackedApps.add(appId);
+      }
+    });
+  });
+
+  summaryContainer.innerHTML = '';
+
+  const guidanceList = document.createElement('ul');
+  guidanceList.id = 'field-summary-guidance-list';
+  guidanceList.className = 'field-summary-guidance-list';
+
+  [
+    `Use case 1: ${trackedApps.size.toLocaleString()} applications have metadata in this export. Review the namespace tables below to see which fields appeared in 7-day, 30-day, and 180-day windows.`,
+    `Use case 2: Review the "Fields with most distinct values" table on the previous page to find fields with the widest value variety.`,
+    `Use case 3: ${emptyRows.length.toLocaleString()} empty-field hotspots are listed below. These rows highlight blank strings, nulls, and undefined values reaching metadata fields.`,
+    `Namespaces shown in this export: ${visibleNamespaces.length ? visibleNamespaces.map((namespace) => formatNamespaceTitle(namespace)).join(', ') : 'none yet'}.`,
+  ].forEach((sentence, index) => {
+    const listItem = document.createElement('li');
+    listItem.id = `field-summary-guidance-item-${String(index + 1).padStart(2, '0')}`;
+    listItem.className = 'field-change-text';
+    listItem.textContent = sentence;
+    guidanceList.appendChild(listItem);
+  });
+
+  summaryContainer.appendChild(guidanceList);
+  dispatchPdfReady();
 };
 
 // Convert a field list into a printable string.
@@ -577,6 +731,8 @@ const toggleNamespaceCardVisibility = (namespace, rows = []) => {
 const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && window.metadataAggregations)) => {
   const rowsByNamespace = mapAggregationsToRows(aggregations);
 
+  renderEmptyFieldSummary(aggregations);
+
   METADATA_NAMESPACES.forEach((namespace) => {
     const namespaceRows = rowsByNamespace[namespace];
     const shouldRenderCard = toggleNamespaceCardVisibility(namespace, namespaceRows);
@@ -585,7 +741,7 @@ const renderMetadataSummary = (aggregations = (hasMetadataAggregations() && wind
       renderTableRows(namespace, namespaceRows);
     }
   });
-  renderFieldChangeSummary();
+  renderFieldChangeSummary(rowsByNamespace, aggregations);
 };
 
 // Process incoming metadata messages from the parent window.

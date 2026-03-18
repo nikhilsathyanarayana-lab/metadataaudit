@@ -66,14 +66,23 @@ const recordAppCounts = (credentialResults = []) => {
   nextCounts.forEach((count, subId) => appCountsBySubId.set(subId, count));
 };
 
-// Clean up credential inputs and drop empty entries.
+// Return true when a credential row includes every required field.
+const isCompleteCredential = (entry = {}) => {
+  return Boolean(
+    entry?.subId?.trim?.()
+    && entry?.domain
+    && entry?.integrationKey?.trim?.(),
+  );
+};
+
+// Clean up credential inputs and drop incomplete entries.
 const normalizeCredentials = (entries = []) =>
   entries
-    .filter((entry) => entry && (entry.subId || entry.domain || entry.integrationKey))
+    .filter((entry) => entry && isCompleteCredential(entry))
     .map((entry) => ({
-      subId: entry.subId || '',
-      domain: entry.domain || '',
-      integrationKey: entry.integrationKey || '',
+      subId: entry?.subId?.trim?.() || '',
+      domain: entry?.domain || '',
+      integrationKey: entry?.integrationKey?.trim?.() || '',
     }));
 
 // Persist normalized credentials for later API calls.

@@ -8,10 +8,26 @@
 </head>
 <body id="metadata-summary-body" class="pdf-preview-body pdf-preview-print-mode">
   <main id="metadata-summary" class="pdf-overview">
-    <h1 id="metadata-summary-title" class="overview-title pdf-keep-together">Field Summary</h1>
+    <h1 id="metadata-summary-title" class="overview-title pdf-keep-together">Field Presence by Application</h1>
+    <p id="metadata-summary-intro" class="overview-intro pdf-keep-together">This page turns the export into an audit worksheet: review the guidance card first, check the empty-value hotspot table for data quality issues, then use the namespace tables to see which fields were present in each timeframe.</p>
     <section id="field-change-summary-card" class="table-card metadata-card pdf-keep-together">
-      <h2 id="field-change-summary-title" class="chart-title">Field Comparison Overview</h2>
+      <h2 id="field-change-summary-title" class="chart-title">Audit guide</h2>
       <div id="field-change-summary" class="field-change-summary"></div>
+    </section>
+    <section id="empty-field-summary-card" class="table-card metadata-card pdf-keep-together">
+      <h2 id="empty-field-summary-title" class="chart-title">Empty Value Hotspots</h2>
+      <table id="empty-field-summary-table" class="metadata-table">
+        <thead id="empty-field-summary-head" class="metadata-table-head">
+          <tr id="empty-field-summary-header-row" class="metadata-header-row">
+            <th id="empty-field-header-field" class="metadata-header-cell" scope="col">Field</th>
+            <th id="empty-field-header-application" class="metadata-header-cell" scope="col">Application</th>
+            <th id="empty-field-header-types" class="metadata-header-cell" scope="col">Empty Types</th>
+            <th id="empty-field-header-count" class="metadata-header-cell" scope="col">Empty Values</th>
+            <th id="empty-field-header-rate" class="metadata-header-cell" scope="col">Empty Rate</th>
+          </tr>
+        </thead>
+        <tbody id="empty-field-summary-body" class="metadata-table-body"></tbody>
+      </table>
     </section>
     <div id="metadata-summary-grid" class="metadata-summary-grid pdf-keep-together">
       <section id="visitor-metadata-card" class="table-card metadata-card pdf-keep-together">
