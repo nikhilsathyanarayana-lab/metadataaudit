@@ -482,6 +482,7 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
     tabButton.role = 'tab';
     tabButton.textContent = sheet?.name || `Sheet ${index + 1}`;
     tabButton.dataset.sheetName = sheet?.name || '';
+    tabButton.dataset.autotag = 'feature-page-5-fixed-sheet-tab';
     tabButton.setAttribute('aria-controls', 'excel-preview-frame');
     tabButton.addEventListener('click', () => onSelect?.(sheet?.name));
     tabList.append(tabButton);
@@ -494,6 +495,7 @@ const renderExcelTabs = (tabList, sheets, onSelect, activeName) => {
     appSelectorButton.id = 'excel-app-selector-button';
     appSelectorButton.dataset.role = 'app-selector';
     appSelectorButton.setAttribute('aria-label', 'Select app worksheet preview');
+    appSelectorButton.dataset.autotag = 'feature-page-5-app-sheet-selector';
 
     appSelectorButton.addEventListener('click', async () => {
       const selectedName = await openAppSheetModal(
@@ -524,6 +526,7 @@ const openAppSheetModal = async (sheetNames = [], activeName = '') => {
     backdrop = document.createElement('div');
     backdrop.id = backdropId;
     backdrop.className = 'modal-backdrop';
+    backdrop.dataset.autotag = 'feature-modal-excel-app-selector-backdrop';
     backdrop.hidden = true;
     document.body.append(backdrop);
   }
@@ -532,6 +535,7 @@ const openAppSheetModal = async (sheetNames = [], activeName = '') => {
     modal = document.createElement('section');
     modal.id = modalId;
     modal.className = 'modal excel-app-selector-modal';
+    modal.dataset.autotag = 'feature-modal-excel-app-selector';
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-labelledby', 'excel-app-selector-title');
@@ -568,6 +572,7 @@ const openAppSheetModal = async (sheetNames = [], activeName = '') => {
     appButton.id = `excel-app-option-${index}`;
     appButton.textContent = sheetName;
     appButton.dataset.sheetName = sheetName;
+    appButton.dataset.autotag = 'feature-modal-excel-app-option';
     if (sheetName === activeName) {
       appButton.classList.add('is-active');
     }
@@ -640,6 +645,7 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
     backdrop = document.createElement('div');
     backdrop.id = backdropId;
     backdrop.className = 'modal-backdrop';
+    backdrop.dataset.autotag = 'feature-modal-excel-exclude-backdrop';
     backdrop.hidden = true;
     document.body.append(backdrop);
   }
@@ -648,6 +654,7 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
     modal = document.createElement('section');
     modal.id = modalId;
     modal.className = 'modal excel-exclude-modal';
+    modal.dataset.autotag = 'feature-modal-excel-exclude';
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-labelledby', 'excel-exclude-modal-title');
@@ -709,6 +716,7 @@ const openExcludeSheetModal = async (sheetNames = [], excluded = new Set()) => {
     const wrapper = document.createElement('label');
     wrapper.className = 'checkbox excel-exclude-checkbox-row';
     wrapper.id = `excel-exclude-option-${index}`;
+    wrapper.dataset.autotag = 'feature-modal-excel-exclude-option';
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';

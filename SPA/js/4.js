@@ -559,6 +559,8 @@ const loadExclusionModal = async () => {
     return null;
   }
 
+  backdrop.dataset.autotag = 'feature-modal-export-exclusion-backdrop';
+  modal.dataset.autotag = 'feature-modal-export-exclusion';
   document.body.append(backdrop, modal);
 
   return { modal, backdrop };
@@ -578,6 +580,7 @@ const assembleExportPages = async () => {
       frame.setAttribute('aria-hidden', 'true');
       frame.style.width = '1px';
       frame.style.height = '1px';
+      frame.dataset.autotag = 'feature-page-4-export-assembly-frame';
 
       stagingArea.appendChild(frame);
       pages.push({ source, body: await cloneFrameBody(frame) });
