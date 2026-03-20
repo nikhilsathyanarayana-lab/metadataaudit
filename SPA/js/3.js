@@ -519,6 +519,7 @@ const createFieldTypesRow = (fieldName) => {
   listItem.className = 'metadata-tree__value fieldtypes-row';
   listItem.setAttribute('role', 'row');
   listItem.dataset.fieldName = fieldName;
+  listItem.dataset.autotag = 'feature-page-3-fieldtypes-row';
 
   const savedSelection = getFieldTypeSelection(fieldName);
 
@@ -616,6 +617,7 @@ const renderFieldTypesList = () => {
     const emptyItem = document.createElement('li');
     emptyItem.className = 'metadata-tree__value fieldtypes-row fieldtypes-row--empty';
     emptyItem.setAttribute('role', 'row');
+    emptyItem.dataset.autotag = 'feature-page-3-fieldtypes-empty-state';
     emptyItem.textContent = 'No fields available yet. Keep the metadata scan running and this list will fill in as fields arrive.';
     list.appendChild(emptyItem);
     return;

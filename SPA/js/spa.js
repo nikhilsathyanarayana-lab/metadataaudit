@@ -1,5 +1,67 @@
 import { renderSpaNavigation } from './nav.js';
 
+const expectedAutotagsByPage = {
+  1: ['feature-page-1-root', 'feature-page-1-subid-entry'],
+  2: ['feature-page-2-root', 'feature-page-2-app-selection'],
+  3: [
+    'feature-page-3-root',
+    'feature-page-3-metadata-tables',
+    'feature-page-3-visitor-metadata',
+    'feature-page-3-account-metadata',
+    'feature-page-3-custom-metadata',
+    'feature-page-3-salesforce-metadata',
+  ],
+  4: [
+    'feature-page-4-root',
+    'feature-page-4-export-preview',
+    'feature-page-4-preview-navigation',
+    'feature-page-4-assembled-preview',
+    'feature-page-4-source-preview',
+  ],
+  5: [
+    'feature-page-5-root',
+    'feature-page-5-xlsx-export',
+    'feature-page-5-sheet-tabs',
+    'feature-page-5-preview-frame',
+  ],
+};
+
+// Scan and report duplicate autotags plus missing expected tags for the rendered view.
+const validateAutotags = (scopeElement, expectedTags = []) => {
+  if (!scopeElement) {
+    return;
+  }
+
+  const taggedElements = Array.from(scopeElement.querySelectorAll('[data-autotag]'));
+  const autotagCounts = new Map();
+
+  taggedElements.forEach((element) => {
+    const tag = element.dataset?.autotag?.trim();
+
+    if (!tag) {
+      // eslint-disable-next-line no-console
+      console.warn('Found a blank data-autotag value.', element);
+      return;
+    }
+
+    autotagCounts.set(tag, (autotagCounts.get(tag) || 0) + 1);
+  });
+
+  autotagCounts.forEach((count, tag) => {
+    if (count > 1) {
+      // eslint-disable-next-line no-console
+      console.warn(`Duplicate data-autotag detected: "${tag}" (${count} elements).`);
+    }
+  });
+
+  expectedTags.forEach((tag) => {
+    if (!autotagCounts.has(tag)) {
+      // eslint-disable-next-line no-console
+      console.warn(`Missing expected data-autotag: "${tag}".`);
+    }
+  });
+};
+
 // Wait for the DOM to be parsed before wiring up SPA navigation and page switching.
 document.addEventListener('DOMContentLoaded', async () => {
   try {
@@ -182,6 +244,8 @@ function initPageSwitcher() {
       if (sectionEntry.initialized && sectionEntry.module?.onShow) {
         await sectionEntry.module.onShow(sectionEntry.element);
       }
+
+      validateAutotags(sectionContainer, expectedAutotagsByPage[pageId] || []);
       showStatus('');
     } catch (error) {
       // eslint-disable-next-line no-console
