@@ -336,6 +336,7 @@ h1 {
 }
 
 .subid-actions {
+  align-items: flex-start;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
